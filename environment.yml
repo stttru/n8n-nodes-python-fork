@@ -1,0 +1,10 @@
+name: n8n-python-dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - fire==0.7.0
+    - termcolor 

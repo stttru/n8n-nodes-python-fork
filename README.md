@@ -1,142 +1,186 @@
-# n8n-nodes-python
+# n8n-nodes-python-raw
 
 ![n8n.io - Workflow Automation](https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-logo.png)
 
-PythonFunction module - custom node for running python code on n8n.
+**Fork of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-nodes-python)** - Python Function node for n8n with raw script execution and output.
 
-> run python code on n8n
+> Execute pure Python scripts in n8n and get raw execution results
 
-# Python Function
+## Key Differences from Original
 
-PythonFunction node is used to run custom Python snippets to transform data or to implement some custom functionality
-that n8n does not support yet.
+This fork provides a fundamentally different approach to Python execution in n8n:
+
+| Original Node | This Fork (Raw) |
+|--------------|-----------------|
+| Item-by-item processing | Single script execution |
+| Returns transformed items | Returns execution metadata |
+| Uses python-fire wrapper | Direct Python execution |
+| Hidden stdout/stderr | Full stdout/stderr capture |
+| Fire-based argument passing | Direct variable injection |
+
+## Features
+
+✅ **Single Execution**: Script runs once regardless of input item count  
+✅ **Raw Output**: Access to stdout, stderr, and exit codes  
+✅ **Direct Input**: All input items available as `input_items` variable  
+✅ **Environment Variables**: Access to custom environment variables  
+✅ **Configurable Python**: Choose Python executable path  
+✅ **Execution Metadata**: Timestamps, success status, error details  
+
+## Output Format
+
+The node returns a single item with execution results:
+
+```json
+{
+  "exitCode": 0,
+  "stdout": "Output from print() statements",
+  "stderr": "Error messages and warnings",
+  "success": true,
+  "error": null,
+  "inputItemsCount": 3,
+  "executedAt": "2024-01-01T12:00:00.000Z"
+}
+```
+
+## Usage Example
+
+```python
+# Available variables:
+# - input_items: list of all input data
+# - env_vars: dict of environment variables
+
+import json
+import sys
+
+# Process input data
+print(f"Processing {len(input_items)} items")
+
+results = []
+for item in input_items:
+    # Your processing logic here
+    processed = {"original": item, "processed": True}
+    results.append(processed)
+
+# Output results (will appear in stdout)
+print(json.dumps(results, indent=2))
+
+# Exit with success
+sys.exit(0)
+```
 
 # Installation
 
-## Using n8n-python Docker Image (Recommended)
+## Using npm
 
-This node is pre-installed in
-the [n8n-python](https://github.com/naskio/docker-n8n-python) [docker image](https://hub.docker.com/r/naskio/n8n-python)
-.
-
-- Use `n8n-python:latest-debian` if you are planning to install heavy python packages such as `numpy` or `pandas`.
-- Use `n8n-python:latest` for a more lightweight image.
-
-> Example using [docker-compose.yml](https://github.com/naskio/docker-n8n-python/blob/main/demo/docker-compose-local.yml)
-
-## Adding external packages
-
-You can mount a `requirements.txt` file to the container to install additional packages.
-
-You can use the [ExecuteCommand](https://n8n.io/integrations/n8n-nodes-base.executeCommand) node to
-run `pip install -r requirements.txt`
-and the [n8nTrigger](https://n8n.io/integrations/n8n-nodes-base.n8nTrigger) node to trigger it after each **restart**.
-
-## Install Locally
-
-### 1- Install Requirements
-
-This node requires the following dependencies to be installed in your environment:
-
-- Python 3.6 or higher
-	```shell
-	python3 --version # check output version
-	```
-
-- [python-fire](https://www.github.com/google/python-fire)
-	```shell
-	# install fire
-	pip install fire
-	```
-
-### 2- Add n8n-nodes-python to your n8n instance
-
-If you’re running either by installing it globally or via PM2, make sure that you install `n8n-nodes-python` inside n8n.
-n8n will find the module and load it automatically.
-
-If using docker, add the following line to your `Dockerfile`:
-
-```shell
-# Install n8n-nodes-python module
-RUN cd /usr/local/lib/node_modules/n8n && npm install n8n-nodes-python
+```bash
+npm install @zgxsuerwtmrhjzt/n8n-nodes-python-raw
 ```
 
-Read more about the installation process in
-the [n8n documentation - Use the n8n-nodes-module in production](https://docs.n8n.io/nodes/creating-nodes/create-n8n-nodes-module.html#use-the-n8n-nodes-module-in-production)
-.
+## Using Docker
 
-# Usage
+Add to your n8n Dockerfile:
 
-This node receives `ìtems` and should return a list of `items`.
-
-Example:
-
-```python3
-new_items = []
-for item in items:
-		item['newField'] = 'newValue'
-		new_items.append(item)
-return new_items # should return a list
+```dockerfile
+RUN cd /usr/local/lib/node_modules/n8n && npm install @zgxsuerwtmrhjzt/n8n-nodes-python-raw
 ```
 
-> The JSON attribute of each item is added and removed automatically.
-> You can access the values directly without the `json` attribute.
-> You don't need to put the item in a `json` attribute. it will be done automatically.
+## Local Development
 
-## Variable: items
+See [DEVELOPMENT_SETUP.md](DEVELOPMENT_SETUP.md) for development environment setup.
 
-the `items` variable is a list of items that are passed to the function. They are directly accessible in the function.
+# Requirements
 
-Example:
+- **Python 3.6+** installed and accessible
+- **n8n** running environment
 
-```python3
-print(items)
-# > list
-return items
+# Node Configuration
+
+## Python Code
+Write your Python script directly. Available variables:
+- `input_items`: List of input data from previous nodes
+- `env_vars`: Dictionary of environment variables
+
+## Python Executable
+Specify the Python executable:
+- `python3` (default)
+- `python`
+- `/usr/bin/python3`
+- `/path/to/conda/envs/myenv/bin/python`
+
+## Environment Variables (Optional)
+Use the PythonEnvVars credential to provide environment variables to your script.
+
+# Use Cases
+
+## Data Analysis
+```python
+import json
+import statistics
+
+# Analyze input data
+numbers = [item.get('value', 0) for item in input_items]
+result = {
+    "count": len(numbers),
+    "mean": statistics.mean(numbers) if numbers else 0,
+    "median": statistics.median(numbers) if numbers else 0
+}
+
+print(json.dumps(result))
 ```
 
-## Credentials: env_vars (optional)
+## External API Integration
+```python
+import requests
+import json
 
-You can specify environment variables to be used in the python code. The environment variables are accessible throw
-the `env_vars` dict.
-
-Example:
-
-```python3
-print(env_vars)
-print(env_vars.get('MY_VAR','default_value'))
-# > dict
+# Call external API
+response = requests.get("https://api.example.com/data")
+if response.status_code == 200:
+    print(json.dumps(response.json()))
+    sys.exit(0)
+else:
+    print(f"API call failed: {response.status_code}", file=sys.stderr)
+    sys.exit(1)
 ```
 
-## Logging to the browser console
+## File Processing
+```python
+import os
+import json
 
-it is possible to write to the browser console by writing to `stdout`
+# Process files
+processed_files = []
+for item in input_items:
+    if 'filename' in item:
+        if os.path.exists(item['filename']):
+            processed_files.append(item['filename'])
 
-Example:
-
+result = {"processed_files": processed_files}
+print(json.dumps(result))
 ```
-print('Hello World')
-# or
-import sys
-sys.stdout.write('Hello World')
-```
 
-# Notes
+# Original Project Credits
 
-- `stderr`is used for passing data between nodes.
+This fork is based on [n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) by Mehdi Nassim KHODJA.
 
-	- if exit code is 0, the node will be executed successfully and `stderr` represents the JSON representation of the
-		output of the node
-	- if exit code is not 0, the node fails and `stderr` represents the error message
+## License
 
+Apache 2.0 with Commons Clause - see [LICENSE.md](LICENSE.md)
 
-- The `json` attribute of each item is added and removed automatically. (you can access and return the items directly
-	without the `json` attribute)
+## Contributing
 
-# Contribute
+1. Fork this repository
+2. Make your changes
+3. Update package.json with your npm username
+4. Test your changes
+5. Submit a pull request
 
-Pull requests are welcome! For any bug reports, please create an issue.
+## Support
 
-# License
+For issues specific to this fork, please create an issue in this repository.
+For general n8n questions, refer to the [n8n documentation](https://docs.n8n.io/).
 
-[Apache 2.0 with Commons Clause](LICENSE.md)
+---
+
+**Note**: This is a fork with significant modifications. For the original item-processing behavior, use the [original package](https://www.npmjs.com/package/n8n-nodes-python).

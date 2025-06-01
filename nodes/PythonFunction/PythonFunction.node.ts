@@ -17,20 +17,19 @@ export interface IExecReturnData {
 	error?: Error;
 	stderr: string;
 	stdout: string;
-	items?: IDataObject[];
 }
 
 
 export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Python Function',
-		name: 'pythonFunction',
+		displayName: 'Python Function (Raw)',
+		name: 'pythonFunctionRaw',
 		icon: 'fa:code',
 		group: ['transform'],
 		version: 1,
-		description: 'Run custom Python 3.10 code which gets executed once and allows you to add, remove, change and replace items',
+		description: 'Run custom Python script once and return raw output (exitCode, stdout, stderr)',
 		defaults: {
-			name: 'PythonFunction',
+			name: 'PythonFunctionRaw',
 			color: '#4B8BBE',
 		},
 		inputs: ['main'],
@@ -47,18 +46,38 @@ export class PythonFunction implements INodeType {
 				name: 'functionCode',
 				typeOptions: {
 					alwaysOpenEditWindow: true,
-					rows: 10,
-					// codeAutocomplete: 'function', // requires changes in UI
-					// editor: 'code', // LATER: need to set language='python' in monaco-editor but code => language='javascript'
+					rows: 15,
 				},
 				type: 'string',
-				default: `
-# Code here will run only once, no matter how many input items there are.
-# More info and help: https://github.com/naskio/n8n-nodes-python
-return items
+				default: `# This script runs once and receives input data as 'input_items' variable
+# Available variables:
+# - input_items: list of all input data
+# - env_vars: dict of environment variables
+
+import json
+import sys
+
+# Your Python code here
+print("Input items count:", len(input_items))
+for i, item in enumerate(input_items):
+    print(f"Item {i}: {item}")
+
+# Example: process data and print results
+result = {"processed_count": len(input_items), "status": "success"}
+print(json.dumps(result))
+
+# Exit with success
+sys.exit(0)
 `,
-				description: 'The Python code to execute.',
+				description: 'Pure Python script that will be executed once. Input data available as input_items variable.',
 				noDataExpression: true,
+			},
+			{
+				displayName: 'Python Executable',
+				name: 'pythonPath',
+				type: 'string',
+				default: 'python3',
+				description: 'Path to Python executable (python3, python, or full path)',
 			},
 		],
 	};
@@ -69,108 +88,90 @@ return items
 		// Copy the items as they may get changed in the functions
 		items = JSON.parse(JSON.stringify(items));
 
-
 		// Get the python code snippet
 		const functionCode = this.getNodeParameter('functionCode', 0) as string;
+		const pythonPath = this.getNodeParameter('pythonPath', 0) as string;
+		
 		// Get the environment variables
 		let pythonEnvVars: Record<string, string> = {};
 		try {
 			pythonEnvVars = parseEnvFile(String((await this.getCredentials('pythonEnvVars'))?.envFileContent || ''));
 		} catch (_) {
 		}
+		
 		let scriptPath = '';
-		let jsonPath = '';
 		try {
-			scriptPath = await getTemporaryScriptPath(functionCode);
-			jsonPath = await getTemporaryJsonFilePath(unwrapJsonField(items));
+			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars);
 		} catch (error) {
-			throw new NodeOperationError(this.getNode(), `Could not generate temporary files: ${error.message}`);
+			throw new NodeOperationError(this.getNode(), `Could not generate temporary script file: ${(error as Error).message}`);
 		}
 
-
 		try {
-
-			// Execute the function code
-			const execResults = await execPythonSpawn(scriptPath, jsonPath, pythonEnvVars, this.sendMessageToUI);
+			// Execute the Python script
+			const execResults = await execPythonSpawn(scriptPath, pythonPath, this.sendMessageToUI);
 			const {
 				error: returnedError,
 				exitCode,
-				// stdout,
-				// stderr,
-				items: returnedItems,
+				stdout,
+				stderr,
 			} = execResults;
-			items = wrapJsonField(returnedItems) as INodeExecutionData[];
 
+			// Create result item with raw output
+			const resultItem: INodeExecutionData = {
+				json: {
+					exitCode: exitCode,
+					stdout: stdout,
+					stderr: stderr,
+					success: exitCode === 0,
+					error: returnedError ? returnedError.message : null,
+					inputItemsCount: items.length,
+					executedAt: new Date().toISOString(),
+				}
+			};
 
-			// check errors
-			if (returnedError !== undefined) {
-				throw new NodeOperationError(this.getNode(), `exitCode: ${exitCode} ${returnedError?.message || ''}`);
+			// If execution failed and continueOnFail is false, throw error
+			if (returnedError !== undefined && !this.continueOnFail()) {
+				throw new NodeOperationError(
+					this.getNode(), 
+					`Python script failed with exit code ${exitCode}: ${returnedError.message}`
+				);
 			}
-			// Do very basic validation of the data
-			if (items === undefined) {
-				throw new NodeOperationError(this.getNode(), 'No data got returned. Always return an Array of items!');
-			}
-			if (!Array.isArray(items)) {
-				throw new NodeOperationError(this.getNode(), 'Always an Array of items has to be returned!');
-			}
-			for (const item of items) {
-				if (item.json === undefined) {
-					throw new NodeOperationError(this.getNode(), 'All returned items have to contain a property named "json"!');
-				}
-				if (typeof item.json !== 'object') {
-					throw new NodeOperationError(this.getNode(), 'The json-property has to be an object!');
-				}
-				if (item.binary !== undefined) {
-					if (Array.isArray(item.binary) || typeof item.binary !== 'object') {
-						throw new NodeOperationError(this.getNode(), 'The binary-property has to be an object!');
-					}
-				}
-			}
+
+			return this.prepareOutputData([resultItem]);
+
 		} catch (error) {
-
-
 			if (this.continueOnFail()) {
-				items = [{json: {error: error.message}}];
-			} else {
-
-
-				// Try to find the line number which contains the error and attach to error message
-				const stackLines = error.stack.split('\n');
-				if (stackLines.length > 0) {
-					const lineParts = stackLines[1].split(':');
-					if (lineParts.length > 2) {
-						const lineNumber = lineParts.splice(-2, 1);
-						if (!isNaN(lineNumber)) {
-							error.message = `${error.message} [Line ${lineNumber}]`;
-						}
+				const errorItem: INodeExecutionData = {
+					json: {
+						exitCode: -1,
+						stdout: '',
+						stderr: (error as Error).message || String(error),
+						success: false,
+						error: (error as Error).message || String(error),
+						inputItemsCount: items.length,
+						executedAt: new Date().toISOString(),
 					}
-				}
+				};
+				return this.prepareOutputData([errorItem]);
+			} else {
 				throw error;
 			}
 		}
-
-
-		return this.prepareOutputData(items);
 	}
 }
 
 
-function parseShellOutput(outputStr: string): [] {
-	return JSON.parse(outputStr);
-}
-
-
-function execPythonSpawn(scriptPath: string, jsonPath: string, envVars: object, stdoutListener?: CallableFunction): Promise<IExecReturnData> {
+function execPythonSpawn(scriptPath: string, pythonPath: string, stdoutListener?: CallableFunction): Promise<IExecReturnData> {
 	const returnData: IExecReturnData = {
 		error: undefined,
 		exitCode: 0,
 		stderr: '',
 		stdout: '',
 	};
+	
 	return new Promise((resolve, reject) => {
-		const child = spawn('python3', [scriptPath, '--json_path', jsonPath, '--env_vars', JSON.stringify(envVars)], {
+		const child = spawn(pythonPath, [scriptPath], {
 			cwd: process.cwd(),
-			// shell: true,
 		});
 
 		child.stdout.on('data', data => {
@@ -191,10 +192,8 @@ function execPythonSpawn(scriptPath: string, jsonPath: string, envVars: object, 
 
 		child.on('close', code => {
 			returnData.exitCode = code || 0;
-			if (!code) {
-				returnData.items = parseShellOutput(returnData.stderr);
-			} else {
-				returnData.error = new Error(returnData.stderr);
+			if (code !== 0) {
+				returnData.error = new Error(`Process exited with code ${code}`);
 			}
 			resolve(returnData);
 		});
@@ -228,26 +227,28 @@ function formatCodeSnippet(code: string): string {
 }
 
 
-function getScriptCode(codeSnippet: string): string {
-	const css = fs.readFileSync(path.resolve(__dirname, 'script.template.py'), 'utf8') || '';
-	return css.replace('pass', formatCodeSnippet(codeSnippet));
+function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>): string {
+	const script = `#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
+import json
+import sys
+
+# Input data and environment variables
+input_items = ${JSON.stringify(data)}
+env_vars = ${JSON.stringify(envVars)}
+
+# User code starts here
+${codeSnippet}
+`;
+	return script;
 }
 
 
-async function getTemporaryScriptPath(codeSnippet: string): Promise<string> {
+async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>): Promise<string> {
 	const tmpPath = tempy.file({extension: 'py'});
-	const codeStr = getScriptCode(codeSnippet);
+	const codeStr = getScriptCode(codeSnippet, data, envVars);
 	// write code to file
 	fs.writeFileSync(tmpPath, codeStr);
-	return tmpPath;
-}
-
-
-async function getTemporaryJsonFilePath(data: object): Promise<string> {
-	const tmpPath = tempy.file({extension: 'json'});
-	const jsonStr = JSON.stringify(data);
-	// write code to file
-	fs.writeFileSync(tmpPath, jsonStr);
 	return tmpPath;
 }
 
@@ -263,12 +264,3 @@ function unwrapJsonField(list: IDataObject[] = []): IDataObject[] {
 	}, []);
 }
 
-
-function wrapJsonField(list: IDataObject[] = []): IDataObject[] {
-	return list.reduce((acc, item) => {
-		const newItem: IDataObject = {...item};
-		newItem.json = item;
-		acc.push(newItem as never);
-		return acc;
-	}, []);
-}

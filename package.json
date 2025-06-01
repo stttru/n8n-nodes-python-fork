@@ -1,17 +1,16 @@
 {
-  "name": "n8n-nodes-python",
-  "version": "0.1.4",
-  "description": "Run Python on n8n.",
-  "license": "Apache 2.0 with Commons Clause",
-  "homepage": "https://github.com/naskio/n8n-nodes-python",
+  "name": "@zgxsuerwtmrhjzt/n8n-nodes-python-raw",
+  "version": "1.0.0",
+  "description": "Run Python scripts in n8n with raw output (exitCode, stdout, stderr) - Fork of naskio/n8n-nodes-python",
+  "license": "SEE LICENSE IN LICENSE",
+  "homepage": "https://github.com/stttru/n8n-nodes-python-fork",
   "author": {
-    "name": "Mehdi Nassim KHODJA",
-    "email": "contact@nask.io",
-    "url": "https://nask.io"
+    "name": "Sergei (fork of naskio/n8n-nodes-python)",
+    "email": "stttru@gmail.com"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/naskio/n8n-nodes-python.git"
+    "url": "git+https://github.com/stttru/n8n-nodes-python-fork.git"
   },
   "keywords": [
     "n8n",
@@ -27,7 +26,11 @@
     "function",
     "code",
     "custom code",
-    "script"
+    "script",
+    "raw output",
+    "stdout",
+    "stderr",
+    "exit code"
   ],
   "scripts": {
     "dev": "npm run watch",
