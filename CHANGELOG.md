@@ -6,6 +6,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.4] - 2025-06-02
+
+### 🚀 Enhanced Output File Processing
+- **NEW**: Added `expected_filename` variable in Python scripts - contains the exact filename expected by n8n
+- **IMPROVED**: Enhanced comments and instructions for both detection modes
+- **DOCUMENTATION**: Mode-specific code examples and usage patterns in generated scripts
+
+### 🎯 Developer Experience
+- **Ready Variable Path Mode**: Two methods provided - ready-made `output_file_path` and manual `expected_filename`
+- **Auto Search Mode**: Clear instructions on using `expected_filename` for file creation
+- **Smart Comments**: Context-aware help text based on selected file detection mode
+
+### 📝 Code Examples in Generated Scripts
+```python
+# Ready Variable Path Mode:
+with open(output_file_path, 'w') as f:  # Method 1 (recommended)
+    f.write("content")
+
+file_path = os.path.join(output_dir, expected_filename)  # Method 2
+with open(file_path, 'w') as f:
+    f.write("content")
+
+# Auto Search Mode:
+with open(expected_filename, 'w') as f:  # Direct usage
+    f.write("content")
+```
+
 ## [1.12.3] - 2025-06-02
 
 ### 🐛 Critical UI Fixes

@@ -1657,12 +1657,12 @@ async function executeOnce(
 	let scriptPath = '';
 	try {
 		if (injectVariables) {
-			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
+			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
 		} else {
 			// Even when injectVariables is false, we still need to inject output_dir for Output File Processing
 			if (outputDir) {
 				// Create script with just output_dir variable injection
-				scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir);
+				scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir, outputFileProcessingOptions);
 			} else {
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
@@ -1675,17 +1675,17 @@ async function executeOnce(
 		// Initialize debug information
 		if (debugMode !== 'off') {
 			const scriptContent = injectVariables 
-				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir)
+				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
 				: functionCode;
 			
 			debugInfo = await createDebugInfo(
 				scriptPath,
 				scriptContent,
-				pythonPath,
+				 pythonPath,
 				injectVariables ? unwrapJsonField(items) : undefined,
 				injectVariables ? pythonEnvVars : undefined,
-				debugTiming,
-				credentialSources,
+				 debugTiming,
+				 credentialSources,
 			);
 		}
 
@@ -1865,7 +1865,7 @@ async function executeOnce(
 			addDebugInfoToResult(baseResult, debugInfo, debugMode);
 		}
 
-		// Handle pass through for errors too
+		// Handle pass through data
 		const errorResultWithPassThrough = handlePassThroughData(baseResult, items, passThrough, passThroughMode);
 
 		// Add output files as binary data for errors if enabled
@@ -2002,12 +2002,12 @@ async function executePerItem(
 		try {
 			if (injectVariables) {
 				// For per-item execution, pass only current item
-				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
+				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
 			} else {
 				// Even when injectVariables is false, we still need to inject output_dir for Output File Processing
 				if (outputDir) {
 					// Create script with just output_dir variable injection
-					scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir);
+					scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir, outputFileProcessingOptions);
 				} else {
 					scriptPath = await getTemporaryPureScriptPath(functionCode);
 				}
@@ -2016,7 +2016,7 @@ async function executePerItem(
 			// Create debug information for this item
 			if (debugMode !== 'off') {
 				const scriptContent = injectVariables 
-					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir)
+					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
 					: functionCode;
 				
 				debugInfo = await createDebugInfo(
@@ -2523,6 +2523,13 @@ input_files = ${filesValue}`;
 		const outputDirValue = hideVariableValues ? '"***hidden***"' : outputDir;
 		let outputFileInstructions = '';
 		let outputFilePathVariable = '';
+		let expectedFileNameVariable = '';
+		
+		// Add expected filename variable if configured
+		if (outputFileOptions?.expectedFileName) {
+			const expectedFileNameValue = hideVariableValues ? '"***hidden***"' : outputFileOptions.expectedFileName;
+			expectedFileNameVariable = `expected_filename = "${expectedFileNameValue}"`;
+		}
 		
 		// Add expected file path variable if configured
 		if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'variable_path') {
@@ -2530,22 +2537,45 @@ input_files = ${filesValue}`;
 			const outputFilePathValue = hideVariableValues ? '"***hidden***"' : expectedFilePath;
 			outputFilePathVariable = `output_file_path = r"${outputFilePathValue}"`;
 			
-			outputFileInstructions = `# 📁 Ready-to-use variable for your output file:
-# Use 'output_file_path' variable - it contains the full path where your file should be saved
-# Example: with open(output_file_path, 'w') as f: f.write("your content")
+			outputFileInstructions = `# 📁 Ready Variable Path Mode:
+# Two ways to create your output file:
+# 
+# Method 1 (Recommended): Use ready-made full path
+# with open(output_file_path, 'w') as f:
+#     f.write("your content")
+#
+# Method 2: Build path manually using expected filename
+# import os
+# file_path = os.path.join(output_dir, expected_filename)
+# with open(file_path, 'w') as f:
+#     f.write("your content")
+#
 # Expected filename: ${outputFileOptions.expectedFileName}
+# n8n will automatically detect and process this file after script execution
 `;
 		} else if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'auto_search') {
-			outputFileInstructions = `# 🔍 Auto-search mode enabled:
-# Create your file with filename: ${outputFileOptions.expectedFileName}
+			outputFileInstructions = `# 🔍 Auto Search Mode:
+# Create a file with the exact filename specified in expected_filename variable
 # You can save it anywhere (current directory, subdirectories, etc.)
-# n8n will automatically find and process the file after script execution
-# Example: with open("${outputFileOptions.expectedFileName}", 'w') as f: f.write("your content")
+# n8n will automatically search and find this file after script execution
+#
+# Recommended usage:
+# with open(expected_filename, 'w') as f:
+#     f.write("your content")
+#
+# Alternative with full path:
+# import os
+# file_path = os.path.join(output_dir, expected_filename)  
+# with open(file_path, 'w') as f:
+#     f.write("your content")
+#
+# Expected filename: ${outputFileOptions.expectedFileName}
 `;
 		} else {
 			outputFileInstructions = `# 📁 Manual Output File Processing:
 # Save your files in the output_dir directory
 # Example: 
+#   import os
 #   file_path = os.path.join(output_dir, "my_file.txt")
 #   with open(file_path, 'w') as f: f.write("your content")
 `;
@@ -2554,6 +2584,7 @@ input_files = ${filesValue}`;
 		outputDirSection = `
 # Output directory for generated files (Output File Processing enabled)
 output_dir = r"${outputDirValue}"
+${expectedFileNameVariable}
 ${outputFilePathVariable}
 
 ${outputFileInstructions}`;
@@ -2572,9 +2603,9 @@ ${cleanedCodeSnippet}
 }
 
 
-async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems = true, includeEnvVarsDict = false, hideVariableValues = false, credentialSources?: Record<string, string>, inputFiles?: FileMapping[], outputDir?: string): Promise<string> {
+async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems = true, includeEnvVarsDict = false, hideVariableValues = false, credentialSources?: Record<string, string>, inputFiles?: FileMapping[], outputDir?: string, outputFileOptions?: OutputFileProcessingOptions): Promise<string> {
 	const tmpPath = tempy.file({extension: 'py'});
-	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
+	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileOptions);
 	
 	// Ensure file is overwritten by explicitly writing with 'w' flag
 	try {
