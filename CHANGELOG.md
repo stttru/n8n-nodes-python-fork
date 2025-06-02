@@ -6,6 +6,82 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2025-01-XX
+
+### 🎯 Major New Feature: Output File Processing
+- **File Generation Support**: Python scripts can now generate files that are automatically detected and included in n8n workflow output
+- **Unique Output Directory**: Each script execution gets a unique temporary directory accessible via `output_dir` variable
+- **Automatic File Detection**: n8n scans the output directory after script execution and converts files to binary data
+- **Universal File Support**: Support for any file type (images, PDFs, documents, videos, audio, data exports, etc.)
+- **Smart MIME Type Detection**: Automatic MIME type detection for common file extensions
+
+### 🔧 Configuration Options
+- **Enable Output File Processing**: Toggle to activate file generation detection (default: disabled)
+- **Max Output File Size**: Configurable size limit from 1-1000 MB (default: 100 MB)
+- **Auto-cleanup Output Directory**: Automatic cleanup of temporary files and directories (default: enabled)
+- **Include File Metadata**: Option to include file metadata in output JSON (default: enabled)
+
+### 📁 File Processing Features
+- **Binary Data Integration**: Generated files appear as binary data in n8n output with keys like `output_filename.ext`
+- **Metadata Information**: File size, MIME type, extension, and binary key information in JSON output
+- **Comprehensive File Support**: Text, JSON, CSV, HTML, PDF, images, videos, audio, archives, and more
+- **Size Validation**: Automatic file size checking with configurable limits
+- **Error Handling**: Graceful handling of file processing errors
+
+### 🐍 Python Script Integration
+```python
+# output_dir variable automatically provided
+import os
+import json
+
+# Create text report
+report_path = os.path.join(output_dir, 'report.txt')
+with open(report_path, 'w') as f:
+    f.write("Generated report content")
+
+# Create JSON data export  
+data_path = os.path.join(output_dir, 'data.json')
+with open(data_path, 'w') as f:
+    json.dump({"results": "processed_data"}, f)
+```
+
+### 🎨 Use Cases
+- **Report Generation**: Create PDF reports, charts, and visualizations
+- **Data Export**: Export processed data to CSV, Excel, JSON formats
+- **Image Processing**: Generate thumbnails, charts, processed images
+- **Document Creation**: Create Word documents, presentations, templates
+- **Video Processing**: Generate video thumbnails, metadata files
+- **API Response Caching**: Save API responses as files for later use
+
+### 🔄 Integration with Existing Features
+- **Combined with Input File Processing**: Process input files and generate output files in the same script
+- **Environment Variables**: Use credentials and environment variables in file generation
+- **Debug Mode**: Generated files included in debug exports
+- **Error Handling**: File generation errors handled according to error handling settings
+
+### 📚 Documentation
+- **Comprehensive Guide**: New OUTPUT_FILE_PROCESSING_GUIDE.md with examples and best practices
+- **Advanced Examples**: Image generation, PDF creation, data export, video processing
+- **Troubleshooting**: Common issues and debugging techniques
+- **Integration Examples**: Combined usage with other node features
+
+### 🛡️ Security & Performance
+- **Isolated Directories**: Each execution uses a unique temporary directory
+- **Automatic Cleanup**: Temporary files and directories automatically removed
+- **Size Limits**: Configurable file size limits to prevent resource exhaustion
+- **Permission Handling**: Proper file permission management
+
+### 🔧 Technical Implementation
+- **New Interfaces**: `OutputFileProcessingOptions`, `OutputFileInfo`
+- **Core Functions**: `scanOutputDirectory()`, `getMimeType()`, `cleanupOutputDirectory()`, `createUniqueOutputDirectory()`
+- **Enhanced Script Generation**: `output_dir` variable injection when output processing enabled
+- **Binary Data Handling**: Automatic base64 conversion and binary data attachment
+
+### 📈 Version Compatibility
+- **Backward Compatible**: Existing workflows continue to work without changes
+- **Optional Feature**: Output file processing is disabled by default
+- **No Breaking Changes**: All existing functionality preserved
+
 ## [1.9.5] - 2024-12-XX
 
 ### Added
