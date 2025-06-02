@@ -2333,20 +2333,51 @@ function execPythonSpawn(scriptPath: string, pythonPath: string, stdoutListener?
 
 
 function parseEnvFile(envFileContent: string): Record<string, string> {
-	if (!envFileContent || envFileContent === '') {
-		return {};
-	}
-	const envLines = envFileContent.split('\n');
 	const envVars: Record<string, string> = {};
-	for (const line of envLines) {
-		const parts = line.split('=');
-		if (parts.length === 2) {
-			envVars[parts[0]] = parts[1];
+	const lines = envFileContent.split('\n');
+	
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		if (trimmedLine && !trimmedLine.startsWith('#')) {
+			const equalIndex = trimmedLine.indexOf('=');
+			if (equalIndex > 0) {
+				const key = trimmedLine.substring(0, equalIndex).trim();
+				const value = trimmedLine.substring(equalIndex + 1).trim();
+				envVars[key] = value;
+			}
 		}
 	}
+	
 	return envVars;
 }
 
+/**
+ * Validates and sanitizes a variable name for Python
+ * @param key Original key name
+ * @param prefix Optional prefix to add if name starts with number
+ * @returns Sanitized variable name or null if invalid
+ */
+function sanitizeVariableName(key: string, prefix = 'var'): string | null {
+	// Skip empty keys or invalid Python identifiers
+	if (!key || key.trim() === '') {
+		return null;
+	}
+	
+	// Create safe variable names (replace invalid characters)
+	let safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
+	
+	// Ensure it starts with letter or underscore
+	if (!/^[a-zA-Z_]/.test(safeVarName)) {
+		safeVarName = `${prefix}_${safeVarName}`;
+	}
+	
+	// Skip if after sanitization the name is empty or invalid
+	if (!safeVarName || safeVarName.trim() === '' || safeVarName === `${prefix}_`) {
+		return null;
+	}
+	
+	return safeVarName;
+}
 
 function formatCodeSnippet(code: string): string {
 	// add tab at the beginning of each line
@@ -2356,7 +2387,6 @@ function formatCodeSnippet(code: string): string {
 		.replace(/\r\n\t/g, '\n\t')
 		.replace(/\r\n/g, '\n\t');
 }
-
 
 function getScriptCode(
 	codeSnippet: string, 
@@ -2370,13 +2400,15 @@ function getScriptCode(
 	outputDir?: string,
 	outputFileOptions?: { expectedFileName?: string; fileDetectionMode?: string },
 ): string {
-	// Extract __future__ imports from user code and move them to the top
+	const path = require('path');
+	const fs = require('fs');
+	
+	// Extract __future__ imports from the beginning of the code
+	const futureImportRegex = /^from __future__ import .+$/gm;
 	const futureImports: string[] = [];
+	let match = futureImportRegex.exec(codeSnippet);
 	let cleanedCodeSnippet = codeSnippet;
 	
-	// Find and extract all __future__ imports
-	const futureImportRegex = /^(\s*from\s+__future__\s+import\s+[^\n]+)/gm;
-	let match = futureImportRegex.exec(codeSnippet);
 	while (match !== null) {
 		futureImports.push(match[1].trim());
 		match = futureImportRegex.exec(codeSnippet);
@@ -2392,8 +2424,13 @@ function getScriptCode(
 		const variableAssignments: string[] = [];
 		
 		for (const [key, value] of Object.entries(firstItem)) {
-			// Create safe variable names (replace invalid characters)
-			const safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
+			const safeVarName = sanitizeVariableName(key, 'var');
+			
+			// Skip if sanitization failed
+			if (!safeVarName) {
+				continue;
+			}
+			
 			const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
 			variableAssignments.push(`${safeVarName} = ${displayValue}`);
 		}
@@ -2415,12 +2452,11 @@ ${variableAssignments.join('\n')}
 		const variablesBySource: Record<string, string[]> = {};
 		
 		for (const [key, value] of Object.entries(envVars)) {
-			// Create safe variable names (replace invalid characters and ensure valid Python identifier)
-			let safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
+			const safeVarName = sanitizeVariableName(key, 'env');
 			
-			// Ensure it starts with letter or underscore
-			if (!/^[a-zA-Z_]/.test(safeVarName)) {
-				safeVarName = `env_${safeVarName}`;
+			// Skip if sanitization failed
+			if (!safeVarName) {
+				continue;
 			}
 			
 			const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
@@ -2448,10 +2484,13 @@ ${variableAssignments.join('\n')}
 		} else {
 			// Simple list without source grouping
 			for (const [key, value] of Object.entries(envVars)) {
-				let safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
-				if (!/^[a-zA-Z_]/.test(safeVarName)) {
-					safeVarName = `env_${safeVarName}`;
+				const safeVarName = sanitizeVariableName(key, 'env');
+				
+				// Skip if sanitization failed
+				if (!safeVarName) {
+					continue;
 				}
+				
 				const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
 				envVariableAssignments.push(`${safeVarName} = ${displayValue}`);
 			}
@@ -2601,6 +2640,24 @@ async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], 
 		if (fs.existsSync(tmpPath)) {
 			fs.unlinkSync(tmpPath);
 		}
+		
+		// Basic syntax validation before writing the file
+		// Check for obvious syntax errors that could be caused by invalid variable names
+		const lines = codeStr.split('\n');
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i].trim();
+			
+			// Check for invalid variable assignments (empty variable names)
+			if (line.match(/^\s*=\s*/) || line.match(/^[^a-zA-Z_]\w*\s*=/)) {
+				throw new Error(`Invalid variable assignment detected at line ${i + 1}: "${line}". This usually happens when input data contains empty keys or invalid field names. Please check your input data structure.`);
+			}
+			
+			// Check for other obvious syntax issues
+			if (line.match(/^\s*[0-9]+\w*\s*=/) && !line.match(/^\s*[a-zA-Z_]/)) {
+				throw new Error(`Invalid variable name detected at line ${i + 1}: "${line}". Variable names cannot start with numbers. This usually happens when input data contains numeric keys.`);
+			}
+		}
+		
 		// Write new content
 		fs.writeFileSync(tmpPath, codeStr, { encoding: 'utf8', flag: 'w' });
 		console.log(`Created temporary script at: ${tmpPath}`);
