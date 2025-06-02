@@ -66,6 +66,10 @@ print(f"Items count: {len(input_items)}")  # 1
 - **Test Only**: Validate script and show preview without executing (safe testing)
 - **Export Script**: Full debug information plus script file as binary attachment
 
+### Script Generation Options (New in v1.7.0)
+- **Legacy input_items Support** (default: enabled): Include `input_items` array in generated scripts for backward compatibility
+- **Hide Variable Values** (default: disabled): Replace variable values with asterisks in generated scripts for security
+
 ### Execution Control (New in v1.4.0)
 - **Execution Mode**: Choose how to run the script:
   - **Once for All Items**: Execute script once with all input items (faster, default)
@@ -841,6 +845,7 @@ This is a community-maintained fork. Contributions welcome!
 
 ## 📝 Version History
 
+- **v1.7.0**: Script Generation Options with Legacy support toggle, Hide Values option, and automatic cleanup
 - **v1.6.2**: Documentation update with complete Auto-Variable Extraction examples
 - **v1.6.1**: Fixed `from __future__` imports + Auto-Variable Extraction feature
 - **v1.6.0**: Added comprehensive Debug/Test system with script export and syntax validation
@@ -858,3 +863,49 @@ This is a community-maintained fork. Contributions welcome!
 - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
 
 ## 🎯 Smart Parsing Features
+
+#### Script Generation Options Examples (New in v1.7.0)
+
+**Clean Scripts (Legacy Support Disabled):**
+```python
+# Input: [{"title": "My Video", "api_key": "secret123"}]
+# Configuration: Legacy input_items Support = OFF
+
+# Generated script contains only:
+title = "My Video" 
+api_key = "secret123"
+
+# No input_items or env_vars arrays!
+print(f"Processing: {title}")
+```
+
+**Secure Script Export (Hide Values Enabled):**
+```python
+# Input: [{"title": "My Video", "api_key": "secret123"}]  
+# Configuration: Hide Variable Values = ON, Export Script mode
+
+# Generated script for security:
+title = "***hidden***"
+api_key = "***hidden***"
+input_items = "***hidden***"
+env_vars = "***hidden***"
+
+# Code is preserved, data is hidden
+print(f"Processing: {title}")
+```
+
+**Legacy Compatible (Default):**
+```python
+# Both old and new approaches work:
+title = "My Video"              # New: direct access
+api_key = "secret123"
+
+input_items = [{"title": "My Video", "api_key": "secret123"}]  # Legacy
+env_vars = {}
+
+# Use either approach:
+print(f"Title: {title}")                    # Direct
+print(f"Title: {input_items[0]['title']}")  # Legacy
+```
+
+### 🚀 Real-World Use Cases

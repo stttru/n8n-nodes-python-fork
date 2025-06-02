@@ -6,6 +6,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2024-01-XX
+
+### 🚀 Major Features Added
+- **Script Generation Options**: New configuration section with two important options:
+  - **Legacy input_items Support**: Toggle to include/exclude `input_items` array in generated scripts
+  - **Hide Variable Values**: Security option to replace variable values with asterisks in generated scripts
+- **Automatic Script Cleanup**: All temporary Python scripts are now automatically deleted after execution
+- **Enhanced Security**: Protect sensitive data in exported scripts with value hiding option
+
+### 🔧 Technical Improvements
+- **Script Cleanup System**: Comprehensive cleanup of temporary files in all execution paths
+  - executeOnce: cleanup in finally block
+  - executePerItem: cleanup after each item processing
+  - Debug functions: cleanup of validation and version check scripts
+- **Configurable Script Generation**: Users can now control exactly what gets included in generated scripts
+- **Memory Management**: Better temporary file handling and cleanup
+
+### 🎯 User Experience
+- **Cleaner Script Output**: Option to remove `input_items` array for simpler scripts
+- **Security Enhancement**: Hide sensitive values in debug exports
+- **Backward Compatibility**: Legacy options enabled by default, no breaking changes
+- **Automatic Cleanup**: No more temporary files left behind
+
+### 📚 Configuration Options
+```typescript
+Script Generation Options:
+☑️ Legacy input_items Support (default: enabled)
+☐ Hide Variable Values (default: disabled)
+```
+
+### 🔄 Migration Guide
+- **No action required**: All new options have safe defaults
+- **To use new features**: Enable/disable options in "Script Generation Options" section
+- **For cleaner scripts**: Disable "Legacy input_items Support" 
+- **For security**: Enable "Hide Variable Values" when exporting scripts
+
 ## [1.6.2] - 2024-01-XX
 
 ### 📚 Documentation Update

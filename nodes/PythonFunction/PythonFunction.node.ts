@@ -20,6 +20,19 @@ export interface IExecReturnData {
 }
 
 
+async function cleanupScript(scriptPath: string): Promise<void> {
+	try {
+		if (fs.existsSync(scriptPath)) {
+			fs.unlinkSync(scriptPath);
+			console.log(`Cleaned up script: ${scriptPath}`);
+		}
+	} catch (error) {
+		console.warn(`Failed to cleanup script ${scriptPath}:`, error);
+		// Don't throw error - cleanup should not break main process
+	}
+}
+
+
 export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Python Function (Raw)',
@@ -142,6 +155,29 @@ print(json.dumps(result))
 				],
 				default: 'off',
 				description: 'Choose debug and testing options for script development and troubleshooting',
+			},
+			{
+				displayName: 'Script Generation Options',
+				name: 'scriptOptions',
+				type: 'collection',
+				default: {},
+				placeholder: 'Add Option',
+				options: [
+					{
+						displayName: 'Legacy input_items Support',
+						name: 'includeLegacyInputItems',
+						type: 'boolean',
+						default: true,
+						description: 'Include input_items array in script (for backward compatibility)',
+					},
+					{
+						displayName: 'Hide Variable Values',
+						name: 'hideVariableValues',
+						type: 'boolean',
+						default: false,
+						description: 'Replace variable values with asterisks in generated scripts (for security)',
+					},
+				],
 			},
 			{
 				displayName: 'Parse Output',
@@ -285,6 +321,14 @@ print(json.dumps(result))
 		const passThrough = this.getNodeParameter('passThrough', 0) as boolean;
 		const passThroughMode = passThrough ? this.getNodeParameter('passThroughMode', 0) as string : 'separate';
 		
+		// Get script generation options
+		const scriptOptions = this.getNodeParameter('scriptOptions', 0) as {
+			includeLegacyInputItems?: boolean;
+			hideVariableValues?: boolean;
+		};
+		const includeLegacyInputItems = scriptOptions.includeLegacyInputItems !== false; // default true
+		const hideVariableValues = scriptOptions.hideVariableValues === true; // default false
+		
 		// Log configuration
 		console.log('Python Function Raw node configuration:', {
 			pythonPath,
@@ -321,6 +365,8 @@ print(json.dumps(result))
 				passThroughMode, 
 				items, 
 				pythonEnvVars,
+				includeLegacyInputItems,
+				hideVariableValues,
 			);
 		} else {
 			return await executeOnce(
@@ -336,6 +382,8 @@ print(json.dumps(result))
 				passThroughMode, 
 				items, 
 				pythonEnvVars,
+				includeLegacyInputItems,
+				hideVariableValues,
 			);
 		}
 	}
@@ -355,6 +403,8 @@ async function executeOnce(
 	passThroughMode: string,
 	items: INodeExecutionData[],
 	pythonEnvVars: Record<string, string>,
+	includeLegacyInputItems: boolean,
+	hideVariableValues: boolean,
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
@@ -366,7 +416,7 @@ async function executeOnce(
 	let scriptPath = '';
 	try {
 		if (injectVariables) {
-			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars);
+			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeLegacyInputItems, hideVariableValues);
 		} else {
 			scriptPath = await getTemporaryPureScriptPath(functionCode);
 		}
@@ -378,7 +428,7 @@ async function executeOnce(
 		// Initialize debug information
 		if (debugMode !== 'off') {
 			const scriptContent = injectVariables 
-				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars)
+				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeLegacyInputItems, hideVariableValues)
 				: functionCode;
 			
 			debugInfo = await createDebugInfo(
@@ -578,6 +628,8 @@ async function executeOnce(
 		} else {
 			throw error;
 		}
+	} finally {
+		await cleanupScript(scriptPath);
 	}
 }
 
@@ -595,6 +647,8 @@ async function executePerItem(
 	passThroughMode: string,
 	items: INodeExecutionData[],
 	pythonEnvVars: Record<string, string>,
+	includeLegacyInputItems: boolean,
+	hideVariableValues: boolean,
 ): Promise<INodeExecutionData[][]> {
 	
 	const results: INodeExecutionData[] = [];
@@ -612,7 +666,7 @@ async function executePerItem(
 		try {
 			if (injectVariables) {
 				// For per-item execution, pass only current item
-				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars);
+				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeLegacyInputItems, hideVariableValues);
 			} else {
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
@@ -620,7 +674,7 @@ async function executePerItem(
 			// Create debug information for this item
 			if (debugMode !== 'off') {
 				const scriptContent = injectVariables 
-					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars)
+					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeLegacyInputItems, hideVariableValues)
 					: functionCode;
 				
 				debugInfo = await createDebugInfo(
@@ -836,6 +890,8 @@ async function executePerItem(
 			} else {
 				throw error;
 			}
+		} finally {
+			await cleanupScript(scriptPath);
 		}
 	}
 
@@ -909,7 +965,7 @@ function formatCodeSnippet(code: string): string {
 }
 
 
-function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>): string {
+function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeLegacyInputItems: boolean = true, hideVariableValues: boolean = false): string {
 	// Extract __future__ imports from user code and move them to the top
 	const futureImports: string[] = [];
 	let cleanedCodeSnippet = codeSnippet;
@@ -933,7 +989,8 @@ function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record
 		for (const [key, value] of Object.entries(firstItem)) {
 			// Create safe variable names (replace invalid characters)
 			const safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
-			variableAssignments.push(`${safeVarName} = ${JSON.stringify(value)}`);
+			const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
+			variableAssignments.push(`${safeVarName} = ${displayValue}`);
 		}
 		
 		if (variableAssignments.length > 0) {
@@ -944,16 +1001,23 @@ ${variableAssignments.join('\n')}
 		}
 	}
 
+	// Prepare legacy data (only if enabled)
+	let legacyDataSection = '';
+	if (includeLegacyInputItems) {
+		const inputItemsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(data);
+		const envVarsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(envVars);
+		legacyDataSection = `
+# Input data and environment variables
+input_items = ${inputItemsValue}
+env_vars = ${envVarsValue}`;
+	}
+
 	const script = `#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
 ${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
 import json
 import sys
-
-# Input data and environment variables
-input_items = ${JSON.stringify(data)}
-env_vars = ${JSON.stringify(envVars)}
-${individualVariables}
+${legacyDataSection}${individualVariables}
 # User code starts here
 ${cleanedCodeSnippet}
 `;
@@ -961,9 +1025,9 @@ ${cleanedCodeSnippet}
 }
 
 
-async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>): Promise<string> {
+async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeLegacyInputItems: boolean = true, hideVariableValues: boolean = false): Promise<string> {
 	const tmpPath = tempy.file({extension: 'py'});
-	const codeStr = getScriptCode(codeSnippet, data, envVars);
+	const codeStr = getScriptCode(codeSnippet, data, envVars, includeLegacyInputItems, hideVariableValues);
 	
 	// Ensure file is overwritten by explicitly writing with 'w' flag
 	try {
