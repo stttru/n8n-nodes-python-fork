@@ -80,11 +80,6 @@ export class PythonFunction implements INodeType {
 						type: 'boolean',
 						default: false,
 						description: 'Automatically include all available Python Environment Variables credentials',
-						displayOptions: {
-							show: {
-								pythonEnvVarsList: [''],
-							},
-						},
 					},
 					{
 						displayName: 'Credential Merge Strategy',
@@ -109,12 +104,6 @@ export class PythonFunction implements INodeType {
 						],
 						default: 'last_wins',
 						description: 'How to handle variable name conflicts between credentials',
-						displayOptions: {
-							hide: {
-								pythonEnvVarsList: [''],
-								includeAllCredentials: [false],
-							},
-						},
 					},
 				],
 			},
@@ -446,17 +435,24 @@ print(json.dumps(result))
 		const includeAllCredentials = credentialsConfig.includeAllCredentials || false;
 		const mergeStrategy = credentialsConfig.mergeStrategy || 'last_wins';
 		
+		// Filter out helper/informational values from the selected credentials
+		const validCredentials = selectedCredentials.filter(cred => 
+			cred && 
+			cred.trim() !== '' && 
+			!cred.startsWith('__'),
+		);
+		
 		// Get the environment variables from credentials
 		let pythonEnvVars: Record<string, string> = {};
 		let credentialSources: Record<string, string> = {};
 		
 		try {
-			if (selectedCredentials.length > 0) {
+			if (validCredentials.length > 0) {
 				// Load specific selected credentials
-				const result = await loadMultipleCredentialsWithStrategy(this, selectedCredentials, mergeStrategy);
+				const result = await loadMultipleCredentialsWithStrategy(this, validCredentials, mergeStrategy);
 				pythonEnvVars = result.envVars;
 				credentialSources = result.credentialSources;
-				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from ${selectedCredentials.length} selected credentials`);
+				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from ${validCredentials.length} selected credentials`);
 			} else if (includeAllCredentials) {
 				// Load all available credentials
 				pythonEnvVars = await getAllAvailableCredentials(this);
@@ -574,20 +570,37 @@ print(json.dumps(result))
 
 	// Method to get available Python Environment Variables credentials
 	async getPythonEnvVarsCredentials(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-		// Note: This is a placeholder implementation since n8n doesn't currently 
-		// expose a direct API to list all available credentials of a specific type.
-		// In practice, users will need to manually specify credential names or IDs.
-		// This could be enhanced in future n8n versions or with custom credential discovery.
+		try {
+			// Try to get the currently configured credential to provide at least one option
+			const credentialData = await this.getCredentials('pythonEnvVars');
+			
+			if (credentialData && credentialData.name) {
+				const credentialName = String(credentialData.name);
+				return [
+					{
+						name: credentialName,
+						value: credentialName,
+						description: `Python Environment Variables credential: ${credentialName}`,
+					},
+				];
+			}
+		} catch (error) {
+			// If no credential is available, provide informational options
+		}
 		
-		const placeholderCredentials = [
+		// Return helpful options when no credentials are available
+		return [
 			{
-				name: 'No specific credentials selection available',
-				value: '',
-				description: 'Use the "Include All Available Credentials" option or leave empty for default behavior',
+				name: 'Create a Python Environment Variables credential first',
+				value: '__create_credential__',
+				description: 'Go to Credentials tab and create a Python Environment Variables credential, then return here',
+			},
+			{
+				name: 'Use "Include All Available Credentials" option instead',
+				value: '__use_include_all__',
+				description: 'Enable the "Include All Available Credentials" option below to automatically include all available credentials',
 			},
 		];
-		
-		return placeholderCredentials;
 	}
 }
 
@@ -602,20 +615,48 @@ async function loadMultipleCredentialsWithStrategy(
 	const allEnvVars: Record<string, string> = {};
 	const credentialSources: Record<string, string> = {};
 	
-	// For now, since n8n doesn't expose API to get multiple specific credentials,
+	// Filter out any helper values that might have slipped through
+	const validCredentialIds = credentialIds.filter(id => 
+		id && 
+		id.trim() !== '' && 
+		!id.startsWith('__'),
+	);
+	
+	if (validCredentialIds.length === 0) {
+		// If no valid credentials, try to load the default credential
+		try {
+			const credentialData = await executeFunctions.getCredentials(credentialType);
+			if (credentialData) {
+				const credentialName = String(credentialData.name || 'default_credential');
+				const envVars = parseEnvFile(String(credentialData.envFileContent || ''));
+				
+				for (const [key, value] of Object.entries(envVars)) {
+					allEnvVars[key] = String(value);
+					credentialSources[key] = credentialName;
+				}
+			}
+		} catch (error) {
+			console.warn('No default credential available:', error);
+		}
+		
+		return { envVars: allEnvVars, credentialSources };
+	}
+	
+	// For now, since n8n doesn't expose API to get multiple specific credentials by name,
 	// we'll use the default credential but simulate multiple credential loading
 	// This is a placeholder implementation that can be enhanced when n8n supports it
-	for (let i = 0; i < credentialIds.length; i++) {
-		const credentialId = credentialIds[i];
-		if (!credentialId || credentialId.trim() === '') continue;
+	for (let i = 0; i < validCredentialIds.length; i++) {
+		const credentialId = validCredentialIds[i];
 		
 		try {
 			// For now, we can only get the default credential due to n8n API limitations
+			// In a future version, this could be enhanced to get specific credentials by name
 			const credentialData = await executeFunctions.getCredentials(credentialType);
 			
 			if (!credentialData) continue;
 			
-			const credentialName = String(credentialData.name || `credential_${i + 1}`);
+			// Use the provided credential name if it matches, otherwise use credential name from data
+			const credentialName = String(credentialData.name === credentialId ? credentialId : (credentialData.name || credentialId));
 			const envVars = parseEnvFile(String(credentialData.envFileContent || ''));
 			
 			for (const [key, value] of Object.entries(envVars)) {
