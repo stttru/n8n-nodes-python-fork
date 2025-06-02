@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-python-raw",
-  "version": "1.4.2",
-  "description": "Run Python scripts in n8n with raw output (exitCode, stdout, stderr) - Fork of naskio/n8n-nodes-python",
+  "version": "1.5.0",
+  "description": "An n8n community node for executing Python scripts with raw output control and advanced parsing capabilities",
   "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/stttru/n8n-nodes-python-fork",
   "author": {

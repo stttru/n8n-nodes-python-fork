@@ -232,345 +232,289 @@ The `input_items` variable contains an array of data objects from the previous n
 ]
 ```
 
-### 🔄 Variable Behavior in Different Execution Modes
+### 🔄 Execution Mode Behavior
 
-#### "Once for All Items" Mode (Default)
+The content of `input_items` depends on your execution mode:
+
+#### **Once for All Items** (Default - Faster)
+- `input_items` contains **all** input data as an array
+- Script runs **once** with access to all items
+- Ideal for: aggregations, batch processing, summary reports
+
 ```python
 import json
 
-# input_items contains ALL items from previous node
-print(f"Total items received: {len(input_items)}")
+print(f"Processing {len(input_items)} items total")
 
-# Process all items together
-processed_items = []
+# Example: Count by category
+categories = {}
 for item in input_items:
-    processed_items.append({
-        "original_id": item["id"],
-        "processed_name": item["name"].upper(),
-        "status": "processed"
-    })
+    category = item.get('category', 'unknown')
+    categories[category] = categories.get(category, 0) + 1
 
-# Return summary of batch processing
 result = {
-    "batch_size": len(input_items),
-    "processed_count": len(processed_items),
-    "first_item": input_items[0] if input_items else None,
-    "last_item": input_items[-1] if input_items else None
+    "total_items": len(input_items),
+    "categories": categories,
+    "processed_at": "2024-01-01T12:00:00Z"
 }
 print(json.dumps(result))
 ```
 
-#### "Once per Item" Mode
+#### **Once per Item** (More Flexible)
+- `input_items` contains **only one item** as an array `[current_item]`
+- Script runs **separately** for each input item
+- Ideal for: individual processing, API calls per item, complex transformations
+
 ```python
 import json
 
-# input_items contains only ONE item (current item being processed)
-current_item = input_items[0]  # Always access first (and only) item
+# input_items always has exactly one item in per-item mode
+current_item = input_items[0]
 
-print(f"Processing single item: {current_item}")
+print(f"Processing individual item: {current_item.get('id')}")
 
-# Transform the current item
-result = {
-    "original_data": current_item,
-    "transformed_name": current_item["name"].lower().replace(" ", "_"),
-    "processing_timestamp": "2024-01-01T12:00:00Z",
-    "item_hash": hash(str(current_item))
+# Example: Enrich individual item
+enriched_item = {
+    "original_id": current_item.get("id"),
+    "processed_name": current_item.get("name", "").upper(),
+    "status": "processed",
+    "timestamp": "2024-01-01T12:00:00Z"
 }
-print(json.dumps(result))
+print(json.dumps(enriched_item))
 ```
 
-### 🌍 Working with Environment Variables
+### 🌍 Working with env_vars
 
-Environment variables are available through the `env_vars` dictionary:
+The `env_vars` variable provides access to environment variables:
 
 ```python
 import json
-import os
 
 # Access environment variables
-api_key = env_vars.get("API_KEY", "default_key")
-environment = env_vars.get("NODE_ENV", "development")
-debug_mode = env_vars.get("DEBUG", "false").lower() == "true"
+api_key = env_vars.get('API_KEY', 'default_key')
+environment = env_vars.get('NODE_ENV', 'development')
+debug_mode = env_vars.get('DEBUG', 'false').lower() == 'true'
 
 print(f"Running in {environment} mode")
-print(f"Debug enabled: {debug_mode}")
-
-# Use environment variables in your logic
 if debug_mode:
-    print("Debug info:", json.dumps(input_items, indent=2))
+    print(f"Available env vars: {list(env_vars.keys())}")
 
-# Make API calls with credentials
-if api_key != "default_key":
-    print(f"Using API key: {api_key[:8]}...")
-    # Make authenticated API call here
+# Use in API calls
+config = {
+    "api_endpoint": env_vars.get('API_URL', 'https://api.example.com'),
+    "timeout": int(env_vars.get('TIMEOUT', '30')),
+    "retries": int(env_vars.get('RETRIES', '3'))
+}
+print(json.dumps(config))
 ```
 
-### 📊 Data Analysis Examples
+### 🔍 Data Inspection Examples
 
-#### Statistical Analysis
+#### Basic Data Exploration
 ```python
 import json
-from statistics import mean, median
 
-# Analyze numerical data from input items
-values = [item.get("score", 0) for item in input_items if "score" in item]
+print("=== INPUT DATA ANALYSIS ===")
+print(f"Total items: {len(input_items)}")
+print(f"Environment variables: {len(env_vars)}")
 
-if values:
-    analysis = {
-        "total_items": len(input_items),
-        "items_with_scores": len(values),
-        "average_score": round(mean(values), 2),
-        "median_score": median(values),
-        "min_score": min(values),
-        "max_score": max(values),
-        "score_range": max(values) - min(values)
-    }
-else:
-    analysis = {
-        "total_items": len(input_items),
-        "items_with_scores": 0,
-        "message": "No score data found"
-    }
+if input_items:
+    first_item = input_items[0]
+    print(f"First item keys: {list(first_item.keys())}")
+    print(f"Sample item: {json.dumps(first_item, indent=2)}")
 
-print(json.dumps(analysis))
+print(f"Environment keys: {list(env_vars.keys())}")
 ```
 
-#### Data Filtering and Transformation
+#### Advanced Data Processing
 ```python
 import json
-from datetime import datetime
+from collections import Counter
 
-# Filter and transform data
-filtered_items = []
-current_year = datetime.now().year
+# Analyze data structure
+all_keys = set()
+data_types = {}
 
 for item in input_items:
-    # Skip items without required fields
-    if not all(key in item for key in ["name", "email", "age"]):
-        continue
-    
-    # Filter by age
-    if item["age"] < 18:
-        continue
-    
-    # Transform and enrich data
-    transformed_item = {
-        "full_name": item["name"].title(),
-        "email_domain": item["email"].split("@")[1],
-        "age_group": "young" if item["age"] < 30 else "mature",
-        "birth_year": current_year - item["age"],
-        "processed_at": datetime.now().isoformat()
-    }
-    filtered_items.append(transformed_item)
+    all_keys.update(item.keys())
+    for key, value in item.items():
+        if key not in data_types:
+            data_types[key] = set()
+        data_types[key].add(type(value).__name__)
 
-result = {
-    "original_count": len(input_items),
-    "filtered_count": len(filtered_items),
-    "filtered_items": filtered_items
+# Generate report
+report = {
+    "summary": {
+        "total_items": len(input_items),
+        "unique_fields": len(all_keys),
+        "execution_mode": "once" if len(input_items) > 1 else "per_item"
+    },
+    "schema": {
+        field: list(types) for field, types in data_types.items()
+    },
+    "sample_data": input_items[:3] if input_items else []
 }
-print(json.dumps(result))
+
+print(json.dumps(report, indent=2))
 ```
 
-### 🔍 Data Validation and Quality Checks
+### 🚀 Real-World Use Cases
 
+#### 1. API Integration with Error Handling
+```python
+import json
+import urllib.request
+import urllib.error
+
+api_key = env_vars.get('API_KEY')
+if not api_key:
+    print(json.dumps({"error": "API_KEY not found in environment"}))
+    exit(1)
+
+results = []
+for item in input_items:
+    try:
+        # Make API call
+        url = f"https://api.example.com/users/{item.get('id')}"
+        headers = {'Authorization': f'Bearer {api_key}'}
+        
+        # Simulate API call result
+        enriched_data = {
+            "original": item,
+            "api_status": "success",
+            "enriched_at": "2024-01-01T12:00:00Z"
+        }
+        results.append(enriched_data)
+        
+    except Exception as e:
+        results.append({
+            "original": item,
+            "api_status": "error",
+            "error": str(e)
+        })
+
+print(json.dumps({"processed": len(results), "results": results}))
+```
+
+#### 2. Data Validation and Cleaning
 ```python
 import json
 import re
 
-# Validate email addresses
-email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+required_fields = ['name', 'email']
 
-validation_results = []
-for i, item in enumerate(input_items):
-    validation = {
-        "item_index": i,
-        "item_id": item.get("id", f"item_{i}"),
-        "validations": {}
-    }
+valid_items = []
+invalid_items = []
+
+for item in input_items:
+    errors = []
     
     # Check required fields
-    required_fields = ["name", "email", "age"]
     for field in required_fields:
-        validation["validations"][f"{field}_present"] = field in item
-        if field in item:
-            validation["validations"][f"{field}_not_empty"] = bool(str(item[field]).strip())
+        if not item.get(field):
+            errors.append(f"Missing required field: {field}")
     
     # Validate email format
-    if "email" in item:
-        validation["validations"]["email_format_valid"] = bool(re.match(email_pattern, item["email"]))
+    email = item.get('email', '')
+    if email and not email_pattern.match(email):
+        errors.append("Invalid email format")
     
-    # Validate age range
-    if "age" in item:
-        try:
-            age = int(item["age"])
-            validation["validations"]["age_numeric"] = True
-            validation["validations"]["age_reasonable"] = 0 <= age <= 150
-        except (ValueError, TypeError):
-            validation["validations"]["age_numeric"] = False
-            validation["validations"]["age_reasonable"] = False
-    
-    validation_results.append(validation)
+    if errors:
+        invalid_items.append({"item": item, "errors": errors})
+    else:
+        # Clean and normalize data
+        cleaned_item = {
+            "id": item.get('id'),
+            "name": item.get('name', '').strip().title(),
+            "email": item.get('email', '').strip().lower(),
+            "validated_at": "2024-01-01T12:00:00Z"
+        }
+        valid_items.append(cleaned_item)
 
-# Summary statistics
-total_items = len(input_items)
-valid_items = sum(1 for v in validation_results if all(v["validations"].values()))
-
-summary = {
-    "total_items": total_items,
+result = {
+    "validation_summary": {
+        "total_processed": len(input_items),
+        "valid_count": len(valid_items),
+        "invalid_count": len(invalid_items)
+    },
     "valid_items": valid_items,
-    "invalid_items": total_items - valid_items,
-    "validation_rate": round(valid_items / total_items * 100, 2) if total_items > 0 else 0,
-    "detailed_results": validation_results
+    "invalid_items": invalid_items
 }
 
-print(json.dumps(summary))
+print(json.dumps(result))
 ```
 
-### 🚨 Error Handling in Scripts
-
+#### 3. Conditional Processing Based on Environment
 ```python
 import json
-import sys
 
-try:
-    # Your main processing logic
-    results = []
-    
+environment = env_vars.get('NODE_ENV', 'development')
+debug_enabled = env_vars.get('DEBUG', 'false').lower() == 'true'
+
+if debug_enabled:
+    print(f"Debug: Processing {len(input_items)} items in {environment} mode")
+
+# Different processing based on environment
+if environment == 'production':
+    # Production: process all items
+    processed_items = []
     for item in input_items:
-        try:
-            # Process individual item
-            processed_item = {
-                "id": item["id"],
-                "processed_name": item["name"].upper(),
-                "status": "success"
-            }
-            results.append(processed_item)
-            
-        except KeyError as e:
-            # Handle missing required fields
-            error_item = {
-                "id": item.get("id", "unknown"),
-                "error": f"Missing required field: {e}",
-                "status": "error"
-            }
-            results.append(error_item)
-            
-        except Exception as e:
-            # Handle other processing errors
-            error_item = {
-                "id": item.get("id", "unknown"),
-                "error": str(e),
-                "status": "error"
-            }
-            results.append(error_item)
+        processed_items.append({
+            "id": item.get('id'),
+            "status": "processed",
+            "environment": "production"
+        })
+    print(json.dumps({"items": processed_items}))
     
-    # Return results with error summary
-    error_count = sum(1 for r in results if r.get("status") == "error")
+elif environment == 'development':
+    # Development: process only first 5 items
+    limited_items = input_items[:5]
+    if debug_enabled:
+        print(f"Debug: Limited to {len(limited_items)} items for development")
     
-    final_result = {
-        "processed_items": results,
-        "summary": {
-            "total": len(input_items),
-            "successful": len(results) - error_count,
-            "errors": error_count
-        }
-    }
+    print(json.dumps({
+        "message": "Development mode - limited processing",
+        "processed_count": len(limited_items),
+        "total_available": len(input_items)
+    }))
     
-    print(json.dumps(final_result))
-    
-    # Exit with non-zero code if there were errors (optional)
-    if error_count > 0:
-        sys.exit(1)  # This will set exitCode to 1
-        
-except Exception as e:
-    # Handle fatal errors
-    error_result = {
-        "error": "Fatal processing error",
-        "message": str(e),
-        "processed_count": 0
-    }
-    print(json.dumps(error_result))
-    sys.exit(2)  # Critical error exit code
-```
-
-### 🎛️ Using Pure Python Mode (No Variables)
-
-When "Inject Variables" is disabled, you can run pure Python scripts:
-
-```python
-import requests
-import json
-
-# Pure Python script without n8n variables
-# Perfect for standalone operations, API calls, file processing
-
-try:
-    # Make an API call
-    response = requests.get("https://api.github.com/users/octocat")
-    response.raise_for_status()
-    
-    user_data = response.json()
-    
-    result = {
-        "username": user_data["login"],
-        "name": user_data["name"],
-        "public_repos": user_data["public_repos"],
-        "followers": user_data["followers"],
-        "created_at": user_data["created_at"]
-    }
-    
-    print(json.dumps(result))
-    
-except requests.RequestException as e:
-    print(f"API Error: {e}")
-    exit(1)  # Non-zero exit code indicates error
+else:
+    print(json.dumps({"error": f"Unknown environment: {environment}"}))
 ```
 
 ### 💡 Best Practices
 
-1. **Always check if data exists before processing:**
+1. **Always check data availability**:
    ```python
    if not input_items:
-       print(json.dumps({"error": "No input data received"}))
-       sys.exit(1)
+       print(json.dumps({"warning": "No input data received"}))
+       exit(0)
    ```
 
-2. **Use safe data access methods:**
+2. **Handle missing fields gracefully**:
    ```python
-   # Good: Use .get() with defaults
-   name = item.get("name", "Unknown")
-   age = item.get("age", 0)
-   
-   # Avoid: Direct access that might fail
-   # name = item["name"]  # Could raise KeyError
+   name = item.get('name', 'Unknown')
+   email = item.get('email', '')
    ```
 
-3. **Handle different data types gracefully:**
+3. **Use environment variables for configuration**:
    ```python
-   # Safe type conversion
-   try:
-       age = int(item.get("age", 0))
-   except (ValueError, TypeError):
-       age = 0
+   batch_size = int(env_vars.get('BATCH_SIZE', '100'))
+   timeout = int(env_vars.get('TIMEOUT', '30'))
    ```
 
-4. **Use environment variables for configuration:**
+4. **Always output valid JSON for parsing**:
    ```python
-   # Use env_vars for API keys, URLs, settings
-   api_url = env_vars.get("API_URL", "https://api.default.com")
-   batch_size = int(env_vars.get("BATCH_SIZE", "100"))
+   import json
+   result = {"status": "success", "data": processed_data}
+   print(json.dumps(result))
    ```
 
-5. **Return structured output for easier downstream processing:**
+5. **Log important information for debugging**:
    ```python
-   # Good: Structured output
-   result = {
-       "data": processed_items,
-       "metadata": {
-           "processed_at": datetime.now().isoformat(),
-           "item_count": len(processed_items)
-       }
-   }
+   if env_vars.get('DEBUG', '').lower() == 'true':
+       print(f"Debug: Processing item {item.get('id')}", file=sys.stderr)
    ```
 
 ## 🎯 Smart Parsing Features
@@ -618,3 +562,5 @@ This is a community-maintained fork. Contributions welcome!
 - [npm Package](https://www.npmjs.com/package/n8n-nodes-python-raw)
 - [Original Package](https://github.com/naskio/n8n-nodes-python)
 - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
+
+## 🎯 Smart Parsing Features

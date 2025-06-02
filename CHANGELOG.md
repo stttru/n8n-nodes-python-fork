@@ -6,6 +6,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2024-01-XX
+
+### 🚀 Major Features Added
+- **Enhanced Error Handling**: New "Error Handling" option with three modes:
+  - "Return Error Details" (default) - Continue execution and return error information
+  - "Throw Error on Non-Zero Exit" - Stop workflow execution if script exits with non-zero code
+  - "Ignore Exit Code" - Continue execution regardless of exit code, only throw on system errors
+- **Comprehensive Variable Documentation**: Detailed README section explaining how to work with `input_items` and `env_vars`
+- **Real-World Examples**: Added practical use cases including API integration, data validation, and environment-based processing
+- **Best Practices Guide**: Added recommendations for safe data handling and error management
+
+### 🔧 Technical Improvements
+- Replaced boolean "Return Error Details" option with more flexible "Error Handling" options
+- Enhanced error handling logic to properly support all three modes in both execution modes
+- Fixed error handling logic in both `executeOnce` and `executePerItem` functions
+- Added proper support for "ignore" mode that continues execution even with non-zero exit codes
+- Enhanced catch block logic to handle different error modes correctly
+
+### 📚 Documentation Improvements
+- **Working with Input Variables**: Complete guide with execution mode behavior
+- **Data Inspection Examples**: Basic and advanced data processing patterns
+- **Real-World Use Cases**: API integration, data validation, conditional processing
+- **Best Practices**: Safe data access, error handling, environment configuration
+
+### 🎯 User Experience
+- Better workflow control with exit code handling options
+- Clearer understanding of variable behavior in different execution modes
+- Improved error visibility and debugging capabilities
+
 ## [1.4.2] - 2024-01-01
 
 ### 🐛 Bug Fixes

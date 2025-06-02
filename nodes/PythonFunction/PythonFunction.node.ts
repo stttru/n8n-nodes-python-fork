@@ -86,11 +86,28 @@ print(json.dumps(result))
 				description: 'Path to Python executable (python3, python, or full path)',
 			},
 			{
-				displayName: 'Return Error Details',
-				name: 'returnErrorDetails',
-				type: 'boolean',
-				default: true,
-				description: 'Whether to return detailed error information instead of stopping the workflow. When enabled, errors are returned as data.',
+				displayName: 'Error Handling',
+				name: 'errorHandling',
+				type: 'options',
+				options: [
+					{
+						name: 'Return Error Details',
+						value: 'details',
+						description: 'Continue execution and return error information as output data (default behavior)',
+					},
+					{
+						name: 'Throw Error on Non-Zero Exit',
+						value: 'throw',
+						description: 'Stop workflow execution if script exits with non-zero code or system error occurs',
+					},
+					{
+						name: 'Ignore Exit Code',
+						value: 'ignore',
+						description: 'Continue execution regardless of exit code, only throw on system errors',
+					},
+				],
+				default: 'details',
+				description: 'How to handle Python script errors and non-zero exit codes',
 			},
 			{
 				displayName: 'Parse Output',
@@ -224,7 +241,7 @@ print(json.dumps(result))
 		const functionCode = this.getNodeParameter('functionCode', 0) as string;
 		const pythonPath = this.getNodeParameter('pythonPath', 0) as string;
 		const injectVariables = this.getNodeParameter('injectVariables', 0) as boolean;
-		const returnErrorDetails = this.getNodeParameter('returnErrorDetails', 0) as boolean;
+		const errorHandling = this.getNodeParameter('errorHandling', 0) as string;
 		const parseOutput = this.getNodeParameter('parseOutput', 0) as string;
 		const parseOptions = (['json', 'smart'].includes(parseOutput)) ? 
 			this.getNodeParameter('parseOptions', 0) as ParseOptions : 
@@ -237,7 +254,7 @@ print(json.dumps(result))
 		console.log('Python Function Raw node configuration:', {
 			pythonPath,
 			injectVariables,
-			returnErrorDetails,
+			errorHandling,
 			parseOutput,
 			parseOptions,
 			executionMode,
@@ -260,7 +277,7 @@ print(json.dumps(result))
 				functionCode, 
 				pythonPath, 
 				injectVariables, 
-				returnErrorDetails, 
+				errorHandling, 
 				parseOutput, 
 				parseOptions, 
 				passThrough, 
@@ -274,7 +291,7 @@ print(json.dumps(result))
 				functionCode, 
 				pythonPath, 
 				injectVariables, 
-				returnErrorDetails, 
+				errorHandling, 
 				parseOutput, 
 				parseOptions, 
 				passThrough, 
@@ -292,7 +309,7 @@ async function executeOnce(
 	functionCode: string,
 	pythonPath: string,
 	injectVariables: boolean,
-	returnErrorDetails: boolean,
+	errorHandling: string,
 	parseOutput: string,
 	parseOptions: ParseOptions,
 	passThrough: boolean,
@@ -373,18 +390,22 @@ async function executeOnce(
 		const errorResultWithPassThrough = handlePassThroughData(baseResult, items, passThrough, passThroughMode);
 
 		// Return error details or throw
-		if (returnErrorDetails) {
+		if (errorHandling === 'details') {
 			console.log('Returning error details:', baseResult);
 			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
-		} else {
+		} else if (errorHandling === 'throw') {
 			throw new NodeOperationError(executeFunctions.getNode(), baseResult.detailedError as string);
+		} else {
+			// 'ignore' mode - return error details but continue execution
+			console.log('Ignoring exit code error:', baseResult);
+			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
 		}
 
 	} catch (error) {
 		const errorMessage = (error as Error).message || String(error);
 		const pythonErrorInfo = parsePythonError(errorMessage);
 		
-		if (executeFunctions.continueOnFail() || returnErrorDetails) {
+		if (errorHandling !== 'throw' || executeFunctions.continueOnFail()) {
 			const errorItem: IDataObject = {
 				exitCode: -1,
 				stdout: '',
@@ -413,7 +434,7 @@ async function executePerItem(
 	functionCode: string,
 	pythonPath: string,
 	injectVariables: boolean,
-	returnErrorDetails: boolean,
+	errorHandling: string,
 	parseOutput: string,
 	parseOptions: ParseOptions,
 	passThrough: boolean,
@@ -436,7 +457,7 @@ async function executePerItem(
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
 		} catch (error) {
-			if (returnErrorDetails) {
+			if (errorHandling === 'details' || executeFunctions.continueOnFail()) {
 				const errorResult: IDataObject = {
 					exitCode: -1,
 					stdout: '',
@@ -507,9 +528,10 @@ async function executePerItem(
 				itemResult.pythonError = pythonError;
 				itemResult.detailedError = `Script failed with exit code ${exitCode}. ${pythonError.errorType || 'Error'}: ${pythonError.errorMessage || stderr}`;
 				
-				if (returnErrorDetails) {
+				if (errorHandling === 'throw') {
 					throw new NodeOperationError(executeFunctions.getNode(), itemResult.detailedError as string);
 				}
+				// For 'details' and 'ignore' modes, continue with the error info in result
 			}
 
 			// Handle pass through data
@@ -517,7 +539,7 @@ async function executePerItem(
 			results.push(...resultWithPassThrough);
 
 		} catch (error) {
-			if (returnErrorDetails || executeFunctions.continueOnFail()) {
+			if (errorHandling !== 'throw' || executeFunctions.continueOnFail()) {
 				const errorMessage = (error as Error).message || String(error);
 				const pythonErrorInfo = parsePythonError(errorMessage);
 				
