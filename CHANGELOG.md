@@ -6,6 +6,98 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0] - 2025-01-XX
+
+### 🔍 Advanced File Debugging System
+- **File Debug Options**: New comprehensive debugging section for troubleshooting file processing issues
+  - **Enable File Debugging**: Toggle to include detailed file processing information in output
+  - **Debug Input Files**: Detailed information about input files processing (size, type, paths, errors)
+  - **Debug Output Files**: Comprehensive output files and directory scanning information
+  - **Include System Information**: System permissions, disk space, environment variables analysis
+  - **Include Directory Listings**: File listings from working, temp, and output directories
+
+### 📊 Diagnostic Information
+- **Input Files Analysis**: 
+  - File count, total size, files by type statistics
+  - Individual file details (filename, size, MIME type, extension, binary key, temp path availability)
+  - Processing errors and validation issues
+- **Output Files Diagnosis**:
+  - Processing enabled status, output directory path and permissions
+  - Directory existence, writability, and permission details
+  - Found files with metadata (filename, size, MIME type, creation time)
+  - Scan errors and access issues
+- **System Environment Analysis**:
+  - Python executable path, working directory information
+  - User permissions (temp file creation, file system access)
+  - Disk space availability, temp directory information
+  - Environment variables availability (output_dir presence and value)
+- **Directory Listings**: File listings from working directory, temp directory, and output directory
+
+### 🐛 Troubleshooting Capabilities
+- **Output File Processing Issues**: Diagnose why `output_dir` variable is not available or files are not detected
+- **Input File Problems**: Identify file size, type, or access issues
+- **Permission Issues**: Detect file system permission problems
+- **Environment Problems**: Check system environment and directory access
+
+### 🛠️ Technical Implementation
+- **New Interfaces**: `FileDebugOptions`, `FileDebugInfo` with comprehensive typing
+- **Diagnostic Functions**: 
+  - `createFileDebugInfo()`: Main debug information collector
+  - `createInputFileDebugInfo()`: Input files analysis
+  - `createOutputFileDebugInfo()`: Output files and directory analysis
+  - `createSystemDebugInfo()`: System environment diagnostics
+  - `createDirectoryListingInfo()`: Directory content listings
+- **Integration**: Available in both "Once for All Items" and "Once per Item" execution modes
+
+### 📋 Usage Example
+Enable "File Debug Options" → "Enable File Debugging" to see output like:
+```json
+{
+  "fileDebugInfo": {
+    "input_files": {
+      "count": 2,
+      "total_size_mb": 5.47,
+      "files_by_type": {"image/jpeg": 1, "application/pdf": 1},
+      "files_details": [...]
+    },
+    "output_files": {
+      "processing_enabled": true,
+      "output_directory": "/tmp/n8n_output_xyz",
+      "directory_exists": true,
+      "directory_writable": true,
+      "found_files": [...]
+    },
+    "system_info": {
+      "python_executable": "/usr/bin/python3",
+      "working_directory": "/app",
+      "user_permissions": {"can_write_temp": true, "can_create_files": true},
+      "environment_variables": {"output_dir_available": true, "output_dir_value": "/tmp/n8n_output_xyz"}
+    }
+  }
+}
+```
+
+### 🎯 Problem Solving Focus
+- **Primary Use Case**: Diagnose why Output File Processing isn't working (e.g., `output_dir` not available)
+- **Secondary Benefits**: Debug any file-related issues in Python scripts
+- **Debugging Aid**: Comprehensive system information for troubleshooting support requests
+
+## [1.11.2] - 2025-01-XX
+
+### 📚 Documentation
+- **Complete English Translation**: Finalized translation of all remaining test files
+  - `test_integration_status.py` - integration status analysis translation
+  - `test_final_integration.py` - final integration test translation
+  - `test_output_file_final.py` - output file final test translation
+  - `FUNCTIONALITY_VERIFICATION.md` - functionality verification report translation
+- **100% English Codebase**: Entire project now uses English exclusively
+- **Zero Russian Text**: Complete removal of all Russian text from the project
+
+### 🌐 Internationalization
+- **Professional Standards**: Full compliance with international open-source standards
+- **Global Accessibility**: Enhanced accessibility for international developers
+- **Community Ready**: Prepared for global community contributions
+
 ## [1.11.1] - 2025-01-XX
 
 ### 📚 Documentation

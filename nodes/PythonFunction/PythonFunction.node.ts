@@ -66,6 +66,71 @@ interface OutputFileInfo {
 	binaryKey: string;
 }
 
+// File debugging interfaces
+interface FileDebugOptions {
+	enabled: boolean;
+	includeInputFileDebug: boolean;
+	includeOutputFileDebug: boolean;
+	includeSystemInfo: boolean;
+	includeDirectoryListing: boolean;
+}
+
+interface FileDebugInfo {
+	input_files?: {
+		count: number;
+		total_size_mb: number;
+		files_by_type: Record<string, number>;
+		files_details: Array<{
+			filename: string;
+			size_mb: number;
+			mimetype: string;
+			extension: string;
+			binary_key: string;
+			item_index: number;
+			temp_path?: string;
+			base64_available: boolean;
+		}>;
+		processing_errors?: string[];
+	};
+	output_files?: {
+		processing_enabled: boolean;
+		output_directory: string;
+		directory_exists: boolean;
+		directory_writable: boolean;
+		directory_permissions?: string;
+		found_files: Array<{
+			filename: string;
+			size_mb: number;
+			mimetype: string;
+			extension: string;
+			full_path: string;
+			created_at: string;
+		}>;
+		scan_errors?: string[];
+	};
+	system_info?: {
+		python_executable: string;
+		working_directory: string;
+		user_permissions: {
+			can_write_temp: boolean;
+			can_create_files: boolean;
+		};
+		disk_space: {
+			available_mb?: number;
+			temp_dir?: string;
+		};
+		environment_variables: {
+			output_dir_available: boolean;
+			output_dir_value?: string;
+		};
+	};
+	directory_listing?: {
+		temp_directory?: string[];
+		output_directory?: string[];
+		working_directory?: string[];
+	};
+}
+
 
 async function cleanupScript(scriptPath: string): Promise<void> {
 	try {
@@ -855,6 +920,71 @@ print(json.dumps(result))
 				default: 'separate',
 				description: 'How to include input data in the output',
 			},
+			{
+				displayName: 'File Debug Options',
+				name: 'fileDebugOptions',
+				type: 'collection',
+				default: {},
+				placeholder: 'Add Debug Options',
+				description: 'Advanced debugging options for file processing issues',
+				options: [
+					{
+						displayName: 'Enable File Debugging',
+						name: 'enabled',
+						type: 'boolean',
+						default: false,
+						description: 'Include detailed file processing information in output for troubleshooting',
+					},
+					{
+						displayName: 'Debug Input Files',
+						name: 'includeInputFileDebug',
+						type: 'boolean',
+						default: true,
+						description: 'Include detailed information about input files processing',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Debug Output Files',
+						name: 'includeOutputFileDebug',
+						type: 'boolean',
+						default: true,
+						description: 'Include detailed information about output files and directory scanning',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Include System Information',
+						name: 'includeSystemInfo',
+						type: 'boolean',
+						default: true,
+						description: 'Include system information like permissions, disk space, environment variables',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Include Directory Listings',
+						name: 'includeDirectoryListing',
+						type: 'boolean',
+						default: false,
+						description: 'Include file listings from working directory, temp directory, and output directory',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+				],
+			},
 		],
 	};
 
@@ -918,6 +1048,23 @@ print(json.dumps(result))
 			maxOutputFileSize: outputFileProcessingConfig.maxOutputFileSize || 100,
 			autoCleanupOutput: outputFileProcessingConfig.autoCleanupOutput !== false, // default true
 			includeOutputMetadata: outputFileProcessingConfig.includeOutputMetadata !== false, // default true
+		};
+		
+		// Get file debug options
+		const fileDebugConfig = this.getNodeParameter('fileDebugOptions', 0, {}) as {
+			enabled?: boolean;
+			includeInputFileDebug?: boolean;
+			includeOutputFileDebug?: boolean;
+			includeSystemInfo?: boolean;
+			includeDirectoryListing?: boolean;
+		};
+		
+		const fileDebugOptions: FileDebugOptions = {
+			enabled: fileDebugConfig.enabled === true, // default false
+			includeInputFileDebug: fileDebugConfig.includeInputFileDebug !== false, // default true when debugging enabled
+			includeOutputFileDebug: fileDebugConfig.includeOutputFileDebug !== false, // default true when debugging enabled
+			includeSystemInfo: fileDebugConfig.includeSystemInfo !== false, // default true when debugging enabled
+			includeDirectoryListing: fileDebugConfig.includeDirectoryListing === true, // default false
 		};
 		
 		// Create output directory if output file processing is enabled
@@ -1111,6 +1258,7 @@ print(json.dumps(result))
 					inputFiles,
 					outputDir,
 					outputFileProcessingOptions,
+					fileDebugOptions,
 				);
 			} else {
 				return await executeOnce(
@@ -1119,7 +1267,7 @@ print(json.dumps(result))
 					pythonPath, 
 					injectVariables, 
 					errorHandling, 
-					debugMode, 
+					 debugMode, 
 					parseOutput, 
 					parseOptions, 
 					passThrough, 
@@ -1134,6 +1282,7 @@ print(json.dumps(result))
 					inputFiles,
 					outputDir,
 					outputFileProcessingOptions,
+					fileDebugOptions,
 				);
 			}
 		} catch (error) {
@@ -1410,11 +1559,12 @@ async function executeOnce(
 	inputFiles: FileMapping[],
 	outputDir?: string,
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
+	fileDebugOptions?: FileDebugOptions,
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
 	const debugTiming: DebugTiming = {
-		script_created_at: new Date().toISOString(),
+			script_created_at: new Date().toISOString(),
 	};
 	let debugInfo: DebugInfo | null = null;
 		
@@ -1534,10 +1684,27 @@ async function executeOnce(
 			}
 		}
 
+		// Add file debug information if enabled
+		if (fileDebugOptions?.enabled) {
+			try {
+				const fileDebugInfo = await createFileDebugInfo(
+					inputFiles,
+					outputDir,
+					outputFileProcessingOptions,
+					fileDebugOptions
+				);
+				baseResult.fileDebugInfo = fileDebugInfo;
+				console.log('File debug information added to result');
+			} catch (error) {
+				console.error('Error creating file debug info:', error);
+				baseResult.fileDebugError = `Failed to create file debug info: ${(error as Error).message}`;
+			}
+		}
+
 		// Add debug information if enabled
 		if (debugInfo && debugMode !== 'off') {
-			debugInfo.timing = debugTiming;
-			addDebugInfoToResult(baseResult, debugInfo, debugMode);
+				debugInfo.timing = debugTiming;
+				addDebugInfoToResult(baseResult, debugInfo, debugMode);
 		}
 
 		// Handle pass through data
@@ -1724,6 +1891,7 @@ async function executePerItem(
 	inputFiles: FileMapping[],
 	outputDir?: string,
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
+	fileDebugOptions?: FileDebugOptions,
 ): Promise<INodeExecutionData[][]> {
 	
 	const results: INodeExecutionData[] = [];
@@ -1895,6 +2063,23 @@ async function executePerItem(
 				} catch (error) {
 					console.error(`Error processing output files for item ${i}:`, error);
 					itemResult.outputFileError = `Failed to process output files: ${(error as Error).message}`;
+				}
+			}
+
+			// Add file debug information if enabled
+			if (fileDebugOptions?.enabled) {
+				try {
+					const fileDebugInfo = await createFileDebugInfo(
+						inputFiles,
+						outputDir,
+						outputFileProcessingOptions,
+						fileDebugOptions
+					);
+					itemResult.fileDebugInfo = fileDebugInfo;
+					console.log(`File debug information added to result for item ${i}`);
+				} catch (error) {
+					console.error(`Error creating file debug info for item ${i}:`, error);
+					itemResult.fileDebugError = `Failed to create file debug info: ${(error as Error).message}`;
 				}
 			}
 
@@ -2945,6 +3130,249 @@ function createUniqueOutputDirectory(): string {
 	console.log(`Created output directory: ${outputDir}`);
 	
 	return outputDir;
+}
+
+// File debugging functions
+async function createFileDebugInfo(
+	inputFiles: FileMapping[],
+	outputDir?: string,
+	outputFileProcessingOptions?: OutputFileProcessingOptions,
+	options?: FileDebugOptions
+): Promise<FileDebugInfo> {
+	const debugInfo: FileDebugInfo = {};
+	
+	if (!options?.enabled) {
+		return debugInfo;
+	}
+	
+	try {
+		// Input files debug info
+		if (options.includeInputFileDebug) {
+			debugInfo.input_files = await createInputFileDebugInfo(inputFiles);
+		}
+		
+		// Output files debug info
+		if (options.includeOutputFileDebug && outputDir) {
+			debugInfo.output_files = await createOutputFileDebugInfo(outputDir, outputFileProcessingOptions);
+		}
+		
+		// System info
+		if (options.includeSystemInfo) {
+			debugInfo.system_info = await createSystemDebugInfo(outputDir);
+		}
+		
+		// Directory listings
+		if (options.includeDirectoryListing) {
+			debugInfo.directory_listing = await createDirectoryListingInfo(outputDir);
+		}
+		
+	} catch (error) {
+		console.error('Error creating file debug info:', error);
+		// Return partial debug info instead of failing completely
+	}
+	
+	return debugInfo;
+}
+
+async function createInputFileDebugInfo(inputFiles: FileMapping[]): Promise<FileDebugInfo['input_files']> {
+	const processingErrors: string[] = [];
+	let totalSizeMB = 0;
+	const filesByType: Record<string, number> = {};
+	const filesDetails: any[] = [];
+	
+	for (const file of inputFiles) {
+		try {
+			const sizeMB = file.size / (1024 * 1024);
+			totalSizeMB += sizeMB;
+			
+			// Count by type
+			const typeKey = file.mimetype || 'unknown';
+			filesByType[typeKey] = (filesByType[typeKey] || 0) + 1;
+			
+			// File details
+			filesDetails.push({
+				filename: file.filename,
+				size_mb: Math.round(sizeMB * 100) / 100,
+				mimetype: file.mimetype,
+				extension: file.extension,
+				binary_key: file.binaryKey,
+				item_index: file.itemIndex,
+				temp_path: file.tempPath,
+				base64_available: !!file.base64Data,
+			});
+			
+		} catch (error) {
+			processingErrors.push(`Error processing file ${file.filename}: ${(error as Error).message}`);
+		}
+	}
+	
+	return {
+		count: inputFiles.length,
+		total_size_mb: Math.round(totalSizeMB * 100) / 100,
+		files_by_type: filesByType,
+		files_details: filesDetails,
+		processing_errors: processingErrors.length > 0 ? processingErrors : undefined,
+	};
+}
+
+async function createOutputFileDebugInfo(
+	outputDir: string,
+	options?: OutputFileProcessingOptions
+): Promise<FileDebugInfo['output_files']> {
+	const scanErrors: string[] = [];
+	const foundFiles: any[] = [];
+	let directoryExists = false;
+	let directoryWritable = false;
+	let directoryPermissions: string | undefined;
+	
+	try {
+		// Check if directory exists
+		directoryExists = fs.existsSync(outputDir);
+		
+		if (directoryExists) {
+			// Check permissions
+			try {
+				await fs.promises.access(outputDir, fs.constants.W_OK);
+				directoryWritable = true;
+			} catch {
+				directoryWritable = false;
+			}
+			
+			// Get permissions
+			try {
+				const stats = await fs.promises.stat(outputDir);
+				directoryPermissions = stats.mode.toString(8);
+			} catch (error) {
+				scanErrors.push(`Could not read directory permissions: ${(error as Error).message}`);
+			}
+			
+			// Scan for files
+			try {
+				const files = await fs.promises.readdir(outputDir);
+				for (const file of files) {
+					try {
+						const filePath = path.join(outputDir, file);
+						const stats = await fs.promises.stat(filePath);
+						
+						if (stats.isFile()) {
+							const extension = getFileExtension(file);
+							const sizeMB = stats.size / (1024 * 1024);
+							
+							foundFiles.push({
+								filename: file,
+								size_mb: Math.round(sizeMB * 100) / 100,
+								mimetype: getMimeType(extension),
+								extension,
+								full_path: filePath,
+								created_at: stats.birthtime.toISOString(),
+							});
+						}
+					} catch (error) {
+						scanErrors.push(`Error scanning file ${file}: ${(error as Error).message}`);
+					}
+				}
+			} catch (error) {
+				scanErrors.push(`Could not read directory contents: ${(error as Error).message}`);
+			}
+		}
+		
+	} catch (error) {
+		scanErrors.push(`Directory access error: ${(error as Error).message}`);
+	}
+	
+	return {
+		processing_enabled: options?.enabled === true,
+		output_directory: outputDir,
+		directory_exists: directoryExists,
+		directory_writable: directoryWritable,
+		directory_permissions: directoryPermissions,
+		found_files: foundFiles,
+		scan_errors: scanErrors.length > 0 ? scanErrors : undefined,
+	};
+}
+
+async function createSystemDebugInfo(outputDir?: string): Promise<FileDebugInfo['system_info']> {
+	const systemInfo: FileDebugInfo['system_info'] = {
+		python_executable: '',
+		working_directory: process.cwd(),
+		user_permissions: {
+			can_write_temp: false,
+			can_create_files: false,
+		},
+		disk_space: {},
+		environment_variables: {
+			output_dir_available: false,
+		},
+	};
+	
+	// Check temp directory write permissions
+	try {
+		const tempFile = tempy.file();
+		await fs.promises.writeFile(tempFile, 'test');
+		await fs.promises.unlink(tempFile);
+		systemInfo.user_permissions.can_write_temp = true;
+	} catch {
+		systemInfo.user_permissions.can_write_temp = false;
+	}
+	
+	// Check file creation permissions in current directory
+	try {
+		const testFile = path.join(process.cwd(), `test_${Date.now()}.tmp`);
+		await fs.promises.writeFile(testFile, 'test');
+		await fs.promises.unlink(testFile);
+		systemInfo.user_permissions.can_create_files = true;
+	} catch {
+		systemInfo.user_permissions.can_create_files = false;
+	}
+	
+	// Check environment variables
+	if (outputDir) {
+		systemInfo.environment_variables.output_dir_available = true;
+		systemInfo.environment_variables.output_dir_value = outputDir;
+	}
+	
+	// Get temp directory info
+	systemInfo.disk_space.temp_dir = tempy.directory();
+	
+	return systemInfo;
+}
+
+async function createDirectoryListingInfo(outputDir?: string): Promise<FileDebugInfo['directory_listing']> {
+	const listings: FileDebugInfo['directory_listing'] = {};
+	
+	// Working directory
+	try {
+		const workingDir = process.cwd();
+		const files = await fs.promises.readdir(workingDir);
+		listings.working_directory = files.slice(0, 20); // Limit to first 20 files
+	} catch (error) {
+		console.warn('Could not list working directory:', error);
+	}
+	
+	// Output directory
+	if (outputDir) {
+		try {
+			if (fs.existsSync(outputDir)) {
+				const files = await fs.promises.readdir(outputDir);
+				listings.output_directory = files;
+			}
+		} catch (error) {
+			console.warn('Could not list output directory:', error);
+		}
+	}
+	
+	// Temp directory
+	try {
+		const tempDir = tempy.directory();
+		if (fs.existsSync(tempDir)) {
+			const files = await fs.promises.readdir(tempDir);
+			listings.temp_directory = files.slice(0, 10); // Limit to first 10 files
+		}
+	} catch (error) {
+		console.warn('Could not list temp directory:', error);
+	}
+	
+	return listings;
 }
 
 
