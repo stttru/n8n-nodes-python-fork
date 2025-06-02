@@ -20,6 +20,36 @@ export interface IExecReturnData {
 	stdout: string;
 }
 
+interface BinaryFileInfo {
+	key: string;
+	data: {
+		data: string;
+		fileName: string;
+		mimeType: string;
+		fileExtension?: string;
+	};
+	itemIndex: number;
+}
+
+interface FileMapping {
+	filename: string;
+	mimetype: string;
+	size: number;
+	tempPath?: string;
+	base64Data?: string;
+	binaryKey: string;
+	itemIndex: number;
+	extension: string;
+}
+
+interface FileProcessingOptions {
+	enabled: boolean;
+	accessMethod: 'temp_files' | 'base64' | 'both';
+	maxFileSize: number;
+	includeMetadata: boolean;
+	autoCleanup: boolean;
+}
+
 
 async function cleanupScript(scriptPath: string): Promise<void> {
 	try {
@@ -30,6 +60,132 @@ async function cleanupScript(scriptPath: string): Promise<void> {
 	} catch (error) {
 		console.warn(`Failed to cleanup script ${scriptPath}:`, error);
 		// Don't throw error - cleanup should not break main process
+	}
+}
+
+// File processing functions
+function detectBinaryFiles(items: INodeExecutionData[]): BinaryFileInfo[] {
+	const binaryFiles: BinaryFileInfo[] = [];
+	
+	for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+		const item = items[itemIndex];
+		if (item.binary) {
+			for (const [key, binaryData] of Object.entries(item.binary)) {
+				if (binaryData && binaryData.data && binaryData.fileName) {
+					binaryFiles.push({
+						key,
+						data: {
+							data: binaryData.data,
+							fileName: binaryData.fileName,
+							mimeType: binaryData.mimeType || 'application/octet-stream',
+							fileExtension: binaryData.fileExtension,
+						},
+						itemIndex,
+					});
+				}
+			}
+		}
+	}
+	
+	return binaryFiles;
+}
+
+function validateFile(binaryFile: BinaryFileInfo, options: FileProcessingOptions): void {
+	// Check file size
+	const buffer = Buffer.from(binaryFile.data.data, 'base64');
+	const sizeInMB = buffer.length / (1024 * 1024);
+	
+	if (sizeInMB > options.maxFileSize) {
+		throw new Error(`File "${binaryFile.data.fileName}" is too large: ${sizeInMB.toFixed(2)}MB > ${options.maxFileSize}MB`);
+	}
+	
+	console.log(`File "${binaryFile.data.fileName}" validated: ${sizeInMB.toFixed(2)}MB, type: ${binaryFile.data.mimeType}`);
+}
+
+function getFileExtension(filename: string): string {
+	const extension = path.extname(filename).toLowerCase();
+	return extension.startsWith('.') ? extension.substring(1) : extension;
+}
+
+function sanitizeFileName(filename: string): string {
+	// Remove or replace dangerous characters
+	return filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').substring(0, 255);
+}
+
+async function createTemporaryFiles(binaryFiles: BinaryFileInfo[], options: FileProcessingOptions): Promise<FileMapping[]> {
+	const fileMappings: FileMapping[] = [];
+	
+	for (const binaryFile of binaryFiles) {
+		try {
+			// Validate file first
+			validateFile(binaryFile, options);
+			
+			const buffer = Buffer.from(binaryFile.data.data, 'base64');
+			const extension = getFileExtension(binaryFile.data.fileName);
+			const sanitizedFileName = sanitizeFileName(binaryFile.data.fileName);
+			
+			const fileMapping: FileMapping = {
+				filename: binaryFile.data.fileName,
+				mimetype: binaryFile.data.mimeType,
+				size: buffer.length,
+				binaryKey: binaryFile.key,
+				itemIndex: binaryFile.itemIndex,
+				extension,
+			};
+			
+			// Add base64 data if requested
+			if (options.accessMethod === 'base64' || options.accessMethod === 'both') {
+				fileMapping.base64Data = binaryFile.data.data;
+			}
+			
+			// Create temporary file if requested
+			if (options.accessMethod === 'temp_files' || options.accessMethod === 'both') {
+				const tempPath = tempy.file({ 
+					extension: extension || 'bin',
+				});
+				
+				// Write the base64 data directly as binary
+				await fs.promises.writeFile(tempPath, binaryFile.data.data, 'base64');
+				fileMapping.tempPath = tempPath;
+				
+				console.log(`Created temporary file: ${tempPath} (${(buffer.length / 1024).toFixed(1)}KB)`);
+			}
+			
+			fileMappings.push(fileMapping);
+			
+		} catch (error) {
+			console.error(`Failed to process file "${binaryFile.data.fileName}":`, error);
+			throw new Error(`File processing failed for "${binaryFile.data.fileName}": ${(error as Error).message}`);
+		}
+	}
+	
+	return fileMappings;
+}
+
+async function cleanupTemporaryFiles(fileMappings: FileMapping[]): Promise<void> {
+	let cleanedCount = 0;
+	let errorCount = 0;
+	
+	for (const fileMapping of fileMappings) {
+		if (fileMapping.tempPath) {
+			try {
+				if (fs.existsSync(fileMapping.tempPath)) {
+					await fs.promises.unlink(fileMapping.tempPath);
+					cleanedCount++;
+				}
+			} catch (error) {
+				errorCount++;
+				console.warn(`Failed to cleanup temporary file: ${fileMapping.tempPath}`, error);
+				// Don't throw - cleanup should not break main process
+			}
+		}
+	}
+	
+	if (cleanedCount > 0) {
+		console.log(`Cleaned up ${cleanedCount} temporary files`);
+	}
+	if (errorCount > 0) {
+		console.warn(`Failed to cleanup ${errorCount} temporary files`);
 	}
 }
 
@@ -271,10 +427,37 @@ print("Input items count:", len(input_items))
 # Environment variables are available individually:
 # MY_API_KEY, DB_HOST, PORT, etc. (from credentials or system env)
 
+# Binary files from previous nodes (if "File Processing" enabled)
+if 'input_files' in globals() and input_files:
+    print(f"Found {len(input_files)} files:")
+    for file_info in input_files:
+        filename = file_info['filename']
+        size_mb = file_info['size'] / (1024 * 1024)
+        file_type = file_info['extension']
+        
+        print(f"  - {filename} ({size_mb:.2f}MB, type: {file_type})")
+        
+        # Access file content
+        if 'temp_path' in file_info:
+            # Read via temporary file path (recommended)
+            file_path = file_info['temp_path']
+            with open(file_path, 'rb') as f:
+                content = f.read()
+                print(f"    Read {len(content)} bytes from {file_path}")
+        
+        elif 'base64_data' in file_info:
+            # Read via base64 data  
+            import base64
+            content = base64.b64decode(file_info['base64_data'])
+            print(f"    Decoded {len(content)} bytes from base64")
+
 # Legacy env_vars dict (if "Include env_vars Dictionary" enabled)
 # print("Environment variables in dict:", len(env_vars))
 
 result = {"processed_count": len(input_items), "status": "success"}
+if 'input_files' in globals():
+    result["files_processed"] = len(input_files)
+
 print(json.dumps(result))
 
 # ===== OR =====
@@ -394,6 +577,93 @@ print(json.dumps(result))
 				],
 			},
 			{
+				displayName: 'File Processing',
+				name: 'fileProcessing',
+				type: 'collection',
+				default: {},
+				placeholder: 'Add File Options',
+				description: 'Configure processing of binary files from previous nodes',
+				options: [
+					{
+						displayName: 'Enable File Processing',
+						name: 'enabled',
+						type: 'boolean',
+						default: false,
+						description: 'Automatically extract binary files from input and make them available in Python script',
+					},
+					{
+						displayName: 'File Access Method',
+						name: 'accessMethod',
+						type: 'options',
+						options: [
+							{
+								name: 'Temporary Files (Recommended)',
+								value: 'temp_files',
+								description: 'Save files to temporary paths accessible in script',
+							},
+							{
+								name: 'Base64 Content',
+								value: 'base64',
+								description: 'Provide file content as base64 strings',
+							},
+							{
+								name: 'Both Methods',
+								value: 'both',
+								description: 'Provide both temporary file paths and base64 content',
+							},
+						],
+						default: 'temp_files',
+						description: 'How to provide file access in the Python script',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Max File Size (MB)',
+						name: 'maxFileSize',
+						type: 'number',
+						typeOptions: {
+							minValue: 1,
+							maxValue: 1000,
+						},
+						default: 100,
+						description: 'Maximum file size to process (1-1000 MB)',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Include File Metadata',
+						name: 'includeMetadata',
+						type: 'boolean',
+						default: true,
+						description: 'Include file metadata (size, mimetype, etc.) in script variables',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Auto-cleanup Temporary Files',
+						name: 'autoCleanup',
+						type: 'boolean',
+						default: true,
+						description: 'Automatically delete temporary files after script execution',
+						displayOptions: {
+							show: {
+								enabled: [true],
+								accessMethod: ['temp_files', 'both'],
+							},
+						},
+					},
+				],
+			},
+			{
 				displayName: 'Parse Output',
 				name: 'parseOutput',
 				type: 'options',
@@ -428,8 +698,8 @@ print(json.dumps(result))
 				type: 'collection',
 				placeholder: 'Add Option',
 				default: {},
-				displayOptions: {
-					show: {
+						displayOptions: {
+							show: {
 						parseOutput: ['json', 'smart'],
 					},
 				},
@@ -479,7 +749,7 @@ print(json.dumps(result))
 			{
 				displayName: 'Pass Through Input Data',
 				name: 'passThrough',
-				type: 'boolean',
+						type: 'boolean',
 				default: false,
 				description: 'Include original input data in the output alongside Python script results',
 			},
@@ -487,8 +757,8 @@ print(json.dumps(result))
 				displayName: 'Pass Through Mode',
 				name: 'passThroughMode',
 				type: 'options',
-				displayOptions: {
-					show: {
+						displayOptions: {
+							show: {
 						passThrough: [true],
 					},
 				},
@@ -544,6 +814,23 @@ print(json.dumps(result))
 		const includeInputItems = scriptOptions.includeInputItems !== false; // default true
 		const includeEnvVarsDict = scriptOptions.includeEnvVarsDict === true; // default false
 		const systemEnvVars = scriptOptions.systemEnvVars || [];
+		
+		// Get file processing options
+		const fileProcessingConfig = this.getNodeParameter('fileProcessing', 0, {}) as {
+			enabled?: boolean;
+			accessMethod?: string;
+			maxFileSize?: number;
+			includeMetadata?: boolean;
+			autoCleanup?: boolean;
+		};
+		
+		const fileProcessingOptions: FileProcessingOptions = {
+			enabled: fileProcessingConfig.enabled === true, // default false
+			accessMethod: (fileProcessingConfig.accessMethod as 'temp_files' | 'base64' | 'both') || 'temp_files',
+			maxFileSize: fileProcessingConfig.maxFileSize || 100,
+			includeMetadata: fileProcessingConfig.includeMetadata !== false, // default true
+			autoCleanup: fileProcessingConfig.autoCleanup !== false, // default true
+		};
 		
 		// Log configuration
 		console.log('Python Function Raw node configuration:', {
@@ -662,47 +949,91 @@ print(json.dumps(result))
 			...credentialSources,
 		};
 		
-		// Execute based on mode
-		if (executionMode === 'perItem') {
-			return await executePerItem(
-				this,
-				functionCode, 
-				pythonPath, 
-				injectVariables, 
-				errorHandling, 
-				debugMode, 
-				parseOutput, 
-				parseOptions, 
-				passThrough, 
-				passThroughMode, 
-				items, 
-				mergedEnvVars,
-				includeInputItems,
-				includeEnvVarsDict,
-				hideCredentialValues,
-				systemEnvVars,
-				mergedCredentialSources,
-			);
-		} else {
-			return await executeOnce(
-				this,
-				functionCode, 
-				pythonPath, 
-				injectVariables, 
-				errorHandling, 
-				debugMode, 
-				parseOutput, 
-				parseOptions, 
-				passThrough, 
-				passThroughMode, 
-				items, 
-				mergedEnvVars,
-				includeInputItems,
-				includeEnvVarsDict,
-				hideCredentialValues,
-				systemEnvVars,
-				mergedCredentialSources,
-			);
+		// Process binary files if enabled
+		let inputFiles: FileMapping[] = [];
+		let tempFilesToCleanup: FileMapping[] = [];
+		
+		if (fileProcessingOptions.enabled) {
+			try {
+				console.log('File processing enabled, detecting binary files...');
+				const binaryFiles = detectBinaryFiles(items);
+				
+				if (binaryFiles.length > 0) {
+					console.log(`Found ${binaryFiles.length} binary files in input`);
+					inputFiles = await createTemporaryFiles(binaryFiles, fileProcessingOptions);
+					
+					// Keep track of temp files for cleanup
+					if (fileProcessingOptions.autoCleanup) {
+						tempFilesToCleanup = inputFiles.filter(f => f.tempPath);
+					}
+					
+					console.log(`Processed ${inputFiles.length} files for Python script access`);
+				} else {
+					console.log('No binary files found in input data');
+				}
+			} catch (error) {
+				console.error('File processing failed:', error);
+				// Cleanup any partial temp files
+				if (tempFilesToCleanup.length > 0) {
+					await cleanupTemporaryFiles(tempFilesToCleanup);
+				}
+				throw new NodeOperationError(this.getNode(), `File processing failed: ${(error as Error).message}`);
+			}
+		}
+		
+		// Prepare to pass inputFiles to execution functions  
+		try {
+			// Execute based on mode
+			if (executionMode === 'perItem') {
+				return await executePerItem(
+					this,
+					functionCode, 
+					pythonPath, 
+					injectVariables, 
+					errorHandling, 
+					debugMode, 
+					parseOutput, 
+					parseOptions, 
+					passThrough, 
+					passThroughMode, 
+					items, 
+					mergedEnvVars,
+					includeInputItems,
+					includeEnvVarsDict,
+					hideCredentialValues,
+					systemEnvVars,
+					mergedCredentialSources,
+					inputFiles,
+				);
+			} else {
+				return await executeOnce(
+					this,
+					functionCode, 
+					pythonPath, 
+					injectVariables, 
+					errorHandling, 
+					debugMode, 
+					parseOutput, 
+					parseOptions, 
+					passThrough, 
+					passThroughMode, 
+					items, 
+					mergedEnvVars,
+					includeInputItems,
+					includeEnvVarsDict,
+					hideCredentialValues,
+					systemEnvVars,
+					mergedCredentialSources,
+					inputFiles,
+				);
+			}
+		} catch (error) {
+			throw new NodeOperationError(this.getNode(), `Error executing Python script: ${(error as Error).message}`);
+		} finally {
+			// Cleanup temporary files if enabled
+			if (tempFilesToCleanup.length > 0) {
+				await cleanupTemporaryFiles(tempFilesToCleanup);
+			}
 		}
 	}
 
@@ -957,6 +1288,7 @@ async function executeOnce(
 	hideVariableValues: boolean,
 	systemEnvVars: string[],
 	credentialSources: Record<string, string>,
+	inputFiles: FileMapping[],
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
@@ -968,7 +1300,7 @@ async function executeOnce(
 	let scriptPath = '';
 	try {
 		if (injectVariables) {
-			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources);
+			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles);
 		} else {
 			scriptPath = await getTemporaryPureScriptPath(functionCode);
 		}
@@ -980,7 +1312,7 @@ async function executeOnce(
 		// Initialize debug information
 		if (debugMode !== 'off') {
 			const scriptContent = injectVariables 
-				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources)
+				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles)
 				: functionCode;
 			
 			debugInfo = await createDebugInfo(
@@ -1205,6 +1537,7 @@ async function executePerItem(
 	hideVariableValues: boolean,
 	systemEnvVars: string[],
 	credentialSources: Record<string, string>,
+	inputFiles: FileMapping[],
 ): Promise<INodeExecutionData[][]> {
 	
 	const results: INodeExecutionData[] = [];
@@ -1222,7 +1555,7 @@ async function executePerItem(
 		try {
 			if (injectVariables) {
 				// For per-item execution, pass only current item
-				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources);
+				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles);
 			} else {
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
@@ -1230,7 +1563,7 @@ async function executePerItem(
 			// Create debug information for this item
 			if (debugMode !== 'off') {
 				const scriptContent = injectVariables 
-					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources)
+					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles)
 					: functionCode;
 				
 				debugInfo = await createDebugInfo(
@@ -1530,6 +1863,7 @@ function getScriptCode(
 	includeEnvVarsDict = false, 
 	hideVariableValues = false,
 	credentialSources?: Record<string, string>,
+	inputFiles?: FileMapping[],
 ): string {
 	// Extract __future__ imports from user code and move them to the top
 	const futureImports: string[] = [];
@@ -1648,12 +1982,42 @@ ${legacyParts.join('\n')}`;
 		}
 	}
 
+	// Add input files array if files are provided
+	let inputFilesSection = '';
+	if (inputFiles && inputFiles.length > 0) {
+		const filesArray = inputFiles.map(file => {
+			const fileInfo: any = {
+				filename: file.filename,
+				mimetype: file.mimetype,
+				size: file.size,
+				extension: file.extension,
+				binary_key: file.binaryKey,
+				item_index: file.itemIndex,
+			};
+			
+			if (file.tempPath) {
+				fileInfo.temp_path = hideVariableValues ? '"***hidden***"' : file.tempPath;
+			}
+			
+			if (file.base64Data) {
+				fileInfo.base64_data = hideVariableValues ? '"***hidden***"' : file.base64Data;
+			}
+			
+			return fileInfo;
+		});
+		
+		const filesValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(filesArray, null, 2);
+		inputFilesSection = `
+# Binary files from previous nodes
+input_files = ${filesValue}`;
+	}
+
 	const script = `#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
 ${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
 import json
 import sys
-${envVariablesSection}${individualVariables}${legacyDataSection}
+${envVariablesSection}${individualVariables}${legacyDataSection}${inputFilesSection}
 # User code starts here
 ${cleanedCodeSnippet}
 `;
@@ -1661,9 +2025,9 @@ ${cleanedCodeSnippet}
 }
 
 
-async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems = true, includeEnvVarsDict = false, hideVariableValues = false, credentialSources?: Record<string, string>): Promise<string> {
+async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems = true, includeEnvVarsDict = false, hideVariableValues = false, credentialSources?: Record<string, string>, inputFiles?: FileMapping[]): Promise<string> {
 	const tmpPath = tempy.file({extension: 'py'});
-	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources);
+	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles);
 	
 	// Ensure file is overwritten by explicitly writing with 'w' flag
 	try {
