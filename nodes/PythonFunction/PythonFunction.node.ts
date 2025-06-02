@@ -624,6 +624,30 @@ print(json.dumps(result))
 				description: 'Choose debug and testing options for script development and troubleshooting',
 			},
 			{
+				displayName: 'Script Export Format',
+				name: 'scriptExportFormat',
+				type: 'options',
+				displayOptions: {
+					show: {
+						debugMode: ['export'],
+					},
+				},
+				options: [
+					{
+						name: 'Python File (.py)',
+						value: 'py',
+						description: 'Export as .py file (standard Python script format)',
+					},
+					{
+						name: 'Text File (.txt)',
+						value: 'txt',
+						description: 'Export as .txt file (useful when .py files are blocked by security policies)',
+					},
+				],
+				default: 'py',
+				description: 'Choose the file format for script export in debug mode',
+			},
+			{
 				displayName: 'Script Generation Options',
 				name: 'scriptOptions',
 				type: 'collection',
@@ -1001,6 +1025,7 @@ print(json.dumps(result))
 		const errorHandling = this.getNodeParameter('errorHandling', 0) as string;
 		const debugMode = this.getNodeParameter('debugMode', 0) as string;
 		const parseOutput = this.getNodeParameter('parseOutput', 0) as string;
+		const scriptExportFormat = this.getNodeParameter('scriptExportFormat', 0, 'py') as string;
 		const parseOptions = (['json', 'smart'].includes(parseOutput)) ? 
 			this.getNodeParameter('parseOptions', 0) as ParseOptions : 
 			{} as ParseOptions;
@@ -1259,6 +1284,7 @@ print(json.dumps(result))
 					outputDir,
 					outputFileProcessingOptions,
 					fileDebugOptions,
+					scriptExportFormat,
 				);
 			} else {
 				return await executeOnce(
@@ -1283,6 +1309,7 @@ print(json.dumps(result))
 					outputDir,
 					outputFileProcessingOptions,
 					fileDebugOptions,
+					scriptExportFormat,
 				);
 			}
 		} catch (error) {
@@ -1560,6 +1587,7 @@ async function executeOnce(
 	outputDir?: string,
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
 	fileDebugOptions?: FileDebugOptions,
+	scriptExportFormat?: string,
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
@@ -1731,7 +1759,7 @@ async function executeOnce(
 		if (debugMode === 'export' && debugInfo) {
 			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 			const filename = `python_script_${timestamp}.py`;
-			const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+			const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 			
 			// Add binary data to each result item
 			for (const resultItem of resultWithPassThrough) {
@@ -1797,7 +1825,7 @@ async function executeOnce(
 		if (debugMode === 'export' && debugInfo) {
 			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 			const filename = `python_script_error_${timestamp}.py`;
-			const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+			const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 			
 			for (const resultItem of errorResultWithPassThrough) {
 				if (!resultItem.binary) {
@@ -1850,7 +1878,7 @@ async function executeOnce(
 			if (debugMode === 'export' && debugInfo) {
 				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 				const filename = `python_script_system_error_${timestamp}.py`;
-				const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+				const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 				
 				for (const resultItem of errorResultWithPassThrough) {
 					if (!resultItem.binary) {
@@ -1892,6 +1920,7 @@ async function executePerItem(
 	outputDir?: string,
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
 	fileDebugOptions?: FileDebugOptions,
+	scriptExportFormat?: string,
 ): Promise<INodeExecutionData[][]> {
 	
 	const results: INodeExecutionData[] = [];
@@ -1959,7 +1988,7 @@ async function executePerItem(
 				if (debugMode === 'export' && debugInfo) {
 					const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 					const filename = `python_script_item_${i}_gen_error_${timestamp}.py`;
-					const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+					const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 					
 					for (const resultItem of errorWithPassThrough) {
 						if (!resultItem.binary) {
@@ -2125,7 +2154,7 @@ async function executePerItem(
 			if (debugMode === 'export' && debugInfo) {
 				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 				const filename = `python_script_item_${i}_${timestamp}.py`;
-				const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+				const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 				
 				for (const resultItem of resultWithPassThrough) {
 					if (!resultItem.binary) {
@@ -2170,7 +2199,7 @@ async function executePerItem(
 				if (debugMode === 'export' && debugInfo) {
 					const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 					const filename = `python_script_item_${i}_error_${timestamp}.py`;
-					const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+					const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 					
 					for (const resultItem of errorWithPassThrough) {
 						if (!resultItem.binary) {
@@ -2915,14 +2944,30 @@ except Exception as e:
 	}
 }
 
-function createScriptBinary(scriptContent: string, filename = 'script.py'): { [key: string]: unknown } {
+function createScriptBinary(scriptContent: string, filename = 'script.py', format = 'py'): { [key: string]: unknown } {
+	// Determine file extension and MIME type based on format
+	let fileExtension: string;
+	let mimeType: string;
+	let finalFilename: string;
+	
+	if (format === 'txt') {
+		fileExtension = 'txt';
+		mimeType = 'text/plain';
+		// Replace .py extension with .txt
+		finalFilename = filename.replace(/\.py$/, '.txt');
+	} else {
+		fileExtension = 'py';
+		mimeType = 'text/x-python';
+		finalFilename = filename;
+	}
+	
 	const buffer = Buffer.from(scriptContent, 'utf8');
 	return {
-		[filename]: {
+		[finalFilename]: {
 			data: buffer.toString('base64'),
-			mimeType: 'text/x-python',
-			fileExtension: 'py',
-			fileName: filename,
+			mimeType: mimeType,
+			fileExtension: fileExtension,
+			fileName: finalFilename,
 		},
 	};
 }

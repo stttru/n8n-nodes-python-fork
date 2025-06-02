@@ -6,6 +6,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.1] - 2025-01-XX
+
+### 🎨 Enhanced Script Export Options
+- **Script Export Format Selection**: New option to choose export format in "Export Script" debug mode
+  - **Python File (.py)**: Standard Python script format (default)
+  - **Text File (.txt)**: Plain text format for cases where .py files are blocked by security policies
+- **Security-Friendly Export**: Helps bypass antivirus or corporate security restrictions that may block .py files
+- **Conditional UI**: Format selector appears only when "Export Script" debug mode is selected
+
+### 🛠️ Technical Implementation
+- **Updated createScriptBinary()**: Enhanced function to support multiple file formats
+- **Dynamic MIME Types**: Automatic MIME type detection based on selected format (.py = text/x-python, .txt = text/plain)
+- **Filename Extension Handling**: Automatic extension replacement (.py → .txt when text format selected)
+- **All Export Scenarios Covered**: Format selection works for successful execution, errors, and system errors
+
+### 📋 Usage Example
+1. Set "Debug/Test Mode" to "Export Script"
+2. Choose "Script Export Format":
+   - "Python File (.py)" - Standard format for development environments
+   - "Text File (.txt)" - Alternative format for restricted environments
+3. Downloaded files will have the selected format and appropriate MIME type
+
+### 🎯 Use Cases
+- **Corporate Environments**: Export as .txt when .py files are blocked by security policies
+- **Email Sharing**: .txt files are more likely to pass through email filters
+- **Documentation**: Include Python scripts in documentation as text files
+- **Development Workflow**: Standard .py format for normal development work
+
 ## [1.12.0] - 2025-01-XX
 
 ### 🔍 Advanced File Debugging System
