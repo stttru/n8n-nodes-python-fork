@@ -6,6 +6,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.2] - 2025-01-XX
+
+### 🎯 Smart Output File Detection System
+- **Fixed Critical Issue**: `output_dir` variable now properly injected even when "Inject Variables" is disabled
+- **Expected Output Filename**: New required field for automatic file detection and processing
+- **Dual Detection Modes**:
+  - **Ready Variable Path**: Provides `output_file_path` variable with complete file path
+  - **Auto Search by Name**: Automatically finds files by filename across filesystem
+- **Smart Instructions**: Auto-generated code comments guide developers on file usage
+- **Enhanced File Search**: Recursive file search with intelligent path detection
+
+### 🛠️ Technical Improvements
+- **Robust File Processing**: Works regardless of "Inject Variables" setting
+- **Path Resolution**: Automatic path joining for cross-platform compatibility  
+- **Performance Optimized**: Limited search depth and smart directory filtering
+- **Error Recovery**: Graceful handling of missing files and permissions
+
+### 📚 Developer Experience
+- **Contextual Help**: Mode-specific instructions appear as comments in generated scripts
+- **Clear Examples**: Ready-to-use code examples for both detection modes
+- **Filename Validation**: UI validation for expected output filename field
+- **Better Diagnostics**: Enhanced file debug information with search results
+
 ## [1.12.1] - 2025-01-XX
 
 ### 🎨 Enhanced Script Export Options

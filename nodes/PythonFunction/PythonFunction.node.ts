@@ -55,6 +55,9 @@ interface OutputFileProcessingOptions {
 	maxOutputFileSize: number;
 	autoCleanupOutput: boolean;
 	includeOutputMetadata: boolean;
+	autoInterceptFiles?: boolean;
+	expectedFileName?: string;
+	fileDetectionMode?: 'variable_path' | 'auto_search';
 }
 
 interface OutputFileInfo {
@@ -823,6 +826,61 @@ print(json.dumps(result))
 							},
 						},
 					},
+					{
+						displayName: 'Auto-Intercept File Operations',
+						name: 'autoInterceptFiles',
+						type: 'boolean',
+						default: true,
+						description: 'Automatically redirect all file write operations to output directory (works with any script without modification)',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Expected Output Filename',
+						name: 'expectedFileName',
+						type: 'string',
+						default: '',
+						placeholder: 'report.pdf, data.csv, result.json, etc.',
+						description: 'Filename you expect the Python script to create (required for automatic file detection)',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+							hide: {
+								expectedFileName: [''],
+							},
+						},
+					},
+					{
+						displayName: 'File Detection Mode',
+						name: 'fileDetectionMode',
+						type: 'options',
+						options: [
+							{
+								name: 'Ready Variable Path',
+								value: 'variable_path',
+								description: 'Add output_file_path variable with full path to your script (recommended)',
+							},
+							{
+								name: 'Auto Search by Name',
+								value: 'auto_search',
+								description: 'Automatically find file by name after script execution',
+							},
+						],
+						default: 'variable_path',
+						description: 'How to provide the output file path to your Python script',
+						displayOptions: {
+							show: {
+								enabled: [true],
+							},
+							hide: {
+								expectedFileName: [''],
+							},
+						},
+					},
 				],
 			},
 			{
@@ -1066,6 +1124,9 @@ print(json.dumps(result))
 			maxOutputFileSize?: number;
 			autoCleanupOutput?: boolean;
 			includeOutputMetadata?: boolean;
+			autoInterceptFiles?: boolean;
+			expectedFileName?: string;
+			fileDetectionMode?: 'variable_path' | 'auto_search';
 		};
 		
 		const outputFileProcessingOptions: OutputFileProcessingOptions = {
@@ -1073,6 +1134,9 @@ print(json.dumps(result))
 			maxOutputFileSize: outputFileProcessingConfig.maxOutputFileSize || 100,
 			autoCleanupOutput: outputFileProcessingConfig.autoCleanupOutput !== false, // default true
 			includeOutputMetadata: outputFileProcessingConfig.includeOutputMetadata !== false, // default true
+			autoInterceptFiles: outputFileProcessingConfig.autoInterceptFiles !== false, // default false
+			expectedFileName: outputFileProcessingConfig.expectedFileName,
+			fileDetectionMode: outputFileProcessingConfig.fileDetectionMode || 'variable_path',
 		};
 		
 		// Get file debug options
@@ -1601,7 +1665,13 @@ async function executeOnce(
 		if (injectVariables) {
 			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
 		} else {
-			scriptPath = await getTemporaryPureScriptPath(functionCode);
+			// Even when injectVariables is false, we still need to inject output_dir for Output File Processing
+			if (outputDir) {
+				// Create script with just output_dir variable injection
+				scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir);
+			} else {
+				scriptPath = await getTemporaryPureScriptPath(functionCode);
+			}
 		}
 	} catch (error) {
 		throw new NodeOperationError(executeFunctions.getNode(), `Could not generate temporary script file: ${(error as Error).message}`);
@@ -1719,7 +1789,7 @@ async function executeOnce(
 					inputFiles,
 					outputDir,
 					outputFileProcessingOptions,
-					fileDebugOptions
+					fileDebugOptions,
 				);
 				baseResult.fileDebugInfo = fileDebugInfo;
 				console.log('File debug information added to result');
@@ -1940,7 +2010,13 @@ async function executePerItem(
 				// For per-item execution, pass only current item
 				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
 			} else {
-				scriptPath = await getTemporaryPureScriptPath(functionCode);
+				// Even when injectVariables is false, we still need to inject output_dir for Output File Processing
+				if (outputDir) {
+					// Create script with just output_dir variable injection
+					scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir);
+				} else {
+					scriptPath = await getTemporaryPureScriptPath(functionCode);
+				}
 			}
 
 			// Create debug information for this item
@@ -2102,7 +2178,7 @@ async function executePerItem(
 						inputFiles,
 						outputDir,
 						outputFileProcessingOptions,
-						fileDebugOptions
+						fileDebugOptions,
 					);
 					itemResult.fileDebugInfo = fileDebugInfo;
 					console.log(`File debug information added to result for item ${i}`);
@@ -2298,6 +2374,7 @@ function getScriptCode(
 	credentialSources?: Record<string, string>,
 	inputFiles?: FileMapping[],
 	outputDir?: string,
+	outputFileOptions?: { expectedFileName?: string; fileDetectionMode?: string },
 ): string {
 	// Extract __future__ imports from user code and move them to the top
 	const futureImports: string[] = [];
@@ -2450,10 +2527,42 @@ input_files = ${filesValue}`;
 	let outputDirSection = '';
 	if (outputDir) {
 		const outputDirValue = hideVariableValues ? '"***hidden***"' : outputDir;
+		let outputFileInstructions = '';
+		let outputFilePathVariable = '';
+		
+		// Add expected file path variable if configured
+		if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'variable_path') {
+			const expectedFilePath = path.join(outputDir, outputFileOptions.expectedFileName);
+			const outputFilePathValue = hideVariableValues ? '"***hidden***"' : expectedFilePath;
+			outputFilePathVariable = `output_file_path = r"${outputFilePathValue}"`;
+			
+			outputFileInstructions = `# 📁 Ready-to-use variable for your output file:
+# Use 'output_file_path' variable - it contains the full path where your file should be saved
+# Example: with open(output_file_path, 'w') as f: f.write("your content")
+# Expected filename: ${outputFileOptions.expectedFileName}
+`;
+		} else if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'auto_search') {
+			outputFileInstructions = `# 🔍 Auto-search mode enabled:
+# Create your file with filename: ${outputFileOptions.expectedFileName}
+# You can save it anywhere (current directory, subdirectories, etc.)
+# n8n will automatically find and process the file after script execution
+# Example: with open("${outputFileOptions.expectedFileName}", 'w') as f: f.write("your content")
+`;
+		} else {
+			outputFileInstructions = `# 📁 Manual Output File Processing:
+# Save your files in the output_dir directory
+# Example: 
+#   file_path = os.path.join(output_dir, "my_file.txt")
+#   with open(file_path, 'w') as f: f.write("your content")
+`;
+		}
+		
 		outputDirSection = `
 # Output directory for generated files (Output File Processing enabled)
 output_dir = r"${outputDirValue}"
-`;
+${outputFilePathVariable}
+
+${outputFileInstructions}`;
 	}
 
 	const script = `#!/usr/bin/env python3
@@ -2965,8 +3074,8 @@ function createScriptBinary(scriptContent: string, filename = 'script.py', forma
 	return {
 		[finalFilename]: {
 			data: buffer.toString('base64'),
-			mimeType: mimeType,
-			fileExtension: fileExtension,
+			mimeType,
+			fileExtension,
 			fileName: finalFilename,
 		},
 	};
@@ -3182,7 +3291,7 @@ async function createFileDebugInfo(
 	inputFiles: FileMapping[],
 	outputDir?: string,
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
-	options?: FileDebugOptions
+	options?: FileDebugOptions,
 ): Promise<FileDebugInfo> {
 	const debugInfo: FileDebugInfo = {};
 	
@@ -3223,7 +3332,16 @@ async function createInputFileDebugInfo(inputFiles: FileMapping[]): Promise<File
 	const processingErrors: string[] = [];
 	let totalSizeMB = 0;
 	const filesByType: Record<string, number> = {};
-	const filesDetails: any[] = [];
+	const filesDetails: Array<{
+		filename: string;
+		size_mb: number;
+		mimetype: string;
+		extension: string;
+		binary_key: string;
+		item_index: number;
+		temp_path?: string;
+		base64_available: boolean;
+	}> = [];
 	
 	for (const file of inputFiles) {
 		try {
@@ -3262,10 +3380,17 @@ async function createInputFileDebugInfo(inputFiles: FileMapping[]): Promise<File
 
 async function createOutputFileDebugInfo(
 	outputDir: string,
-	options?: OutputFileProcessingOptions
+	options?: OutputFileProcessingOptions,
 ): Promise<FileDebugInfo['output_files']> {
 	const scanErrors: string[] = [];
-	const foundFiles: any[] = [];
+	const foundFiles: Array<{
+		filename: string;
+		size_mb: number;
+		mimetype: string;
+		extension: string;
+		full_path: string;
+		created_at: string;
+	}> = [];
 	let directoryExists = false;
 	let directoryWritable = false;
 	let directoryPermissions: string | undefined;
@@ -3383,41 +3508,90 @@ async function createSystemDebugInfo(outputDir?: string): Promise<FileDebugInfo[
 }
 
 async function createDirectoryListingInfo(outputDir?: string): Promise<FileDebugInfo['directory_listing']> {
-	const listings: FileDebugInfo['directory_listing'] = {};
+	const listing: FileDebugInfo['directory_listing'] = {};
 	
-	// Working directory
 	try {
-		const workingDir = process.cwd();
-		const files = await fs.promises.readdir(workingDir);
-		listings.working_directory = files.slice(0, 20); // Limit to first 20 files
+		// List working directory
+		listing.working_directory = fs.readdirSync(process.cwd());
 	} catch (error) {
-		console.warn('Could not list working directory:', error);
+		listing.working_directory = [`Error reading working directory: ${(error as Error).message}`];
 	}
 	
-	// Output directory
 	if (outputDir) {
 		try {
+			// List output directory
 			if (fs.existsSync(outputDir)) {
-				const files = await fs.promises.readdir(outputDir);
-				listings.output_directory = files;
+				listing.output_directory = fs.readdirSync(outputDir);
+			} else {
+				listing.output_directory = ['Directory does not exist'];
 			}
 		} catch (error) {
-			console.warn('Could not list output directory:', error);
+			listing.output_directory = [`Error reading output directory: ${(error as Error).message}`];
 		}
 	}
 	
-	// Temp directory
 	try {
+		// List temp directory
 		const tempDir = tempy.directory();
-		if (fs.existsSync(tempDir)) {
-			const files = await fs.promises.readdir(tempDir);
-			listings.temp_directory = files.slice(0, 10); // Limit to first 10 files
-		}
+		listing.temp_directory = fs.readdirSync(tempDir);
 	} catch (error) {
-		console.warn('Could not list temp directory:', error);
+		listing.temp_directory = [`Error reading temp directory: ${(error as Error).message}`];
 	}
 	
-	return listings;
+	return listing;
+}
+
+// Auto-search for files by name across filesystem
+async function searchForFileByName(fileName: string, searchPaths?: string[]): Promise<OutputFileInfo[]> {
+	const foundFiles: OutputFileInfo[] = [];
+	const defaultSearchPaths = [process.cwd(), tempy.directory()];
+	const pathsToSearch = searchPaths || defaultSearchPaths;
+	
+	for (const searchPath of pathsToSearch) {
+		try {
+			if (!fs.existsSync(searchPath)) continue;
+			
+			// Search recursively in directory
+			const searchInDirectory = async (dirPath: string, maxDepth = 3): Promise<void> => {
+				if (maxDepth <= 0) return;
+				
+				const items = fs.readdirSync(dirPath, { withFileTypes: true });
+				
+				for (const item of items) {
+					const fullPath = path.join(dirPath, item.name);
+					
+					if (item.isFile() && item.name === fileName) {
+						// Found the file!
+						try {
+							const stats = fs.statSync(fullPath);
+							const extension = getFileExtension(fileName);
+							const base64Data = fs.readFileSync(fullPath).toString('base64');
+							
+							foundFiles.push({
+								filename: fileName,
+								size: stats.size,
+								mimetype: getMimeType(extension),
+								extension,
+								base64Data,
+								binaryKey: `output_${fileName.replace(/[^a-zA-Z0-9]/g, '_')}`,
+							});
+						} catch (error) {
+							console.warn(`Found file ${fullPath} but failed to read:`, error);
+						}
+					} else if (item.isDirectory() && !item.name.startsWith('.')) {
+						// Search subdirectories
+						await searchInDirectory(fullPath, maxDepth - 1);
+					}
+				}
+			};
+			
+			await searchInDirectory(searchPath);
+		} catch (error) {
+			console.warn(`Error searching in ${searchPath}:`, error);
+		}
+	}
+	
+	return foundFiles;
 }
 
 
