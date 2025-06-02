@@ -6,12 +6,12 @@ import sys
 
 def test_function(items):
     """
-    Тестовая функция для проверки работы python-fire
+    Test function to verify python-fire functionality
     """
     print("Python setup working correctly!")
     print(f"Received items: {items}")
     
-    # Трансформируем данные
+    # Transform data
     result = []
     for item in items:
         new_item = dict(item)
@@ -22,7 +22,7 @@ def test_function(items):
     return result
 
 if __name__ == '__main__':
-    # Тестовые данные
+    # Test data
     test_items = [
         {'id': 1, 'name': 'Test Item 1'},
         {'id': 2, 'name': 'Test Item 2'}

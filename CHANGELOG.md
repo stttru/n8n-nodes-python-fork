@@ -6,7 +6,47 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.9.0] - 2024-12-30
+## [1.9.4] - 2024-12-XX
+
+### Fixed
+- **Critical Fix**: Resolved "Error fetching options from Python Function (Raw)" for Python Environment Variables dropdown
+- **Credentials Loading**: Fixed credential loading logic to properly handle default credential from "Credential to connect with"
+- **Improved Error Handling**: Better handling of credentials when no specific credentials are selected
+- **UI Improvements**: Updated dropdown options to provide clearer guidance for users
+
+### Changed
+- Enhanced credential selection logic with better fallbacks
+- Improved helper value filtering to prevent UI errors
+- Updated loadOptions method to avoid n8n API limitations
+
+### Technical Details
+- Fixed `getPythonEnvVarsCredentials` method to return proper informational options
+- Enhanced `loadMultipleCredentialsWithStrategy` function with better error handling
+- Improved fallback logic to default credential when no specific credentials selected
+- Added filtering for helper/informational values in credential selection
+
+## [1.9.3] - 2024-12-XX
+
+### Documentation
+- Translated all Russian text to English for full project localization
+- Updated documentation files: PUBLISH_INSTRUCTIONS.md, DEVELOPMENT_SETUP.md, test_python_setup.py
+- Ensured complete English-only codebase
+
+## [1.9.2] - 2024-12-XX
+
+### Fixed  
+- Updated README.md with comprehensive v1.9.0 multiple credentials documentation
+- Added usage examples for multiple credentials functionality
+- Enhanced version history and feature descriptions
+
+## [1.9.1] - 2024-12-XX
+
+### Documentation
+- Updated README.md with comprehensive v1.9.0 multiple credentials documentation
+- Added usage examples for multiple credentials functionality  
+- Enhanced version history and feature descriptions
+
+## [1.9.0] - 2024-12-XX
 
 ### Added
 - **Multiple Credentials Support**: New "Credentials Management" section above Python Code field

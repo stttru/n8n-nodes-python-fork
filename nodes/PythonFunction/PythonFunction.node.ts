@@ -462,13 +462,24 @@ print(json.dumps(result))
 				}, {} as Record<string, string>);
 				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from all available credentials`);
 			} else {
-				// Fallback to original behavior (single default credential)
-				pythonEnvVars = parseEnvFile(String((await this.getCredentials('pythonEnvVars'))?.envFileContent || ''));
-				credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
-					acc[key] = 'default_credential';
-					return acc;
-				}, {} as Record<string, string>);
-				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (legacy mode)`);
+				// Fallback to original behavior (single default credential from "Credential to connect with")
+				try {
+					const credentialData = await this.getCredentials('pythonEnvVars');
+					if (credentialData && credentialData.envFileContent) {
+						pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
+						const credentialName = String(credentialData.name || 'default_credential');
+						credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
+							acc[key] = credentialName;
+							return acc;
+						}, {} as Record<string, string>);
+						console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (${credentialName})`);
+					} else {
+						console.log('No credential selected in "Credential to connect with"');
+					}
+				} catch (credError) {
+					// No credential configured - this is OK, just use empty env vars
+					console.log('No credential configured in "Credential to connect with"');
+				}
 			}
 		} catch (error) {
 			console.warn('Error loading credentials:', error);
@@ -570,35 +581,23 @@ print(json.dumps(result))
 
 	// Method to get available Python Environment Variables credentials
 	async getPythonEnvVarsCredentials(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-		try {
-			// Try to get the currently configured credential to provide at least one option
-			const credentialData = await this.getCredentials('pythonEnvVars');
-			
-			if (credentialData && credentialData.name) {
-				const credentialName = String(credentialData.name);
-				return [
-					{
-						name: credentialName,
-						value: credentialName,
-						description: `Python Environment Variables credential: ${credentialName}`,
-					},
-				];
-			}
-		} catch (error) {
-			// If no credential is available, provide informational options
-		}
-		
-		// Return helpful options when no credentials are available
+		// Since n8n doesn't provide a way to list all available credentials of a type,
+		// we'll return informational options to guide the user
 		return [
 			{
-				name: 'Create a Python Environment Variables credential first',
-				value: '__create_credential__',
-				description: 'Go to Credentials tab and create a Python Environment Variables credential, then return here',
+				name: '⚠️ Use the main "Credential to connect with" dropdown above',
+				value: '__use_main_credential__',
+				description: 'The credential selected in "Credential to connect with" will be used automatically',
 			},
 			{
-				name: 'Use "Include All Available Credentials" option instead',
+				name: '💡 Enable "Include All Available Credentials" option',
 				value: '__use_include_all__',
-				description: 'Enable the "Include All Available Credentials" option below to automatically include all available credentials',
+				description: 'This will automatically include all available Python Environment Variables credentials',
+			},
+			{
+				name: '📝 Note: Multi-credential selection coming in future update',
+				value: '__future_feature__',
+				description: 'Currently uses the credential from "Credential to connect with" dropdown',
 			},
 		];
 	}
@@ -695,16 +694,20 @@ async function getAllAvailableCredentials(
 	credentialType = 'pythonEnvVars',
 ): Promise<Record<string, string>> {
 	try {
-		// Try to get the default credential
+		// Try to get the default credential from "Credential to connect with"
 		const credentialData = await executeFunctions.getCredentials(credentialType);
-		if (credentialData) {
-			return parseEnvFile(String(credentialData.envFileContent || ''));
+		if (credentialData && credentialData.envFileContent) {
+			const envVars = parseEnvFile(String(credentialData.envFileContent));
+			console.log(`getAllAvailableCredentials: Loaded ${Object.keys(envVars).length} variables from credential`);
+			return envVars;
+		} else {
+			console.log('getAllAvailableCredentials: No credential data found');
+			return {};
 		}
 	} catch (error) {
-		console.warn(`No default credential available for type ${credentialType}:`, error);
+		console.log(`getAllAvailableCredentials: No credential configured for type ${credentialType}`);
+		return {};
 	}
-	
-	return {};
 }
 
 

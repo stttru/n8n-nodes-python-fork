@@ -1,98 +1,98 @@
-# Настройка среды разработки n8n-nodes-python
+# Development Environment Setup for n8n-nodes-python
 
-## Требования
+## Requirements
 
-- Conda (установлена в `I:\ALL_PROG\conda`)
-- Node.js и npm (глобально установлены)
+- Conda (installed in `I:\ALL_PROG\conda`)
+- Node.js and npm (globally installed)
 - Git
 
-## Быстрая настройка
+## Quick Setup
 
-### 1. Создание conda окружения
+### 1. Create conda environment
 
 ```bash
-# Создать окружение из файла
+# Create environment from file
 I:\ALL_PROG\conda\Scripts\conda.exe env create -f environment.yml
 
-# Или создать вручную
+# Or create manually
 I:\ALL_PROG\conda\Scripts\conda.exe create -n n8n-python-dev python=3.10 pip -y
 ```
 
-### 2. Активация окружения
+### 2. Activate environment
 
 ```bash
-# Инициализация conda для PowerShell (если не сделано)
+# Initialize conda for PowerShell (if not done)
 I:\ALL_PROG\conda\Scripts\conda.exe init powershell
 
-# Активация окружения
+# Activate environment
 conda activate n8n-python-dev
 ```
 
-### 3. Установка Python зависимостей
+### 3. Install Python dependencies
 
 ```bash
-# Если используете готовое окружение
+# If using ready-made environment
 I:\ALL_PROG\conda\envs\n8n-python-dev\python.exe -m pip install fire
 
-# Или если активировано окружение
+# Or if environment is activated
 pip install fire
 ```
 
-### 4. Установка Node.js зависимостей
+### 4. Install Node.js dependencies
 
 ```bash
 npm install
 ```
 
-### 5. Сборка проекта
+### 5. Build project
 
 ```bash
 npm run build
 ```
 
-## Тестирование
+## Testing
 
 ```bash
-# Запуск тестов
+# Run tests
 npm test
 
-# Тестирование Python setup
+# Test Python setup
 I:\ALL_PROG\conda\envs\n8n-python-dev\python.exe test_python_setup.py
 ```
 
-## Публикация
+## Publishing
 
-1. Обновите `package.json`:
-   - Измените `name` на уникальное имя
-   - Обновите `version`
-   - Измените `author` и `repository`
+1. Update `package.json`:
+   - Change `name` to a unique name
+   - Update `version`
+   - Change `author` and `repository`
 
-2. Соберите проект:
+2. Build project:
    ```bash
    npm run build
    ```
 
-3. Опубликуйте в npm:
+3. Publish to npm:
    ```bash
    npm publish
    ```
 
-## Структура проекта
+## Project Structure
 
-- `nodes/PythonFunction/` - основной узел
-- `credentials/` - настройки переменных окружения
-- `dist/` - собранные файлы (создается после `npm run build`)
-- `environment.yml` - конфигурация conda окружения
+- `nodes/PythonFunction/` - main node
+- `credentials/` - environment variables settings
+- `dist/` - built files (created after `npm run build`)
+- `environment.yml` - conda environment configuration
 
-## Полезные команды
+## Useful Commands
 
 ```bash
-# Разработка с автопересборкой
+# Development with auto-rebuild
 npm run watch
 
-# Проверка кода
+# Code checking
 npm run lint
 
-# Исправление ошибок линтера
+# Fix linter errors
 npm run lintfix
 ``` 
