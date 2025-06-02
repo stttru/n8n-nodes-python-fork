@@ -1,0 +1,119 @@
+=== Testing NEW FLEXIBLE environment variables functionality ===
+
+1. Default settings (input_items=ON, env_vars_dict=OFF):
+#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
+
+import json
+import sys
+
+# Environment variables (from credentials and system)
+API_KEY = 'secret123'
+DB_HOST = 'localhost'
+PORT = '5432'
+
+# Individual variables from first input item
+name = 'test'
+value = 123
+
+# Legacy compatibility objects
+input_items = [{'name': 'test', 'value': 123}]
+# User code starts here
+print('Hello world')
+
+
+============================================================
+
+2. Both legacy objects (input_items=ON, env_vars_dict=ON):
+#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
+
+import json
+import sys
+
+# Environment variables (from credentials and system)
+API_KEY = 'secret123'
+DB_HOST = 'localhost'
+PORT = '5432'
+
+# Individual variables from first input item
+name = 'test'
+value = 123
+
+# Legacy compatibility objects
+input_items = [{'name': 'test', 'value': 123}]
+env_vars = {'API_KEY': 'secret123', 'DB_HOST': 'localhost', 'PORT': '5432'}
+# User code starts here
+print('Hello world')
+
+
+============================================================
+
+3. Only env_vars dict (input_items=OFF, env_vars_dict=ON):
+#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
+
+import json
+import sys
+
+# Environment variables (from credentials and system)
+API_KEY = 'secret123'
+DB_HOST = 'localhost'
+PORT = '5432'
+
+# Individual variables from first input item
+name = 'test'
+value = 123
+
+# Legacy compatibility objects
+env_vars = {'API_KEY': 'secret123', 'DB_HOST': 'localhost', 'PORT': '5432'}
+# User code starts here
+print('Hello world')
+
+
+============================================================
+
+4. No legacy objects (input_items=OFF, env_vars_dict=OFF):
+#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
+
+import json
+import sys
+
+# Environment variables (from credentials and system)
+API_KEY = 'secret123'
+DB_HOST = 'localhost'
+PORT = '5432'
+
+# Individual variables from first input item
+name = 'test'
+value = 123
+
+# User code starts here
+print('Hello world')
+
+
+============================================================
+
+5. Hidden values (input_items=ON, env_vars_dict=ON, hide=ON):
+#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
+
+import json
+import sys
+
+# Environment variables (from credentials and system)
+API_KEY = "***hidden***"
+DB_HOST = "***hidden***"
+PORT = "***hidden***"
+
+# Individual variables from first input item
+name = "***hidden***"
+value = "***hidden***"
+
+# Legacy compatibility objects
+input_items = "***hidden***"
+env_vars = "***hidden***"
+# User code starts here
+print('Hello world')
+

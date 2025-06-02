@@ -1,10 +1,11 @@
-import {IExecuteFunctions} from 'n8n-core';
+import {IExecuteFunctions, ILoadOptionsFunctions} from 'n8n-core';
 import {
 	IDataObject,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
 	NodeOperationError,
+	INodePropertyOptions,
 } from 'n8n-workflow';
 import {spawn} from 'child_process';
 import * as path from 'path';
@@ -63,13 +64,20 @@ export class PythonFunction implements INodeType {
 				},
 				type: 'string',
 				default: `# Example: Use with "Inject Variables" enabled (default)
-# Available variables: input_items, env_vars
+# Environment and credentials variables are available as individual variables
+# Control what's included via Script Generation Options
 
 import json
 import sys
 
+# Input data from previous nodes (if "Include input_items Array" enabled)
 print("Input items count:", len(input_items))
-print("Environment variables:", len(env_vars))
+
+# Environment variables are available individually:
+# MY_API_KEY, DB_HOST, PORT, etc. (from credentials or system env)
+
+# Legacy env_vars dict (if "Include env_vars Dictionary" enabled)
+# print("Environment variables in dict:", len(env_vars))
 
 result = {"processed_count": len(input_items), "status": "success"}
 print(json.dumps(result))
@@ -164,11 +172,18 @@ print(json.dumps(result))
 				placeholder: 'Add Option',
 				options: [
 					{
-						displayName: 'Legacy input_items Support',
-						name: 'includeLegacyInputItems',
+						displayName: 'Include input_items Array',
+						name: 'includeInputItems',
 						type: 'boolean',
 						default: true,
-						description: 'Include input_items array in script (for backward compatibility)',
+						description: 'Include input_items array in script (for accessing input data from previous nodes)',
+					},
+					{
+						displayName: 'Include env_vars Dictionary',
+						name: 'includeEnvVarsDict',
+						type: 'boolean',
+						default: false,
+						description: 'Include env_vars dictionary in script (for legacy compatibility - variables are already available individually)',
 					},
 					{
 						displayName: 'Hide Variable Values',
@@ -176,6 +191,17 @@ print(json.dumps(result))
 						type: 'boolean',
 						default: false,
 						description: 'Replace variable values with asterisks in generated scripts (for security)',
+					},
+					{
+						displayName: 'System Environment Variables',
+						name: 'systemEnvVars',
+						type: 'multiOptions',
+						default: [],
+						description: 'Select system environment variables to include in the script',
+						options: [],
+						typeOptions: {
+							loadOptionsMethod: 'getSystemEnvVars',
+						},
 					},
 				],
 			},
@@ -323,11 +349,15 @@ print(json.dumps(result))
 		
 		// Get script generation options
 		const scriptOptions = this.getNodeParameter('scriptOptions', 0) as {
-			includeLegacyInputItems?: boolean;
+			includeInputItems?: boolean;
+			includeEnvVarsDict?: boolean;
 			hideVariableValues?: boolean;
+			systemEnvVars?: string[];
 		};
-		const includeLegacyInputItems = scriptOptions.includeLegacyInputItems !== false; // default true
+		const includeInputItems = scriptOptions.includeInputItems !== false; // default true
+		const includeEnvVarsDict = scriptOptions.includeEnvVarsDict === true; // default false
 		const hideVariableValues = scriptOptions.hideVariableValues === true; // default false
+		const systemEnvVars = scriptOptions.systemEnvVars || [];
 		
 		// Log configuration
 		console.log('Python Function Raw node configuration:', {
@@ -350,6 +380,17 @@ print(json.dumps(result))
 		} catch (_) {
 		}
 		
+		// Add selected system environment variables
+		const systemEnvVarsToAdd: Record<string, string> = {};
+		for (const envVarName of systemEnvVars) {
+			if (process.env[envVarName] !== undefined) {
+				systemEnvVarsToAdd[envVarName] = process.env[envVarName]!;
+			}
+		}
+		
+		// Merge system env vars with credential env vars (credentials take precedence)
+		const mergedEnvVars = { ...systemEnvVarsToAdd, ...pythonEnvVars };
+		
 		// Execute based on mode
 		if (executionMode === 'perItem') {
 			return await executePerItem(
@@ -364,9 +405,11 @@ print(json.dumps(result))
 				passThrough, 
 				passThroughMode, 
 				items, 
-				pythonEnvVars,
-				includeLegacyInputItems,
+				mergedEnvVars,
+				includeInputItems,
+				includeEnvVarsDict,
 				hideVariableValues,
+				systemEnvVars,
 			);
 		} else {
 			return await executeOnce(
@@ -381,11 +424,41 @@ print(json.dumps(result))
 				passThrough, 
 				passThroughMode, 
 				items, 
-				pythonEnvVars,
-				includeLegacyInputItems,
+				mergedEnvVars,
+				includeInputItems,
+				includeEnvVarsDict,
 				hideVariableValues,
+				systemEnvVars,
 			);
 		}
+	}
+
+	// Method to get available system environment variables
+	async getSystemEnvVars(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+		const envVars = Object.keys(process.env).filter(key => {
+			// Filter out sensitive or system-specific variables
+			const sensitivePatterns = [
+				/^HOME$/,
+				/^USER$/,
+				/^SHELL$/,
+				/^PWD$/,
+				/^PATH$/,
+				/^TEMP$/,
+				/^TMP$/,
+				/PASS/i,
+				/SECRET/i,
+				/TOKEN/i,
+				/API_KEY/i,
+				/PRIVATE/i,
+			];
+			
+			return !sensitivePatterns.some(pattern => pattern.test(key));
+		}).sort();
+		
+		return envVars.map(key => ({
+			name: `${key} = ${process.env[key]?.substring(0, 50)}${(process.env[key]?.length || 0) > 50 ? '...' : ''}`,
+			value: key,
+		}));
 	}
 }
 
@@ -403,8 +476,10 @@ async function executeOnce(
 	passThroughMode: string,
 	items: INodeExecutionData[],
 	pythonEnvVars: Record<string, string>,
-	includeLegacyInputItems: boolean,
+	includeInputItems: boolean,
+	includeEnvVarsDict: boolean,
 	hideVariableValues: boolean,
+	systemEnvVars: string[],
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
@@ -416,7 +491,7 @@ async function executeOnce(
 	let scriptPath = '';
 	try {
 		if (injectVariables) {
-			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeLegacyInputItems, hideVariableValues);
+			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues);
 		} else {
 			scriptPath = await getTemporaryPureScriptPath(functionCode);
 		}
@@ -428,7 +503,7 @@ async function executeOnce(
 		// Initialize debug information
 		if (debugMode !== 'off') {
 			const scriptContent = injectVariables 
-				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeLegacyInputItems, hideVariableValues)
+				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues)
 				: functionCode;
 			
 			debugInfo = await createDebugInfo(
@@ -647,8 +722,10 @@ async function executePerItem(
 	passThroughMode: string,
 	items: INodeExecutionData[],
 	pythonEnvVars: Record<string, string>,
-	includeLegacyInputItems: boolean,
+	includeInputItems: boolean,
+	includeEnvVarsDict: boolean,
 	hideVariableValues: boolean,
+	systemEnvVars: string[],
 ): Promise<INodeExecutionData[][]> {
 	
 	const results: INodeExecutionData[] = [];
@@ -666,7 +743,7 @@ async function executePerItem(
 		try {
 			if (injectVariables) {
 				// For per-item execution, pass only current item
-				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeLegacyInputItems, hideVariableValues);
+				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues);
 			} else {
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
@@ -674,7 +751,7 @@ async function executePerItem(
 			// Create debug information for this item
 			if (debugMode !== 'off') {
 				const scriptContent = injectVariables 
-					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeLegacyInputItems, hideVariableValues)
+					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues)
 					: functionCode;
 				
 				debugInfo = await createDebugInfo(
@@ -965,7 +1042,7 @@ function formatCodeSnippet(code: string): string {
 }
 
 
-function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeLegacyInputItems: boolean = true, hideVariableValues: boolean = false): string {
+function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems: boolean = true, includeEnvVarsDict: boolean = false, hideVariableValues: boolean = false): string {
 	// Extract __future__ imports from user code and move them to the top
 	const futureImports: string[] = [];
 	let cleanedCodeSnippet = codeSnippet;
@@ -1001,15 +1078,52 @@ ${variableAssignments.join('\n')}
 		}
 	}
 
+	// Add environment variables as individual Python variables
+	let envVariablesSection = '';
+	if (Object.keys(envVars).length > 0) {
+		const envVariableAssignments: string[] = [];
+		
+		for (const [key, value] of Object.entries(envVars)) {
+			// Create safe variable names (replace invalid characters and ensure valid Python identifier)
+			let safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
+			
+			// Ensure it starts with letter or underscore
+			if (!/^[a-zA-Z_]/.test(safeVarName)) {
+				safeVarName = `env_${safeVarName}`;
+			}
+			
+			const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
+			envVariableAssignments.push(`${safeVarName} = ${displayValue}`);
+		}
+		
+		if (envVariableAssignments.length > 0) {
+			envVariablesSection = `
+# Environment variables (from credentials and system)
+${envVariableAssignments.join('\n')}
+`;
+		}
+	}
+
 	// Prepare legacy data (only if enabled)
 	let legacyDataSection = '';
-	if (includeLegacyInputItems) {
-		const inputItemsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(data);
-		const envVarsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(envVars);
-		legacyDataSection = `
-# Input data and environment variables
-input_items = ${inputItemsValue}
-env_vars = ${envVarsValue}`;
+	if (includeInputItems || includeEnvVarsDict) {
+		const legacyParts: string[] = [];
+		
+		if (includeInputItems) {
+			const inputItemsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(data);
+			legacyParts.push(`input_items = ${inputItemsValue}`);
+		}
+		
+		if (includeEnvVarsDict) {
+			const envVarsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(envVars);
+			legacyParts.push(`env_vars = ${envVarsValue}`);
+		}
+		
+		if (legacyParts.length > 0) {
+			legacyDataSection = `
+# Legacy compatibility objects
+${legacyParts.join('\n')}`;
+		}
 	}
 
 	const script = `#!/usr/bin/env python3
@@ -1017,7 +1131,7 @@ env_vars = ${envVarsValue}`;
 ${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
 import json
 import sys
-${legacyDataSection}${individualVariables}
+${envVariablesSection}${individualVariables}${legacyDataSection}
 # User code starts here
 ${cleanedCodeSnippet}
 `;
@@ -1025,9 +1139,9 @@ ${cleanedCodeSnippet}
 }
 
 
-async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeLegacyInputItems: boolean = true, hideVariableValues: boolean = false): Promise<string> {
+async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems: boolean = true, includeEnvVarsDict: boolean = false, hideVariableValues: boolean = false): Promise<string> {
 	const tmpPath = tempy.file({extension: 'py'});
-	const codeStr = getScriptCode(codeSnippet, data, envVars, includeLegacyInputItems, hideVariableValues);
+	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues);
 	
 	// Ensure file is overwritten by explicitly writing with 'w' flag
 	try {

@@ -6,7 +6,32 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.7.0] - 2024-01-XX
+## [1.8.0] - 2024-12-18
+
+### ✨ Added
+- **System Environment Variables Selection**: Added dropdown to select system environment variables to include in Python scripts
+- **Individual Environment Variables**: Environment variables now injected as separate Python variables (e.g., `API_KEY = 'value'`) instead of only dictionary format
+- **Flexible Legacy Objects Control**: Split legacy support into two separate toggles:
+  - "Include input_items Array" (default: ON) - for input data from previous nodes  
+  - "Include env_vars Dictionary" (default: OFF) - for legacy compatibility
+- **Enhanced Security**: Environment variables filtering to exclude sensitive system variables
+- **Improved User Experience**: Better default settings and more granular control
+
+### 🔧 Changed
+- **Breaking Change**: `env_vars` dictionary is now disabled by default (can be re-enabled)
+- **Script Generation**: Environment variables are now primarily available as individual variables
+- **UI**: Renamed "Legacy input_items Support" to separate "Include input_items Array" and "Include env_vars Dictionary" options
+- **Example Code**: Updated to reflect new individual variables approach
+
+### 🐛 Fixed
+- Environment variable name sanitization for Python compatibility
+- Better handling of invalid variable names (e.g., starting with numbers)
+
+### 📚 Documentation
+- Updated examples to show individual environment variables usage
+- Added clear descriptions for all new options
+
+## [1.7.0] - 2024-12-17
 
 ### 🚀 Major Features Added
 - **Script Generation Options**: New configuration section with two important options:
