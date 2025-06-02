@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Тест генерации Python скрипта с output_dir переменной
+Test for Python script generation with output_dir variable
 """
 
 import os
@@ -8,15 +8,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Добавляем путь к модулям проекта
+# Add project modules path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'nodes', 'PythonFunction'))
 
 def test_script_generation():
-    """Тестирует генерацию скрипта с output_dir"""
-    print("🧪 ТЕСТИРОВАНИЕ ГЕНЕРАЦИИ СКРИПТА С OUTPUT_DIR")
+    """Tests script generation with output_dir"""
+    print("🧪 TESTING SCRIPT GENERATION WITH OUTPUT_DIR")
     print("=" * 60)
     
-    # Симуляция данных
+    # Simulation data
     code_snippet = """
 import os
 print(f"Output directory: {output_dir}")
@@ -35,7 +35,7 @@ else:
     
     print(f"📁 Test output directory: {output_dir}")
     
-    # Симуляция функции getScriptCode (из TypeScript)
+    # Simulation of getScriptCode function (from TypeScript)
     script_content = f"""#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
 
@@ -63,14 +63,14 @@ output_dir = r"{output_dir}"
     print(script_content)
     print("-" * 40)
     
-    # Проверяем что output_dir присутствует в скрипте
+    # Check that output_dir is present in the script
     if 'output_dir = r"' in script_content:
         print("✅ output_dir variable found in script")
     else:
         print("❌ output_dir variable NOT found in script")
         return False
     
-    # Создаем временный файл скрипта и выполняем его
+    # Create temporary script file and execute it
     script_path = os.path.join(tempfile.gettempdir(), 'test_script.py')
     try:
         with open(script_path, 'w', encoding='utf-8') as f:
@@ -78,7 +78,7 @@ output_dir = r"{output_dir}"
         
         print(f"📄 Script saved to: {script_path}")
         
-        # Выполняем скрипт
+        # Execute script
         import subprocess
         result = subprocess.run([sys.executable, script_path], 
                               capture_output=True, text=True, timeout=10)
@@ -89,7 +89,7 @@ output_dir = r"{output_dir}"
         if result.stderr:
             print(f"   Stderr: {result.stderr}")
         
-        # Проверяем что файл был создан
+        # Check that file was created
         test_file = os.path.join(output_dir, 'test.txt')
         if os.path.exists(test_file):
             print("✅ Test file was created successfully!")

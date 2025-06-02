@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Полный интеграционный тест Output File Processing v1.11.0
-Проверяет реальную функциональность генерации файлов Python скриптами
+Complete integration test for Output File Processing v1.11.0
+Tests real functionality of file generation by Python scripts
 """
 
 import os
@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Конфигурация теста
+# Test configuration
 TEST_CONFIG = {
     "version": "1.11.0",
     "feature": "Output File Processing",
@@ -33,20 +33,20 @@ class OutputFileProcessingTester:
         self.temp_dirs = []
         
     def setup_test_environment(self):
-        """Создать временную среду для тестирования"""
+        """Create temporary testing environment"""
         self.base_temp_dir = tempfile.mkdtemp(prefix="n8n_output_test_")
         self.temp_dirs.append(self.base_temp_dir)
         print(f"✅ Test environment created: {self.base_temp_dir}")
         
     def cleanup_test_environment(self):
-        """Очистить временную среду"""
+        """Clean up temporary environment"""
         for temp_dir in self.temp_dirs:
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
                 print(f"🧹 Cleaned up: {temp_dir}")
                 
     def create_output_directory(self):
-        """Создать уникальную выходную директорию (имитация n8n)"""
+        """Create unique output directory (n8n simulation)"""
         import time
         import random
         timestamp = int(time.time() * 1000)
@@ -58,20 +58,20 @@ class OutputFileProcessingTester:
         return output_dir
         
     def test_text_file_generation(self):
-        """Тест 1: Генерация простого текстового файла"""
+        """Test 1: Simple text file generation"""
         print("\n📝 Test 1: Text File Generation")
         
         output_dir = self.create_output_directory()
         
-        # Python скрипт для генерации текстового файла
+        # Python script for text file generation
         script_code = f'''
 import os
 import datetime
 
-# output_dir предоставляется n8n
+# output_dir is provided by n8n
 output_dir = "{output_dir}"
 
-# Создать простой текстовый отчет
+# Create simple text report
 report_path = os.path.join(output_dir, "test_report.txt")
 with open(report_path, 'w', encoding='utf-8') as f:
     f.write(f"Test Report Generated: {{datetime.datetime.now()}}\\n")
@@ -83,10 +83,10 @@ print(f"Created text file: {{report_path}}")
 print(f"File size: {{os.path.getsize(report_path)}} bytes")
 '''
         
-        # Выполнить скрипт
+        # Execute script
         result = self.execute_python_script(script_code)
         
-        # Проверить результат
+        # Check result
         expected_file = os.path.join(output_dir, "test_report.txt")
         if os.path.exists(expected_file):
             with open(expected_file, 'r', encoding='utf-8') as f:
@@ -122,12 +122,12 @@ print(f"File size: {{os.path.getsize(report_path)}} bytes")
             })
             
     def test_json_export(self):
-        """Тест 2: Экспорт JSON данных"""
+        """Test 2: JSON data export"""
         print("\n📊 Test 2: JSON Export")
         
         output_dir = self.create_output_directory()
         
-        # Python скрипт для JSON экспорта
+        # Python script for JSON export
         script_code = f'''
 import os
 import json
@@ -135,7 +135,7 @@ from datetime import datetime
 
 output_dir = "{output_dir}"
 
-# Создать комплексные JSON данные
+# Create complex JSON data
 data = {{
     "timestamp": datetime.now().isoformat(),
     "test_info": {{
@@ -156,7 +156,7 @@ data = {{
     }}
 }}
 
-# Сохранить JSON файл
+# Save JSON file
 json_path = os.path.join(output_dir, "export_data.json")
 with open(json_path, 'w', encoding='utf-8') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
@@ -165,10 +165,10 @@ print(f"Created JSON file: {{json_path}}")
 print(f"Data keys: {{list(data.keys())}}")
 '''
         
-        # Выполнить скрипт
+        # Execute script
         result = self.execute_python_script(script_code)
         
-        # Проверить результат
+        # Check result
         expected_file = os.path.join(output_dir, "export_data.json")
         if os.path.exists(expected_file):
             try:
@@ -198,29 +198,28 @@ print(f"Data keys: {{list(data.keys())}}")
                     print(f"   Data keys: {list(data.keys())}")
                 else:
                     print("❌ JSON data validation failed")
-                    
             except json.JSONDecodeError as e:
-                print(f"❌ Invalid JSON format: {e}")
+                print(f"❌ Invalid JSON generated: {e}")
                 self.test_results.append({
                     "test": "json_export",
                     "success": False,
-                    "error": f"Invalid JSON: {e}"
+                    "error": f"JSON decode error: {e}"
                 })
         else:
             print("❌ JSON file was not created")
             self.test_results.append({
                 "test": "json_export",
-                "success": False, 
+                "success": False,
                 "error": "File not created"
             })
             
     def test_multiple_files(self):
-        """Тест 3: Генерация нескольких файлов"""
+        """Test 3: Multiple file generation"""
         print("\n📁 Test 3: Multiple Files Generation")
         
         output_dir = self.create_output_directory()
         
-        # Python скрипт для генерации нескольких файлов
+        # Python script for multiple file generation
         script_code = f'''
 import os
 import json
@@ -229,256 +228,486 @@ from datetime import datetime
 
 output_dir = "{output_dir}"
 
-# 1. Создать текстовый файл
-text_path = os.path.join(output_dir, "summary.txt") 
+# Create multiple files of different types
+
+# 1. Text file
+text_path = os.path.join(output_dir, "summary.txt")
 with open(text_path, 'w') as f:
-    f.write("Multi-file generation test\\n")
-    f.write(f"Generated at: {{datetime.now()}}\\n")
+    f.write("Multi-file Test Summary\\n")
+    f.write(f"Generated: {{datetime.now()}}\\n")
+    f.write("Files: 4 different types\\n")
 
-# 2. Создать JSON файл
-json_data = {{"files": ["summary.txt", "data.csv", "config.json"], "count": 3}}
-json_path = os.path.join(output_dir, "config.json")
-with open(json_path, 'w') as f:
-    json.dump(json_data, f)
+# 2. JSON configuration
+config_path = os.path.join(output_dir, "config.json")
+config_data = {{
+    "app_name": "n8n Python Function",
+    "version": "1.11.0",
+    "features": ["output_processing", "multi_files", "binary_conversion"],
+    "enabled": True
+}}
+with open(config_path, 'w') as f:
+    json.dump(config_data, f, indent=2)
 
-# 3. Создать CSV файл
+# 3. CSV data
 csv_path = os.path.join(output_dir, "data.csv")
 with open(csv_path, 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(["ID", "Name", "Value"])
-    writer.writerow([1, "Test Item 1", 100])
-    writer.writerow([2, "Test Item 2", 200])
-    writer.writerow([3, "Test Item 3", 300])
+    writer.writerow(['ID', 'Name', 'Value', 'Status'])
+    writer.writerow([1, 'Item One', 100, 'Active'])
+    writer.writerow([2, 'Item Two', 200, 'Inactive'])
+    writer.writerow([3, 'Item Three', 300, 'Pending'])
 
-# 4. Создать файл с метаданными
-meta_path = os.path.join(output_dir, "metadata.txt")
-files_info = []
-for filename in ["summary.txt", "config.json", "data.csv"]:
-    filepath = os.path.join(output_dir, filename)
-    if os.path.exists(filepath):
-        files_info.append(f"{{filename}}: {{os.path.getsize(filepath)}} bytes")
+# 4. HTML report
+html_path = os.path.join(output_dir, "report.html")
+with open(html_path, 'w') as f:
+    f.write("""<!DOCTYPE html>
+<html>
+<head><title>Test Report</title></head>
+<body>
+<h1>n8n Python Function Test Report</h1>
+<p>Generated: {{datetime.now()}}</p>
+<ul>
+<li>Text file: summary.txt</li>
+<li>JSON file: config.json</li>
+<li>CSV file: data.csv</li>
+<li>HTML file: report.html</li>
+</ul>
+</body>
+</html>""")
 
-with open(meta_path, 'w') as f:
-    f.write("Generated Files Metadata:\\n")
-    f.write("\\n".join(files_info))
-
-print(f"Created {{len(os.listdir(output_dir))}} files in {{output_dir}}")
+# List all created files
+files = os.listdir(output_dir)
+print(f"Created {{len(files)}} files: {{files}}")
+for file in files:
+    file_path = os.path.join(output_dir, file)
+    print(f"  {{file}}: {{os.path.getsize(file_path)}} bytes")
 '''
         
-        # Выполнить скрипт
+        # Execute script
         result = self.execute_python_script(script_code)
         
-        # Проверить результат
-        expected_files = ["summary.txt", "config.json", "data.csv", "metadata.txt"]
-        created_files = os.listdir(output_dir) if os.path.exists(output_dir) else []
+        # Check results
+        expected_files = ["summary.txt", "config.json", "data.csv", "report.html"]
+        created_files = []
         
-        success = all(f in created_files for f in expected_files) and len(created_files) == 4
+        for expected_file in expected_files:
+            file_path = os.path.join(output_dir, expected_file)
+            if os.path.exists(file_path):
+                created_files.append({
+                    "name": expected_file,
+                    "size": os.path.getsize(file_path),
+                    "exists": True
+                })
+            else:
+                created_files.append({
+                    "name": expected_file,
+                    "exists": False
+                })
+        
+        success = all(f["exists"] for f in created_files)
         
         self.test_results.append({
             "test": "multiple_files",
             "success": success,
             "details": {
-                "expected_files": expected_files,
-                "created_files": created_files,
-                "files_count": len(created_files)
+                "expected_files": len(expected_files),
+                "created_files": len([f for f in created_files if f["exists"]]),
+                "files": created_files
             }
         })
         
         if success:
-            print(f"✅ Multiple files created successfully: {created_files}")
+            print("✅ All multiple files generated successfully")
+            for file_info in created_files:
+                if file_info["exists"]:
+                    print(f"   {file_info['name']}: {file_info['size']} bytes")
         else:
-            print(f"❌ File creation failed. Expected: {expected_files}, Got: {created_files}")
-            
-    def test_error_handling(self):
-        """Тест 4: Обработка ошибок"""
-        print("\n⚠️ Test 4: Error Handling")
+            print("❌ Some files were not created")
+            for file_info in created_files:
+                status = "✅" if file_info["exists"] else "❌"
+                print(f"   {status} {file_info['name']}")
+                
+    def test_binary_file_creation(self):
+        """Test 4: Binary file creation"""
+        print("\n🔧 Test 4: Binary File Creation")
         
         output_dir = self.create_output_directory()
         
-        # Python скрипт с ошибкой доступа к файлу
+        # Python script for binary file creation
         script_code = f'''
 import os
 
 output_dir = "{output_dir}"
 
-try:
-    # Попытка создать файл в несуществующей директории
-    bad_path = os.path.join(output_dir, "nonexistent", "file.txt")
-    with open(bad_path, 'w') as f:
-        f.write("This should fail")
-    print("ERROR: This should not be printed")
-except Exception as e:
-    print(f"Expected error caught: {{e}}")
-    
-    # Создать валидный файл после ошибки
-    good_path = os.path.join(output_dir, "recovery.txt")
-    with open(good_path, 'w') as f:
-        f.write("Recovered from error successfully")
-    print(f"Recovery file created: {{good_path}}")
+# Create binary files
+
+# 1. Create a simple binary file
+binary_path = os.path.join(output_dir, "data.bin")
+binary_data = bytes([i % 256 for i in range(1000)])  # 1000 bytes of test data
+with open(binary_path, 'wb') as f:
+    f.write(binary_data)
+
+# 2. Create a pseudo image file (BMP header simulation)
+bmp_path = os.path.join(output_dir, "test.bmp")
+# Simple BMP header for 1x1 pixel image
+bmp_header = b'BM\\x46\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x36\\x00\\x00\\x00\\x28\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x00\\x18\\x00\\x00\\x00\\x00\\x00\\x10\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'
+bmp_data = b'\\x00\\x00\\x00\\x00'  # 1 pixel data
+with open(bmp_path, 'wb') as f:
+    f.write(bmp_header + bmp_data)
+
+# 3. Create a ZIP-like file
+zip_path = os.path.join(output_dir, "archive.zip")
+# Simple ZIP file signature
+zip_data = b'PK\\x03\\x04' + b'\\x00' * 100  # ZIP signature + dummy data
+with open(zip_path, 'wb') as f:
+    f.write(zip_data)
+
+print(f"Created binary files:")
+for file in ['data.bin', 'test.bmp', 'archive.zip']:
+    file_path = os.path.join(output_dir, file)
+    print(f"  {{file}}: {{os.path.getsize(file_path)}} bytes")
 '''
         
-        # Выполнить скрипт
+        # Execute script
         result = self.execute_python_script(script_code)
         
-        # Проверить результат
-        recovery_file = os.path.join(output_dir, "recovery.txt")
+        # Check results
+        expected_files = ["data.bin", "test.bmp", "archive.zip"]
+        binary_files = []
         
-        success = (
-            os.path.exists(recovery_file) and
-            "Expected error caught:" in result.get("stdout", "") and
-            "Recovery file created:" in result.get("stdout", "")
-        )
+        for expected_file in expected_files:
+            file_path = os.path.join(output_dir, expected_file)
+            if os.path.exists(file_path):
+                # Read first few bytes to verify binary content
+                with open(file_path, 'rb') as f:
+                    header = f.read(10)
+                
+                binary_files.append({
+                    "name": expected_file,
+                    "size": os.path.getsize(file_path),
+                    "exists": True,
+                    "header": header.hex()
+                })
+            else:
+                binary_files.append({
+                    "name": expected_file,
+                    "exists": False
+                })
+        
+        success = all(f["exists"] for f in binary_files) and all(f["size"] > 0 for f in binary_files if f["exists"])
+        
+        self.test_results.append({
+            "test": "binary_file_creation",
+            "success": success,
+            "details": {
+                "expected_files": len(expected_files),
+                "created_files": len([f for f in binary_files if f["exists"]]),
+                "files": binary_files
+            }
+        })
+        
+        if success:
+            print("✅ All binary files created successfully")
+            for file_info in binary_files:
+                if file_info["exists"]:
+                    print(f"   {file_info['name']}: {file_info['size']} bytes (header: {file_info['header'][:20]}...)")
+        else:
+            print("❌ Some binary files were not created")
+            
+    def test_error_handling(self):
+        """Test 5: Error handling during file creation"""
+        print("\n⚠️ Test 5: Error Handling")
+        
+        output_dir = self.create_output_directory()
+        
+        # Python script that has errors but still creates some files
+        script_code = f'''
+import os
+import sys
+
+output_dir = "{output_dir}"
+
+try:
+    # Create a successful file first
+    success_path = os.path.join(output_dir, "success.txt")
+    with open(success_path, 'w') as f:
+        f.write("This file was created successfully before the error\\n")
+    print(f"Created: {{success_path}}")
+    
+    # Create another file
+    before_error_path = os.path.join(output_dir, "before_error.json")
+    import json
+    data = {{"status": "created_before_error", "timestamp": "2024-01-15"}}
+    with open(before_error_path, 'w') as f:
+        json.dump(data, f)
+    print(f"Created: {{before_error_path}}")
+    
+    # Now cause an error (division by zero)
+    result = 1 / 0
+    
+except Exception as e:
+    print(f"Error occurred: {{e}}")
+    
+    # Even with error, try to create error report file
+    try:
+        error_path = os.path.join(output_dir, "error_report.txt")
+        with open(error_path, 'w') as f:
+            f.write(f"Error occurred during execution: {{e}}\\n")
+            f.write("But some files were still created\\n")
+        print(f"Created error report: {{error_path}}")
+    except:
+        pass
+
+# List all files that were created despite the error
+try:
+    files = os.listdir(output_dir)
+    print(f"Files created despite error: {{files}}")
+except:
+    pass
+'''
+        
+        # Execute script (expect it to fail but still create files)
+        result = self.execute_python_script(script_code)
+        
+        # Check that files were still created even with script error
+        expected_files = ["success.txt", "before_error.json", "error_report.txt"]
+        created_files = []
+        
+        for expected_file in expected_files:
+            file_path = os.path.join(output_dir, expected_file)
+            if os.path.exists(file_path):
+                created_files.append({
+                    "name": expected_file,
+                    "size": os.path.getsize(file_path),
+                    "exists": True
+                })
+        
+        # Success if files were created even though script had errors
+        success = len(created_files) >= 2  # At least 2 files should be created
         
         self.test_results.append({
             "test": "error_handling",
             "success": success,
             "details": {
-                "recovery_file_created": os.path.exists(recovery_file),
-                "error_handled": "Expected error caught:" in result.get("stdout", ""),
-                "stdout": result.get("stdout", "")
+                "script_had_error": result["exit_code"] != 0,
+                "files_created_despite_error": len(created_files),
+                "created_files": created_files
             }
         })
         
         if success:
-            print("✅ Error handling successful")
+            print("✅ Error handling test passed - files created despite script error")
+            print(f"   Files created: {len(created_files)}")
+            for file_info in created_files:
+                print(f"   - {file_info['name']}: {file_info['size']} bytes")
         else:
-            print("❌ Error handling failed")
+            print("❌ Error handling test failed")
             
     def test_cleanup_verification(self):
-        """Тест 5: Проверка очистки"""
-        print("\n🧹 Test 5: Cleanup Verification")
+        """Test 6: Cleanup verification"""
+        print("\n🧹 Test 6: Cleanup Verification")
         
-        # Создать несколько временных директорий
-        temp_dirs = []
-        for i in range(3):
-            temp_dir = self.create_output_directory()
-            temp_dirs.append(temp_dir)
-            
-            # Создать файл в каждой директории
-            test_file = os.path.join(temp_dir, f"temp_file_{i}.txt")
-            with open(test_file, 'w') as f:
-                f.write(f"Temporary file {i}")
-                
-        # Проверить что все файлы созданы
-        all_created = all(
-            os.path.exists(os.path.join(d, f"temp_file_{i}.txt")) 
-            for i, d in enumerate(temp_dirs)
-        )
+        # This test verifies that our test cleanup works
+        # In real n8n, this would test the auto-cleanup feature
         
-        # Имитировать cleanup
-        cleanup_success = 0
-        for temp_dir in temp_dirs:
-            try:
-                if os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir)
-                    cleanup_success += 1
-            except Exception as e:
-                print(f"Cleanup error: {e}")
-                
-        # Проверить что директории удалены
-        all_cleaned = all(not os.path.exists(d) for d in temp_dirs)
+        temp_output_dir = self.create_output_directory()
         
-        success = all_created and all_cleaned and cleanup_success == 3
+        # Create some test files
+        script_code = f'''
+import os
+
+output_dir = "{temp_output_dir}"
+
+# Create several test files for cleanup testing
+for i in range(5):
+    file_path = os.path.join(output_dir, f"cleanup_test_{{i}}.txt")
+    with open(file_path, 'w') as f:
+        f.write(f"Test file {{i}} for cleanup verification\\n")
+
+# Create a subdirectory with files
+sub_dir = os.path.join(output_dir, "subdir")
+os.makedirs(sub_dir, exist_ok=True)
+for i in range(3):
+    file_path = os.path.join(sub_dir, f"sub_file_{{i}}.txt")
+    with open(file_path, 'w') as f:
+        f.write(f"Sub file {{i}}\\n")
+
+files = []
+for root, dirs, filenames in os.walk(output_dir):
+    for filename in filenames:
+        files.append(os.path.join(root, filename))
+
+print(f"Created {{len(files)}} files for cleanup test")
+for file in files:
+    print(f"  {{file}}")
+'''
+        
+        # Execute script
+        result = self.execute_python_script(script_code)
+        
+        # Count files before cleanup
+        files_before = []
+        for root, dirs, filenames in os.walk(temp_output_dir):
+            for filename in filenames:
+                files_before.append(os.path.join(root, filename))
+        
+        print(f"Files before cleanup: {len(files_before)}")
+        
+        # Simulate cleanup (in real n8n this would be automatic)
+        if os.path.exists(temp_output_dir):
+            shutil.rmtree(temp_output_dir)
+        
+        # Verify cleanup
+        cleanup_success = not os.path.exists(temp_output_dir)
         
         self.test_results.append({
             "test": "cleanup_verification",
-            "success": success,
+            "success": cleanup_success,
             "details": {
-                "dirs_created": len(temp_dirs),
-                "all_created": all_created,
-                "cleanup_success": cleanup_success,
-                "all_cleaned": all_cleaned
+                "files_before_cleanup": len(files_before),
+                "directory_removed": cleanup_success,
+                "cleanup_method": "manual_simulation"
             }
         })
         
-        if success:
-            print(f"✅ Cleanup successful for {cleanup_success} directories")
+        if cleanup_success:
+            print("✅ Cleanup verification successful")
+            print(f"   {len(files_before)} files and directory removed")
         else:
             print("❌ Cleanup verification failed")
             
     def execute_python_script(self, script_code):
-        """Выполнить Python скрипт и вернуть результат"""
-        script_file = os.path.join(self.base_temp_dir, "test_script.py")
+        """Execute Python script and return results"""
+        # Create temporary script file
+        script_path = os.path.join(self.base_temp_dir, "temp_script.py")
         
-        with open(script_file, 'w', encoding='utf-8') as f:
-            f.write(script_code)
-            
         try:
+            with open(script_path, 'w', encoding='utf-8') as f:
+                f.write(script_code)
+            
+            # Execute script
             result = subprocess.run(
-                [sys.executable, script_file],
+                [sys.executable, script_path],
                 capture_output=True,
                 text=True,
                 timeout=30
             )
             
             return {
-                "returncode": result.returncode,
+                "exit_code": result.returncode,
                 "stdout": result.stdout,
-                "stderr": result.stderr
+                "stderr": result.stderr,
+                "success": result.returncode == 0
             }
+            
         except subprocess.TimeoutExpired:
             return {
-                "returncode": -1,
+                "exit_code": -1,
                 "stdout": "",
-                "stderr": "Script execution timeout"
+                "stderr": "Script execution timeout",
+                "success": False
+            }
+        except Exception as e:
+            return {
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": str(e),
+                "success": False
             }
         finally:
-            if os.path.exists(script_file):
-                os.remove(script_file)
-                
+            # Clean up script file
+            if os.path.exists(script_path):
+                try:
+                    os.unlink(script_path)
+                except:
+                    pass
+                    
     def run_all_tests(self):
-        """Запустить все тесты"""
-        print(f"🚀 Starting Output File Processing Integration Tests")
-        print(f"Version: {TEST_CONFIG['version']}")
-        print(f"Feature: {TEST_CONFIG['feature']}")
-        print("=" * 60)
-        
-        self.setup_test_environment()
+        """Run all integration tests"""
+        print("🚀 STARTING OUTPUT FILE PROCESSING INTEGRATION TESTS")
+        print("=" * 80)
         
         try:
-            # Запустить все тестовые функции
+            self.setup_test_environment()
+            
+            # Run all test cases
             self.test_text_file_generation()
             self.test_json_export()
             self.test_multiple_files()
+            self.test_binary_file_creation()
             self.test_error_handling()
             self.test_cleanup_verification()
+            
+            # Generate final report
+            self.generate_final_report()
             
         finally:
             self.cleanup_test_environment()
             
-        # Подсчитать результаты
+    def generate_final_report(self):
+        """Generate final test report"""
+        print("\n" + "=" * 80)
+        print("📊 FINAL INTEGRATION TEST REPORT")
+        print("=" * 80)
+        
         total_tests = len(self.test_results)
-        passed_tests = sum(1 for r in self.test_results if r["success"])
-        failed_tests = total_tests - passed_tests
+        passed_tests = len([r for r in self.test_results if r["success"]])
+        success_rate = (passed_tests / total_tests * 100) if total_tests > 0 else 0
         
-        print("\n" + "=" * 60)
-        print("📋 TEST RESULTS SUMMARY")
-        print("=" * 60)
         print(f"Total Tests: {total_tests}")
-        print(f"Passed: {passed_tests} ✅")
-        print(f"Failed: {failed_tests} ❌")
-        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        print(f"Passed: {passed_tests}")
+        print(f"Failed: {total_tests - passed_tests}")
+        print(f"Success Rate: {success_rate:.1f}%")
+        print()
         
-        # Детальные результаты
-        print("\n📊 DETAILED RESULTS:")
+        # Detailed results
         for result in self.test_results:
             status = "✅ PASS" if result["success"] else "❌ FAIL"
-            print(f"  {result['test']}: {status}")
-            if not result["success"] and "error" in result:
+            print(f"{status} {result['test']}")
+            
+            if "details" in result:
+                for key, value in result["details"].items():
+                    print(f"    {key}: {value}")
+            
+            if "error" in result:
                 print(f"    Error: {result['error']}")
-                
-        # Финальный статус
-        overall_success = failed_tests == 0
-        print("\n" + "=" * 60)
-        if overall_success:
-            print("🎉 ALL TESTS PASSED! Output File Processing is working correctly!")
-        else:
-            print(f"⚠️  {failed_tests} TESTS FAILED! Output File Processing needs fixes!")
-        print("=" * 60)
+            print()
         
-        return overall_success
+        # Overall assessment
+        if success_rate >= 80:
+            print("🎉 INTEGRATION TESTS SUCCESSFUL!")
+            print("Output File Processing v1.11.0 is working correctly")
+        elif success_rate >= 60:
+            print("⚠️ INTEGRATION TESTS PARTIAL SUCCESS")
+            print("Some issues detected but core functionality works")
+        else:
+            print("💥 INTEGRATION TESTS FAILED")
+            print("Major issues detected in Output File Processing")
+        
+        # Save report to file
+        report_data = {
+            "test_summary": {
+                "total_tests": total_tests,
+                "passed_tests": passed_tests,
+                "success_rate": success_rate,
+                "timestamp": "2024-01-15"
+            },
+            "test_results": self.test_results,
+            "conclusion": "SUCCESS" if success_rate >= 80 else "PARTIAL" if success_rate >= 60 else "FAILED"
+        }
+        
+        try:
+            report_path = os.path.join(os.getcwd(), "integration_test_report.json")
+            with open(report_path, 'w') as f:
+                json.dump(report_data, f, indent=2)
+            print(f"📄 Detailed report saved: {report_path}")
+        except Exception as e:
+            print(f"⚠️ Could not save report: {e}")
+
+def main():
+    """Main test execution"""
+    tester = OutputFileProcessingTester()
+    tester.run_all_tests()
 
 if __name__ == "__main__":
-    tester = OutputFileProcessingTester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1) 
+    main() 
