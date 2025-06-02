@@ -842,15 +842,12 @@ print(json.dumps(result))
 						displayName: 'Expected Output Filename',
 						name: 'expectedFileName',
 						type: 'string',
-						default: '',
+						default: 'result.json',
 						placeholder: 'report.pdf, data.csv, result.json, etc.',
 						description: 'Filename you expect the Python script to create (required for automatic file detection)',
 						displayOptions: {
 							show: {
 								enabled: [true],
-							},
-							hide: {
-								expectedFileName: [''],
 							},
 						},
 					},
@@ -875,9 +872,6 @@ print(json.dumps(result))
 						displayOptions: {
 							show: {
 								enabled: [true],
-							},
-							hide: {
-								expectedFileName: [''],
 							},
 						},
 					},

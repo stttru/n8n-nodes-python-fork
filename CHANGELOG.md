@@ -6,6 +6,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.3] - 2025-06-02
+
+### 🐛 Critical UI Fixes
+- **FIXED**: Expected Output Filename field was not displayed due to circular dependency in UI conditions
+- **IMPROVED**: Added default example filename "result.json" to guide users
+- **ENHANCED**: File Detection Mode now always visible when Output File Processing is enabled
+
+### 📱 User Experience
+- Users can now properly configure expected output filenames
+- Clear example provided by default, fully customizable by user
+- Intuitive UI flow for file detection configuration
+
 ## [1.12.2] - 2025-01-XX
 
 ### 🎯 Smart Output File Detection System
