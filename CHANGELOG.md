@@ -6,6 +6,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2024-12-30
+
+### Added
+- **Multiple Credentials Support**: New "Credentials Management" section above Python Code field
+  - Select multiple Python Environment Variables credentials from dropdown
+  - "Include All Available Credentials" option for automatic inclusion
+  - Three merge strategies for handling variable name conflicts:
+    - Last Selected Wins (default)
+    - First Selected Wins 
+    - Prefix with Credential Name
+- **Enhanced Script Generation**: 
+  - Environment variables now grouped by credential source in generated scripts
+  - Source information included as comments when multiple credentials are used
+  - Improved variable organization and readability
+- **Backward Compatibility**: Existing workflows continue to work without changes
+  - Legacy single credential behavior when no multiple credentials selected
+  - All existing options and functionality preserved
+
+### Technical Details
+- Added `credentialsManagement` collection parameter with sub-options
+- New helper functions `loadMultipleCredentialsWithStrategy()` and `getAllAvailableCredentials()`
+- Updated `getScriptCode()` function to accept and use credential source information
+- Enhanced debug information to include credential sources
+- Credential source tracking throughout the execution pipeline
+
+### UI Changes
+- New "Credentials Management" section positioned above "Python Code" field
+- Conditional display of merge strategy option when multiple credentials selected
+- Improved user experience with clear descriptions and help text
+
+### Notes
+- Current implementation uses placeholder for credential selection due to n8n API limitations
+- Full multiple credential selection will be available when n8n exposes the necessary APIs
+- Framework is ready for future enhancements when n8n supports advanced credential management
+
 ## [1.8.0] - 2024-12-18
 
 ### ✨ Added

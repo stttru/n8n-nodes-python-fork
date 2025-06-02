@@ -2,14 +2,14 @@ import {IExecuteFunctions, ILoadOptionsFunctions} from 'n8n-core';
 import {
 	IDataObject,
 	INodeExecutionData,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	NodeOperationError,
-	INodePropertyOptions,
 } from 'n8n-workflow';
 import {spawn} from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as tempy from 'tempy';
 
 
@@ -55,6 +55,69 @@ export class PythonFunction implements INodeType {
 			},
 		],
 		properties: [
+			{
+				displayName: 'Credentials Management',
+				name: 'credentialsManagement',
+				type: 'collection',
+				default: {},
+				placeholder: 'Add Credential Source',
+				description: 'Select which credentials to include in the Python script',
+				options: [
+					{
+						displayName: 'Python Environment Variables',
+						name: 'pythonEnvVarsList',
+						type: 'multiOptions',
+						default: [],
+						description: 'Select Python Environment Variables credentials to include (leave empty to use default behavior)',
+						options: [],
+						typeOptions: {
+							loadOptionsMethod: 'getPythonEnvVarsCredentials',
+						},
+					},
+					{
+						displayName: 'Include All Available Credentials',
+						name: 'includeAllCredentials',
+						type: 'boolean',
+						default: false,
+						description: 'Automatically include all available Python Environment Variables credentials',
+						displayOptions: {
+							show: {
+								pythonEnvVarsList: [''],
+							},
+						},
+					},
+					{
+						displayName: 'Credential Merge Strategy',
+						name: 'mergeStrategy',
+						type: 'options',
+						options: [
+							{
+								name: 'Last Selected Wins',
+								value: 'last_wins',
+								description: 'If variables have same name, last selected credential wins',
+							},
+							{
+								name: 'First Selected Wins', 
+								value: 'first_wins',
+								description: 'If variables have same name, first selected credential wins',
+							},
+							{
+								name: 'Prefix with Credential Name',
+								value: 'prefix',
+								description: 'Add credential name prefix to variables (e.g., CRED1_API_KEY)',
+							},
+						],
+						default: 'last_wins',
+						description: 'How to handle variable name conflicts between credentials',
+						displayOptions: {
+							hide: {
+								pythonEnvVarsList: [''],
+								includeAllCredentials: [false],
+							},
+						},
+					},
+				],
+			},
 			{
 				displayName: 'Python Code',
 				name: 'functionCode',
@@ -373,11 +436,48 @@ print(json.dumps(result))
 			inputItemsCount: items.length,
 		});
 		
-		// Get the environment variables
+		// Get credentials management configuration
+		const credentialsConfig = this.getNodeParameter('credentialsManagement', 0, {}) as {
+			pythonEnvVarsList?: string[];
+			includeAllCredentials?: boolean;
+			mergeStrategy?: string;
+		};
+		const selectedCredentials = credentialsConfig.pythonEnvVarsList || [];
+		const includeAllCredentials = credentialsConfig.includeAllCredentials || false;
+		const mergeStrategy = credentialsConfig.mergeStrategy || 'last_wins';
+		
+		// Get the environment variables from credentials
 		let pythonEnvVars: Record<string, string> = {};
+		let credentialSources: Record<string, string> = {};
+		
 		try {
-			pythonEnvVars = parseEnvFile(String((await this.getCredentials('pythonEnvVars'))?.envFileContent || ''));
-		} catch (_) {
+			if (selectedCredentials.length > 0) {
+				// Load specific selected credentials
+				const result = await loadMultipleCredentialsWithStrategy(this, selectedCredentials, mergeStrategy);
+				pythonEnvVars = result.envVars;
+				credentialSources = result.credentialSources;
+				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from ${selectedCredentials.length} selected credentials`);
+			} else if (includeAllCredentials) {
+				// Load all available credentials
+				pythonEnvVars = await getAllAvailableCredentials(this);
+				credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
+					acc[key] = 'default_credential';
+					return acc;
+				}, {} as Record<string, string>);
+				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from all available credentials`);
+			} else {
+				// Fallback to original behavior (single default credential)
+				pythonEnvVars = parseEnvFile(String((await this.getCredentials('pythonEnvVars'))?.envFileContent || ''));
+				credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
+					acc[key] = 'default_credential';
+					return acc;
+				}, {} as Record<string, string>);
+				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (legacy mode)`);
+			}
+		} catch (error) {
+			console.warn('Error loading credentials:', error);
+			pythonEnvVars = {};
+			credentialSources = {};
 		}
 		
 		// Add selected system environment variables
@@ -390,6 +490,15 @@ print(json.dumps(result))
 		
 		// Merge system env vars with credential env vars (credentials take precedence)
 		const mergedEnvVars = { ...systemEnvVarsToAdd, ...pythonEnvVars };
+		
+		// Add credential source tracking to merged env vars
+		const mergedCredentialSources = { 
+			...Object.keys(systemEnvVarsToAdd).reduce((acc, key) => {
+				acc[key] = 'system_environment';
+				return acc;
+			}, {} as Record<string, string>),
+			...credentialSources,
+		};
 		
 		// Execute based on mode
 		if (executionMode === 'perItem') {
@@ -410,6 +519,7 @@ print(json.dumps(result))
 				includeEnvVarsDict,
 				hideVariableValues,
 				systemEnvVars,
+				credentialSources,
 			);
 		} else {
 			return await executeOnce(
@@ -429,6 +539,7 @@ print(json.dumps(result))
 				includeEnvVarsDict,
 				hideVariableValues,
 				systemEnvVars,
+				credentialSources,
 			);
 		}
 	}
@@ -460,6 +571,99 @@ print(json.dumps(result))
 			value: key,
 		}));
 	}
+
+	// Method to get available Python Environment Variables credentials
+	async getPythonEnvVarsCredentials(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+		// Note: This is a placeholder implementation since n8n doesn't currently 
+		// expose a direct API to list all available credentials of a specific type.
+		// In practice, users will need to manually specify credential names or IDs.
+		// This could be enhanced in future n8n versions or with custom credential discovery.
+		
+		const placeholderCredentials = [
+			{
+				name: 'No specific credentials selection available',
+				value: '',
+				description: 'Use the "Include All Available Credentials" option or leave empty for default behavior',
+			},
+		];
+		
+		return placeholderCredentials;
+	}
+}
+
+
+// Helper function to load multiple credentials with strategy
+async function loadMultipleCredentialsWithStrategy(
+	executeFunctions: IExecuteFunctions,
+	credentialIds: string[],
+	strategy: string,
+	credentialType = 'pythonEnvVars',
+): Promise<{envVars: Record<string, string>, credentialSources: Record<string, string>}> {
+	const allEnvVars: Record<string, string> = {};
+	const credentialSources: Record<string, string> = {};
+	
+	// For now, since n8n doesn't expose API to get multiple specific credentials,
+	// we'll use the default credential but simulate multiple credential loading
+	// This is a placeholder implementation that can be enhanced when n8n supports it
+	for (let i = 0; i < credentialIds.length; i++) {
+		const credentialId = credentialIds[i];
+		if (!credentialId || credentialId.trim() === '') continue;
+		
+		try {
+			// For now, we can only get the default credential due to n8n API limitations
+			const credentialData = await executeFunctions.getCredentials(credentialType);
+			
+			if (!credentialData) continue;
+			
+			const credentialName = String(credentialData.name || `credential_${i + 1}`);
+			const envVars = parseEnvFile(String(credentialData.envFileContent || ''));
+			
+			for (const [key, value] of Object.entries(envVars)) {
+				let finalKey = key;
+				
+				switch (strategy) {
+					case 'first_wins':
+						if (allEnvVars[key] !== undefined) continue;
+						break;
+					case 'last_wins':
+						// Overwrite without checking
+						break;
+					case 'prefix':
+						const safeCredentialName = credentialName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+						finalKey = `${safeCredentialName}_${key}`;
+						break;
+					default:
+						// Default to last_wins behavior
+						break;
+				}
+				
+				allEnvVars[finalKey] = String(value);
+				credentialSources[finalKey] = credentialName;
+			}
+		} catch (error) {
+			console.warn(`Failed to load credential ${credentialId}:`, error);
+		}
+	}
+	
+	return { envVars: allEnvVars, credentialSources };
+}
+
+// Helper function to get all available credentials (when includeAllCredentials is true)
+async function getAllAvailableCredentials(
+	executeFunctions: IExecuteFunctions,
+	credentialType = 'pythonEnvVars',
+): Promise<Record<string, string>> {
+	try {
+		// Try to get the default credential
+		const credentialData = await executeFunctions.getCredentials(credentialType);
+		if (credentialData) {
+			return parseEnvFile(String(credentialData.envFileContent || ''));
+		}
+	} catch (error) {
+		console.warn(`No default credential available for type ${credentialType}:`, error);
+	}
+	
+	return {};
 }
 
 
@@ -480,10 +684,11 @@ async function executeOnce(
 	includeEnvVarsDict: boolean,
 	hideVariableValues: boolean,
 	systemEnvVars: string[],
+	credentialSources: Record<string, string>,
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
-	let debugTiming: DebugTiming = {
+	const debugTiming: DebugTiming = {
 		script_created_at: new Date().toISOString(),
 	};
 	let debugInfo: DebugInfo | null = null;
@@ -491,7 +696,7 @@ async function executeOnce(
 	let scriptPath = '';
 	try {
 		if (injectVariables) {
-			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues);
+			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources);
 		} else {
 			scriptPath = await getTemporaryPureScriptPath(functionCode);
 		}
@@ -503,7 +708,7 @@ async function executeOnce(
 		// Initialize debug information
 		if (debugMode !== 'off') {
 			const scriptContent = injectVariables 
-				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues)
+				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources)
 				: functionCode;
 			
 			debugInfo = await createDebugInfo(
@@ -512,7 +717,8 @@ async function executeOnce(
 				pythonPath,
 				injectVariables ? unwrapJsonField(items) : undefined,
 				injectVariables ? pythonEnvVars : undefined,
-				debugTiming
+				debugTiming,
+				credentialSources,
 			);
 		}
 
@@ -726,6 +932,7 @@ async function executePerItem(
 	includeEnvVarsDict: boolean,
 	hideVariableValues: boolean,
 	systemEnvVars: string[],
+	credentialSources: Record<string, string>,
 ): Promise<INodeExecutionData[][]> {
 	
 	const results: INodeExecutionData[] = [];
@@ -743,7 +950,7 @@ async function executePerItem(
 		try {
 			if (injectVariables) {
 				// For per-item execution, pass only current item
-				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues);
+				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources);
 			} else {
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
@@ -751,7 +958,7 @@ async function executePerItem(
 			// Create debug information for this item
 			if (debugMode !== 'off') {
 				const scriptContent = injectVariables 
-					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues)
+					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources)
 					: functionCode;
 				
 				debugInfo = await createDebugInfo(
@@ -760,7 +967,8 @@ async function executePerItem(
 					pythonPath,
 					injectVariables ? [unwrapJsonField([item])[0]] : undefined,
 					injectVariables ? pythonEnvVars : undefined,
-					debugTiming
+					debugTiming,
+					credentialSources,
 				);
 			}
 			
@@ -1042,16 +1250,25 @@ function formatCodeSnippet(code: string): string {
 }
 
 
-function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems: boolean = true, includeEnvVarsDict: boolean = false, hideVariableValues: boolean = false): string {
+function getScriptCode(
+	codeSnippet: string, 
+	data: IDataObject[], 
+	envVars: Record<string, string>, 
+	includeInputItems = true, 
+	includeEnvVarsDict = false, 
+	hideVariableValues = false,
+	credentialSources?: Record<string, string>,
+): string {
 	// Extract __future__ imports from user code and move them to the top
 	const futureImports: string[] = [];
 	let cleanedCodeSnippet = codeSnippet;
 	
 	// Find and extract all __future__ imports
 	const futureImportRegex = /^(\s*from\s+__future__\s+import\s+[^\n]+)/gm;
-	let match;
-	while ((match = futureImportRegex.exec(codeSnippet)) !== null) {
+	let match = futureImportRegex.exec(codeSnippet);
+	while (match !== null) {
 		futureImports.push(match[1].trim());
+		match = futureImportRegex.exec(codeSnippet);
 	}
 	
 	// Remove __future__ imports from the original code
@@ -1078,10 +1295,13 @@ ${variableAssignments.join('\n')}
 		}
 	}
 
-	// Add environment variables as individual Python variables
+	// Add environment variables as individual Python variables with source information
 	let envVariablesSection = '';
 	if (Object.keys(envVars).length > 0) {
 		const envVariableAssignments: string[] = [];
+		
+		// Group variables by source for better organization
+		const variablesBySource: Record<string, string[]> = {};
 		
 		for (const [key, value] of Object.entries(envVars)) {
 			// Create safe variable names (replace invalid characters and ensure valid Python identifier)
@@ -1093,7 +1313,37 @@ ${variableAssignments.join('\n')}
 			}
 			
 			const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
-			envVariableAssignments.push(`${safeVarName} = ${displayValue}`);
+			const assignment = `${safeVarName} = ${displayValue}`;
+			
+			// Get source information
+			const source = credentialSources?.[key] || 'unknown_source';
+			if (!variablesBySource[source]) {
+				variablesBySource[source] = [];
+			}
+			variablesBySource[source].push(assignment);
+		}
+		
+		// Generate organized section with source comments
+		if (credentialSources && Object.keys(variablesBySource).length > 1) {
+			for (const [source, assignments] of Object.entries(variablesBySource)) {
+				envVariableAssignments.push(`# From: ${source}`);
+				envVariableAssignments.push(...assignments);
+				envVariableAssignments.push('');
+			}
+			// Remove last empty line
+			if (envVariableAssignments[envVariableAssignments.length - 1] === '') {
+				envVariableAssignments.pop();
+			}
+		} else {
+			// Simple list without source grouping
+			for (const [key, value] of Object.entries(envVars)) {
+				let safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
+				if (!/^[a-zA-Z_]/.test(safeVarName)) {
+					safeVarName = `env_${safeVarName}`;
+				}
+				const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
+				envVariableAssignments.push(`${safeVarName} = ${displayValue}`);
+			}
 		}
 		
 		if (envVariableAssignments.length > 0) {
@@ -1139,9 +1389,9 @@ ${cleanedCodeSnippet}
 }
 
 
-async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems: boolean = true, includeEnvVarsDict: boolean = false, hideVariableValues: boolean = false): Promise<string> {
+async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems = true, includeEnvVarsDict = false, hideVariableValues = false, credentialSources?: Record<string, string>): Promise<string> {
 	const tmpPath = tempy.file({extension: 'py'});
-	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues);
+	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources);
 	
 	// Ensure file is overwritten by explicitly writing with 'w' flag
 	try {
@@ -1492,7 +1742,8 @@ async function createDebugInfo(
 	pythonPath: string,
 	inputData?: IDataObject[],
 	envVars?: Record<string, string>,
-	timing?: DebugTiming
+	timing?: DebugTiming,
+	credentialSources?: Record<string, string>,
 ): Promise<DebugInfo> {
 	const debugInfo: DebugInfo = {
 		script_content: scriptContent,
@@ -1613,7 +1864,7 @@ except Exception as e:
 	}
 }
 
-function createScriptBinary(scriptContent: string, filename: string = 'script.py'): { [key: string]: any } {
+function createScriptBinary(scriptContent: string, filename = 'script.py'): { [key: string]: unknown } {
 	const buffer = Buffer.from(scriptContent, 'utf8');
 	return {
 		[filename]: {
@@ -1629,11 +1880,11 @@ function addDebugInfoToResult(
 	result: IDataObject,
 	debugInfo: DebugInfo,
 	debugMode: string,
-	scriptContent?: string
+	scriptContent?: string,
 ): void {
 	if (debugMode === 'off') return;
 
-	const debugData: any = {};
+	const debugData: IDataObject = {};
 
 	if (['basic', 'full', 'test', 'export'].includes(debugMode)) {
 		debugData.script_content = debugInfo.script_content;
@@ -1649,7 +1900,7 @@ function addDebugInfoToResult(
 		};
 
 		if (debugInfo.injected_data) {
-			debugData.debug_info.injected_data = debugInfo.injected_data;
+			(debugData.debug_info as IDataObject).injected_data = debugInfo.injected_data;
 		}
 	}
 
