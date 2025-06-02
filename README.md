@@ -8,6 +8,7 @@ This is a **fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-no
 
 - **Raw Python Script Execution**: Execute pure Python scripts without modifications
 - **Auto-Variable Extraction**: Fields from input data automatically available as individual Python variables
+- **Multiple Credentials Support**: Select and use multiple Python Environment Variables credentials simultaneously (v1.9.0)
 - **Flexible Output Parsing**: Parse stdout as JSON, CSV, lines, or smart auto-detection
 - **Multiple Execution Modes**: Run once for all items or once per each item
 - **Pass Through Data**: Preserve and combine input data with Python results
@@ -53,6 +54,14 @@ print(f"Items count: {len(input_items)}")  # 1
 - **Python Executable**: Path to Python executable (default: "python3")
 - **Inject Variables**: Enable/disable automatic variable injection (default: true)
 - **Return Error Details**: Return error info as data instead of throwing (default: true)
+
+### Credentials Management (New in v1.9.0)
+- **Python Environment Variables**: Multi-select dropdown to choose multiple credentials
+- **Include All Available Credentials**: Automatically include all available Python Environment Variables credentials
+- **Credential Merge Strategy**: How to handle variable name conflicts when using multiple credentials:
+  - **last_wins** (default): Later credentials override earlier ones for conflicting variable names
+  - **first_wins**: Earlier credentials take precedence for conflicting variable names
+  - **prefix**: Add credential name as prefix to variables (e.g., `SERVICE_A_API_KEY`, `SERVICE_B_API_KEY`)
 
 ### Error Handling (New in v1.5.0)
 - **Return Error Details** (default): Continue execution and return error information as output data
@@ -208,6 +217,64 @@ print(json.dumps(analysis))
 - Pass Through Mode = "Multiple Outputs"
 
 **Result**: Returns both the Python analysis result AND the original input items as separate output items
+
+### Multiple Credentials Usage (New in v1.9.0)
+
+#### Basic Multiple Credentials
+```python
+# With multiple credentials selected: "Production APIs" and "External Services"
+# Variables from all credentials are automatically available:
+
+# From "Production APIs" credential:
+print(f"API Key: {API_KEY}")
+print(f"Database: {DB_HOST}")
+
+# From "External Services" credential:  
+print(f"Webhook: {WEBHOOK_URL}")
+print(f"Token: {SECRET_TOKEN}")
+
+# All variables are directly accessible
+```
+
+**Configuration**:
+- Credentials Management → Python Environment Variables = ["Production APIs", "External Services"]
+- Credential Merge Strategy = "last_wins"
+
+#### Prefix Strategy for Name Conflicts
+```python
+# When multiple credentials have same variable names
+# Using prefix strategy to avoid conflicts:
+
+# From "Service_A" credential (prefixed):
+print(f"Service A API: {SERVICE_A_API_KEY}")
+print(f"Service A Host: {SERVICE_A_HOST}")
+
+# From "Service_B" credential (prefixed):
+print(f"Service B API: {SERVICE_B_API_KEY}")  
+print(f"Service B Host: {SERVICE_B_HOST}")
+```
+
+**Configuration**:
+- Credentials Management → Python Environment Variables = ["Service_A", "Service_B"]  
+- Credential Merge Strategy = "prefix"
+
+#### Include All Available Credentials
+```python
+# Automatically includes ALL Python Environment Variables credentials
+# No need to manually select each one
+
+# Access any credential variable that exists:
+if 'API_KEY' in globals():
+    print(f"Found API Key: {API_KEY}")
+
+if 'DATABASE_URL' in globals():
+    print(f"Found Database: {DATABASE_URL}")
+
+# Script adapts to available credentials automatically
+```
+
+**Configuration**:
+- Credentials Management → Include All Available Credentials = true
 
 ### CSV Data Generation
 ```python
@@ -845,6 +912,8 @@ This is a community-maintained fork. Contributions welcome!
 
 ## 📝 Version History
 
+- **v1.9.0**: Added multiple credentials support with Credentials Management section, multi-select credentials, three merge strategies (last_wins/first_wins/prefix), and 100% backward compatibility
+- **v1.8.0**: Enhanced script generation and credential source tracking with improved debug support  
 - **v1.7.0**: Script Generation Options with Legacy support toggle, Hide Values option, and automatic cleanup
 - **v1.6.2**: Documentation update with complete Auto-Variable Extraction examples
 - **v1.6.1**: Fixed `from __future__` imports + Auto-Variable Extraction feature

@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-python-raw",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "An n8n community node for executing Python scripts with raw output control, advanced parsing capabilities, multiple credentials support, and flexible environment variables management",
   "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/stttru/n8n-nodes-python-fork",
