@@ -32,6 +32,18 @@ n8n-nodes-python-raw
 - **Inject Variables**: Enable/disable automatic variable injection (default: true)
 - **Return Error Details**: Return error info as data instead of throwing (default: true)
 
+### Error Handling (New in v1.5.0)
+- **Return Error Details** (default): Continue execution and return error information as output data
+- **Throw Error on Non-Zero Exit**: Stop workflow execution if script exits with non-zero code
+- **Ignore Exit Code**: Continue execution regardless of exit code, only throw on system errors
+
+### Debug/Test Mode (New in v1.6.0)
+- **Off** (default): Normal execution without debug information
+- **Basic Debug**: Add script content and basic execution info to output
+- **Full Debug**: Add script content, metadata, timing, and detailed execution info
+- **Test Only**: Validate script and show preview without executing (safe testing)
+- **Export Script**: Full debug information plus script file as binary attachment
+
 ### Execution Control (New in v1.4.0)
 - **Execution Mode**: Choose how to run the script:
   - **Once for All Items**: Execute script once with all input items (faster, default)
@@ -526,6 +538,216 @@ The Smart Auto-detect mode intelligently handles:
 3. **Multiple Formats**: Handles mixed output with JSON embedded in text
 4. **Error Recovery**: Falls back to line splitting if specialized parsing fails
 
+## 🔧 Debug and Testing Features (New in v1.6.0)
+
+### Debug Modes Overview
+
+The Debug/Test Mode option provides comprehensive debugging and testing capabilities for Python script development:
+
+#### **Off** (Default)
+- Normal execution without additional debug overhead
+- Minimal output for production workflows
+- Best performance
+
+#### **Basic Debug**
+```json
+{
+  "exitCode": 0,
+  "stdout": "Hello World",
+  "stderr": "",
+  "success": true,
+  "script_content": "print('Hello World')",
+  "execution_command": "python3 /tmp/script_abc123.py"
+}
+```
+
+#### **Full Debug**
+```json
+{
+  "exitCode": 0,
+  "stdout": "Hello World", 
+  "stderr": "",
+  "success": true,
+  "script_content": "print('Hello World')",
+  "execution_command": "python3 /tmp/script_abc123.py",
+  "debug_info": {
+    "script_path": "/tmp/script_abc123.py",
+    "timing": {
+      "script_created_at": "2024-01-01T12:00:00.000Z",
+      "execution_started_at": "2024-01-01T12:00:00.100Z", 
+      "execution_finished_at": "2024-01-01T12:00:00.250Z",
+      "total_duration_ms": 150
+    },
+    "environment_check": {
+      "python_executable_found": true,
+      "python_version_output": "3.11.2 (main, Mar 13 2023...)",
+      "python_path_resolved": "python3"
+    },
+    "syntax_validation": {
+      "is_valid": true
+    },
+    "injected_data": {
+      "input_items": [...],
+      "env_vars": {...}
+    }
+  }
+}
+```
+
+#### **Test Only**
+- **Safe validation** without script execution
+- **Syntax checking** using Python AST parser
+- **Environment verification** (Python executable, version)
+- **Data preview** showing what would be injected
+- **No side effects** - perfect for testing in production environments
+
+```json
+{
+  "exitCode": null,
+  "stdout": "",
+  "stderr": "",
+  "success": null,
+  "test_mode": true,
+  "execution_skipped": true,
+  "validation_only": true,
+  "script_content": "print('Hello World')",
+  "debug_info": {
+    "syntax_validation": {
+      "is_valid": true
+    },
+    "environment_check": {
+      "python_executable_found": true,
+      "python_version_output": "3.11.2..."
+    }
+  }
+}
+```
+
+#### **Export Script** 
+- **All Full Debug information** 
+- **Plus binary script file** as downloadable attachment
+- **Timestamped filenames** for easy identification
+- **Error-specific naming** (e.g., `python_script_error_2024-01-01T12-00-00.py`)
+
+### Debug Features in Detail
+
+#### **Script Content Access**
+- **Exact script source** that was executed
+- **With or without** variable injection
+- **Helpful for troubleshooting** unexpected behavior
+
+#### **Execution Timing**
+- **Script creation time**
+- **Execution start/finish timestamps** 
+- **Total duration in milliseconds**
+- **Performance profiling** for optimization
+
+#### **Environment Validation**
+- **Python executable detection**
+- **Version information** 
+- **Path resolution verification**
+- **Dependency checking** capabilities
+
+#### **Syntax Validation** 
+- **Pre-execution syntax checking** using Python AST
+- **Line number reporting** for syntax errors
+- **Error type identification**
+- **Safe validation** without code execution
+
+#### **Binary Script Export**
+- **Download .py files** directly from n8n interface
+- **Inspect generated scripts** in your IDE
+- **Share scripts** with team members
+- **Archive successful scripts** for reuse
+
+### Use Cases for Debug Modes
+
+#### **Development Workflow**
+```javascript
+1. Start with "Test Only" - validate syntax and environment
+2. Switch to "Basic Debug" - check script content and commands  
+3. Use "Full Debug" - analyze timing and detailed execution info
+4. Export scripts with "Export Script" - save working versions
+5. Deploy with "Off" - optimal production performance
+```
+
+#### **Troubleshooting Problems**
+```javascript
+// Problem: Script works locally but fails in n8n
+✅ Use "Full Debug" to compare:
+   - Environment differences (Python version, paths)
+   - Input data structure (injected_data field)
+   - Execution timing and performance
+
+// Problem: Syntax errors in generated scripts  
+✅ Use "Test Only" to validate:
+   - Python syntax without execution
+   - Environment setup
+   - Variable injection preview
+
+// Problem: Need to inspect exact executed script
+✅ Use "Export Script" to:
+   - Download actual .py file
+   - Debug in external Python IDE
+   - Share with team for review
+```
+
+#### **Performance Analysis**
+```javascript
+// Analyze execution performance
+✅ Use "Full Debug" timing info:
+   - Script creation overhead
+   - Execution duration
+   - Total processing time
+   - Compare "Once" vs "Per Item" modes
+```
+
+### Debug Mode Examples
+
+#### Testing Script Syntax
+```python
+# Enable "Test Only" mode to safely validate:
+import json
+import requests  # Will be validated for syntax
+
+data = {"test": True}
+print(json.dumps(data))
+
+# Result: Shows syntax validation without execution
+# Safe to test in production workflows
+```
+
+#### Performance Profiling
+```python
+# Enable "Full Debug" to measure performance:
+import time
+
+start_time = time.time()
+# Your processing logic here
+for item in input_items:
+    time.sleep(0.1)  # Simulate processing
+    
+print(f"Processed {len(input_items)} items")
+
+# Result: Get exact timing metrics in debug_info
+```
+
+#### Script Inspection
+```python
+# Enable "Export Script" to download and inspect:
+complex_logic = """
+def process_data(items):
+    return [item for item in items if item.get('active')]
+
+result = process_data(input_items)
+print(len(result))
+"""
+
+exec(complex_logic)
+
+# Result: Download exact executed script with all injected variables
+```
+
 ## 🆚 Differences from Original Package
 
 This fork provides several enhancements over the original `n8n-nodes-python`:
@@ -551,6 +773,8 @@ This is a community-maintained fork. Contributions welcome!
 
 ## 📝 Version History
 
+- **v1.6.0**: Added comprehensive Debug/Test system with script export and syntax validation
+- **v1.5.0**: Enhanced error handling and comprehensive variable documentation
 - **v1.4.0**: Added execution modes and data pass-through capabilities
 - **v1.3.0**: Added comprehensive output parsing (JSON/CSV/Lines/Smart modes)
 - **v1.2.0**: Enhanced error handling and user experience

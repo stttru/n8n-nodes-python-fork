@@ -110,6 +110,40 @@ print(json.dumps(result))
 				description: 'How to handle Python script errors and non-zero exit codes',
 			},
 			{
+				displayName: 'Debug/Test Mode',
+				name: 'debugMode',
+				type: 'options',
+				options: [
+					{
+						name: 'Off',
+						value: 'off',
+						description: 'Normal execution without debug information (default)',
+					},
+					{
+						name: 'Basic Debug',
+						value: 'basic',
+						description: 'Add script content and basic execution info to output',
+					},
+					{
+						name: 'Full Debug',
+						value: 'full',
+						description: 'Add script content, metadata, timing, and detailed execution info',
+					},
+					{
+						name: 'Test Only',
+						value: 'test',
+						description: 'Validate script and show preview without executing (safe testing)',
+					},
+					{
+						name: 'Export Script',
+						value: 'export',
+						description: 'Full debug information plus script file as binary attachment',
+					},
+				],
+				default: 'off',
+				description: 'Choose debug and testing options for script development and troubleshooting',
+			},
+			{
 				displayName: 'Parse Output',
 				name: 'parseOutput',
 				type: 'options',
@@ -242,6 +276,7 @@ print(json.dumps(result))
 		const pythonPath = this.getNodeParameter('pythonPath', 0) as string;
 		const injectVariables = this.getNodeParameter('injectVariables', 0) as boolean;
 		const errorHandling = this.getNodeParameter('errorHandling', 0) as string;
+		const debugMode = this.getNodeParameter('debugMode', 0) as string;
 		const parseOutput = this.getNodeParameter('parseOutput', 0) as string;
 		const parseOptions = (['json', 'smart'].includes(parseOutput)) ? 
 			this.getNodeParameter('parseOptions', 0) as ParseOptions : 
@@ -255,6 +290,7 @@ print(json.dumps(result))
 			pythonPath,
 			injectVariables,
 			errorHandling,
+			debugMode,
 			parseOutput,
 			parseOptions,
 			executionMode,
@@ -278,6 +314,7 @@ print(json.dumps(result))
 				pythonPath, 
 				injectVariables, 
 				errorHandling, 
+				debugMode, 
 				parseOutput, 
 				parseOptions, 
 				passThrough, 
@@ -292,6 +329,7 @@ print(json.dumps(result))
 				pythonPath, 
 				injectVariables, 
 				errorHandling, 
+				debugMode, 
 				parseOutput, 
 				parseOptions, 
 				passThrough, 
@@ -310,6 +348,7 @@ async function executeOnce(
 	pythonPath: string,
 	injectVariables: boolean,
 	errorHandling: string,
+	debugMode: string,
 	parseOutput: string,
 	parseOptions: ParseOptions,
 	passThrough: boolean,
@@ -317,6 +356,12 @@ async function executeOnce(
 	items: INodeExecutionData[],
 	pythonEnvVars: Record<string, string>,
 ): Promise<INodeExecutionData[][]> {
+
+	// Create debug timing and info variables in function scope
+	let debugTiming: DebugTiming = {
+		script_created_at: new Date().toISOString(),
+	};
+	let debugInfo: DebugInfo | null = null;
 		
 	let scriptPath = '';
 	try {
@@ -330,8 +375,54 @@ async function executeOnce(
 	}
 
 	try {
+		// Initialize debug information
+		if (debugMode !== 'off') {
+			const scriptContent = injectVariables 
+				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars)
+				: functionCode;
+			
+			debugInfo = await createDebugInfo(
+				scriptPath,
+				scriptContent,
+				pythonPath,
+				injectVariables ? unwrapJsonField(items) : undefined,
+				injectVariables ? pythonEnvVars : undefined,
+				debugTiming
+			);
+		}
+
+		// For Test Only mode, return validation results without execution
+		if (debugMode === 'test') {
+			const testResult: IDataObject = {
+				exitCode: null,
+				stdout: '',
+				stderr: '',
+				success: null,
+				error: null,
+				inputItemsCount: items.length,
+				executedAt: new Date().toISOString(),
+				injectVariables,
+				parseOutput,
+				executionMode: 'once',
+				test_mode: true,
+				execution_skipped: true,
+			};
+
+			if (debugInfo) {
+				addDebugInfoToResult(testResult, debugInfo, debugMode);
+			}
+
+			const testResultWithPassThrough = handlePassThroughData(testResult, items, passThrough, passThroughMode);
+			return executeFunctions.prepareOutputData(testResultWithPassThrough);
+		}
+
 		// Execute the Python script
+		debugTiming.execution_started_at = new Date().toISOString();
 		const execResults = await execPythonSpawn(scriptPath, pythonPath, executeFunctions.sendMessageToUI);
+		debugTiming.execution_finished_at = new Date().toISOString();
+		debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
+			new Date(debugTiming.execution_started_at).getTime();
+
 		const {
 			error: returnedError,
 			exitCode,
@@ -371,8 +462,29 @@ async function executeOnce(
 			});
 		}
 
+		// Add debug information if enabled
+		if (debugInfo && debugMode !== 'off') {
+			debugInfo.timing = debugTiming;
+			addDebugInfoToResult(baseResult, debugInfo, debugMode);
+		}
+
 		// Handle pass through data
 		const resultWithPassThrough = handlePassThroughData(baseResult, items, passThrough, passThroughMode);
+
+		// Add binary script file for Export mode
+		if (debugMode === 'export' && debugInfo) {
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+			const filename = `python_script_${timestamp}.py`;
+			const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+			
+			// Add binary data to each result item
+			for (const resultItem of resultWithPassThrough) {
+				if (!resultItem.binary) {
+					resultItem.binary = {};
+				}
+				Object.assign(resultItem.binary, scriptBinary);
+			}
+		}
 
 		// If successful, return result
 		if (exitCode === 0) {
@@ -386,8 +498,28 @@ async function executeOnce(
 		baseResult.pythonError = pythonError;
 		baseResult.detailedError = `Script failed with exit code ${exitCode}. ${pythonError.errorType || 'Error'}: ${pythonError.errorMessage || stderr}`;
 
+		// Add debug information if enabled
+		if (debugInfo && debugMode !== 'off') {
+			debugInfo.timing = debugTiming;
+			addDebugInfoToResult(baseResult, debugInfo, debugMode);
+		}
+
 		// Handle pass through for errors too
 		const errorResultWithPassThrough = handlePassThroughData(baseResult, items, passThrough, passThroughMode);
+
+		// Add binary script file for Export mode (even for errors)
+		if (debugMode === 'export' && debugInfo) {
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+			const filename = `python_script_error_${timestamp}.py`;
+			const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+			
+			for (const resultItem of errorResultWithPassThrough) {
+				if (!resultItem.binary) {
+					resultItem.binary = {};
+				}
+				Object.assign(resultItem.binary, scriptBinary);
+			}
+		}
 
 		// Return error details or throw
 		if (errorHandling === 'details') {
@@ -420,7 +552,28 @@ async function executeOnce(
 				detailedError: `System error: ${errorMessage}`,
 			};
 
+			// Add debug information if enabled
+			if (debugInfo && debugMode !== 'off') {
+				debugInfo.timing = debugTiming;
+				addDebugInfoToResult(errorItem, debugInfo, debugMode);
+			}
+
 			const errorResultWithPassThrough = handlePassThroughData(errorItem, items, passThrough, passThroughMode);
+
+			// Add binary script file for Export mode (even for system errors)
+			if (debugMode === 'export' && debugInfo) {
+				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+				const filename = `python_script_system_error_${timestamp}.py`;
+				const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+				
+				for (const resultItem of errorResultWithPassThrough) {
+					if (!resultItem.binary) {
+						resultItem.binary = {};
+					}
+					Object.assign(resultItem.binary, scriptBinary);
+				}
+			}
+
 			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
 		} else {
 			throw error;
@@ -435,6 +588,7 @@ async function executePerItem(
 	pythonPath: string,
 	injectVariables: boolean,
 	errorHandling: string,
+	debugMode: string,
 	parseOutput: string,
 	parseOptions: ParseOptions,
 	passThrough: boolean,
@@ -449,6 +603,12 @@ async function executePerItem(
 		const item = items[i];
 		let scriptPath = '';
 		
+		// Create debug timing for each item
+		const debugTiming: DebugTiming = {
+			script_created_at: new Date().toISOString(),
+		};
+		let debugInfo: DebugInfo | null = null;
+		
 		try {
 			if (injectVariables) {
 				// For per-item execution, pass only current item
@@ -456,6 +616,23 @@ async function executePerItem(
 			} else {
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
+
+			// Create debug information for this item
+			if (debugMode !== 'off') {
+				const scriptContent = injectVariables 
+					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars)
+					: functionCode;
+				
+				debugInfo = await createDebugInfo(
+					scriptPath,
+					scriptContent,
+					pythonPath,
+					injectVariables ? [unwrapJsonField([item])[0]] : undefined,
+					injectVariables ? pythonEnvVars : undefined,
+					debugTiming
+				);
+			}
+			
 		} catch (error) {
 			if (errorHandling === 'details' || executeFunctions.continueOnFail()) {
 				const errorResult: IDataObject = {
@@ -472,7 +649,28 @@ async function executePerItem(
 					itemIndex: i,
 				};
 				
+				// Add debug information if enabled (for script generation errors)
+				if (debugInfo && debugMode !== 'off') {
+					debugInfo.timing = debugTiming;
+					addDebugInfoToResult(errorResult, debugInfo, debugMode);
+				}
+				
 				const errorWithPassThrough = handlePassThroughData(errorResult, [item], passThrough, passThroughMode);
+
+				// Add binary script file for Export mode (even for generation errors)
+				if (debugMode === 'export' && debugInfo) {
+					const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+					const filename = `python_script_item_${i}_gen_error_${timestamp}.py`;
+					const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+					
+					for (const resultItem of errorWithPassThrough) {
+						if (!resultItem.binary) {
+							resultItem.binary = {};
+						}
+						Object.assign(resultItem.binary, scriptBinary);
+					}
+				}
+
 				results.push(...errorWithPassThrough);
 				continue;
 			} else {
@@ -480,9 +678,41 @@ async function executePerItem(
 			}
 		}
 
+		// For Test Only mode, return validation results without execution
+		if (debugMode === 'test') {
+			const testResult: IDataObject = {
+				exitCode: null,
+				stdout: '',
+				stderr: '',
+				success: null,
+				error: null,
+				inputItemsCount: 1,
+				executedAt: new Date().toISOString(),
+				injectVariables,
+				parseOutput,
+				executionMode: 'perItem',
+				itemIndex: i,
+				test_mode: true,
+				execution_skipped: true,
+			};
+
+			if (debugInfo) {
+				addDebugInfoToResult(testResult, debugInfo, debugMode);
+			}
+
+			const testResultWithPassThrough = handlePassThroughData(testResult, [item], passThrough, passThroughMode);
+			results.push(...testResultWithPassThrough);
+			continue;
+		}
+
 		try {
 			// Execute the Python script for this item
+			debugTiming.execution_started_at = new Date().toISOString();
 			const execResults = await execPythonSpawn(scriptPath, pythonPath, executeFunctions.sendMessageToUI);
+			debugTiming.execution_finished_at = new Date().toISOString();
+			debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
+				new Date(debugTiming.execution_started_at).getTime();
+
 			const {
 				error: returnedError,
 				exitCode,
@@ -534,8 +764,29 @@ async function executePerItem(
 				// For 'details' and 'ignore' modes, continue with the error info in result
 			}
 
+			// Add debug information if enabled
+			if (debugInfo && debugMode !== 'off') {
+				debugInfo.timing = debugTiming;
+				addDebugInfoToResult(itemResult, debugInfo, debugMode);
+			}
+
 			// Handle pass through data
 			const resultWithPassThrough = handlePassThroughData(itemResult, [item], passThrough, passThroughMode);
+
+			// Add binary script file for Export mode
+			if (debugMode === 'export' && debugInfo) {
+				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+				const filename = `python_script_item_${i}_${timestamp}.py`;
+				const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+				
+				for (const resultItem of resultWithPassThrough) {
+					if (!resultItem.binary) {
+						resultItem.binary = {};
+					}
+					Object.assign(resultItem.binary, scriptBinary);
+				}
+			}
+
 			results.push(...resultWithPassThrough);
 
 		} catch (error) {
@@ -559,7 +810,28 @@ async function executePerItem(
 					detailedError: `System error: ${errorMessage}`,
 				};
 
+				// Add debug information if enabled
+				if (debugInfo && debugMode !== 'off') {
+					debugInfo.timing = debugTiming;
+					addDebugInfoToResult(errorResult, debugInfo, debugMode);
+				}
+
 				const errorWithPassThrough = handlePassThroughData(errorResult, [item], passThrough, passThroughMode);
+
+				// Add binary script file for Export mode (even for system errors)
+				if (debugMode === 'export' && debugInfo) {
+					const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+					const filename = `python_script_item_${i}_error_${timestamp}.py`;
+					const scriptBinary = createScriptBinary(debugInfo.script_content, filename);
+					
+					for (const resultItem of errorWithPassThrough) {
+						if (!resultItem.binary) {
+							resultItem.binary = {};
+						}
+						Object.assign(resultItem.binary, scriptBinary);
+					}
+				}
+
 				results.push(...errorWithPassThrough);
 			} else {
 				throw error;
@@ -729,6 +1001,36 @@ interface ParseOptions {
 	multipleJson?: boolean;
 	stripNonJson?: boolean;
 	fallbackOnError?: boolean;
+}
+
+
+interface DebugTiming {
+	script_created_at: string;
+	execution_started_at?: string;
+	execution_finished_at?: string;
+	total_duration_ms?: number;
+}
+
+interface DebugInfo {
+	script_content: string;
+	script_path: string;
+	execution_command: string[];
+	injected_data?: {
+		input_items: IDataObject[];
+		env_vars: Record<string, string>;
+	};
+	timing: DebugTiming;
+	python_version?: string;
+	environment_check?: {
+		python_executable_found: boolean;
+		python_version_output?: string;
+		python_path_resolved?: string;
+	};
+	syntax_validation?: {
+		is_valid: boolean;
+		syntax_error?: string;
+		line_number?: number;
+	};
 }
 
 
@@ -971,6 +1273,182 @@ function parseAsCSV(stdout: string): ParseResult {
 }
 
 
+async function createDebugInfo(
+	scriptPath: string,
+	scriptContent: string,
+	pythonPath: string,
+	inputData?: IDataObject[],
+	envVars?: Record<string, string>,
+	timing?: DebugTiming
+): Promise<DebugInfo> {
+	const debugInfo: DebugInfo = {
+		script_content: scriptContent,
+		script_path: scriptPath,
+		execution_command: [pythonPath, scriptPath],
+		timing: timing || { script_created_at: new Date().toISOString() },
+	};
+
+	// Add injected data if provided
+	if (inputData || envVars) {
+		debugInfo.injected_data = {
+			input_items: inputData || [],
+			env_vars: envVars || {},
+		};
+	}
+
+	// Check Python environment
+	try {
+		// Create a simple version check script
+		const versionScript = 'import sys; print(sys.version)';
+		const versionScriptPath = scriptPath.replace('.py', '_version_check.py');
+		fs.writeFileSync(versionScriptPath, versionScript, { encoding: 'utf8' });
+		
+		const versionResult = await execPythonSpawn(versionScriptPath, pythonPath);
+		
+		// Clean up version check script
+		try {
+			fs.unlinkSync(versionScriptPath);
+		} catch (e) {
+			// Ignore cleanup errors
+		}
+		
+		debugInfo.environment_check = {
+			python_executable_found: versionResult.exitCode === 0,
+			python_version_output: versionResult.stdout || versionResult.stderr,
+			python_path_resolved: pythonPath,
+		};
+	} catch (error) {
+		debugInfo.environment_check = {
+			python_executable_found: false,
+			python_path_resolved: pythonPath,
+		};
+	}
+
+	// Validate Python syntax
+	try {
+		const syntaxValidation = await validatePythonSyntax(scriptPath, pythonPath);
+		debugInfo.syntax_validation = syntaxValidation;
+	} catch (error) {
+		debugInfo.syntax_validation = {
+			is_valid: false,
+			syntax_error: (error as Error).message,
+		};
+	}
+
+	return debugInfo;
+}
+
+async function validatePythonSyntax(scriptPath: string, pythonPath: string): Promise<{
+	is_valid: boolean;
+	syntax_error?: string;
+	line_number?: number;
+}> {
+	try {
+		// Use Python's compile() to check syntax without executing
+		const validationScript = `
+import ast
+import sys
+
+try:
+    with open('${scriptPath.replace(/\\/g, '\\\\')}', 'r', encoding='utf-8') as f:
+        source = f.read()
+    
+    # Try to parse the AST
+    ast.parse(source)
+    print("SYNTAX_VALID")
+    
+except SyntaxError as e:
+    print(f"SYNTAX_ERROR:{e.msg}:LINE:{e.lineno}")
+    sys.exit(1)
+except Exception as e:
+    print(f"VALIDATION_ERROR:{str(e)}")
+    sys.exit(1)
+`;
+
+		const validationPath = scriptPath.replace('.py', '_validation.py');
+		fs.writeFileSync(validationPath, validationScript, { encoding: 'utf8' });
+
+		const result = await execPythonSpawn(validationPath, pythonPath);
+		
+		// Clean up validation script
+		try {
+			fs.unlinkSync(validationPath);
+		} catch (e) {
+			// Ignore cleanup errors
+		}
+
+		if (result.stdout.includes('SYNTAX_VALID')) {
+			return { is_valid: true };
+		} else if (result.stdout.includes('SYNTAX_ERROR:')) {
+			const parts = result.stdout.split(':');
+			return {
+				is_valid: false,
+				syntax_error: parts[1] || 'Unknown syntax error',
+				line_number: parts[3] ? parseInt(parts[3], 10) : undefined,
+			};
+		} else {
+			return {
+				is_valid: false,
+				syntax_error: result.stderr || result.stdout || 'Unknown validation error',
+			};
+		}
+	} catch (error) {
+		return {
+			is_valid: false,
+			syntax_error: (error as Error).message,
+		};
+	}
+}
+
+function createScriptBinary(scriptContent: string, filename: string = 'script.py'): { [key: string]: any } {
+	const buffer = Buffer.from(scriptContent, 'utf8');
+	return {
+		[filename]: {
+			data: buffer.toString('base64'),
+			mimeType: 'text/x-python',
+			fileExtension: 'py',
+			fileName: filename,
+		},
+	};
+}
+
+function addDebugInfoToResult(
+	result: IDataObject,
+	debugInfo: DebugInfo,
+	debugMode: string,
+	scriptContent?: string
+): void {
+	if (debugMode === 'off') return;
+
+	const debugData: any = {};
+
+	if (['basic', 'full', 'test', 'export'].includes(debugMode)) {
+		debugData.script_content = debugInfo.script_content;
+		debugData.execution_command = debugInfo.execution_command.join(' ');
+	}
+
+	if (['full', 'test', 'export'].includes(debugMode)) {
+		debugData.debug_info = {
+			script_path: debugInfo.script_path,
+			timing: debugInfo.timing,
+			environment_check: debugInfo.environment_check,
+			syntax_validation: debugInfo.syntax_validation,
+		};
+
+		if (debugInfo.injected_data) {
+			debugData.debug_info.injected_data = debugInfo.injected_data;
+		}
+	}
+
+	if (['test'].includes(debugMode)) {
+		debugData.test_mode = true;
+		debugData.execution_skipped = true;
+		debugData.validation_only = true;
+	}
+
+	Object.assign(result, debugData);
+}
+
 function handlePassThroughData(result: IDataObject, items: INodeExecutionData[], passThrough: boolean, passThroughMode: string): INodeExecutionData[] {
 	if (!passThrough) {
 		return [{ json: result }];
@@ -1013,4 +1491,5 @@ function handlePassThroughData(result: IDataObject, items: INodeExecutionData[],
 
 	return resultWithPassThrough;
 }
+
 

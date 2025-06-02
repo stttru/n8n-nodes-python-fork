@@ -6,6 +6,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2024-01-XX
+
+### 🚀 Major Features Added
+- **Comprehensive Debug/Test System**: New "Debug/Test Mode" option with 5 modes:
+  - "Off" (default) - Normal execution without debug overhead
+  - "Basic Debug" - Add script content and basic execution info
+  - "Full Debug" - Complete debugging with timing, environment, syntax validation
+  - "Test Only" - Safe validation without execution (syntax checking, environment verification)
+  - "Export Script" - Full debug plus downloadable .py script files
+- **Script Export Functionality**: Download actual executed Python scripts as binary files
+- **Syntax Validation**: Pre-execution Python syntax checking using AST parser
+- **Environment Checking**: Python executable detection and version verification
+- **Execution Timing**: Performance profiling with detailed timing metrics
+- **Safe Testing**: Test Only mode for production-safe script validation
+
+### 🔧 Technical Implementations
+- **Debug Information System**: Comprehensive debug data collection and reporting
+- **Binary File Support**: Script files as downloadable attachments with timestamped names
+- **Performance Metrics**: Execution timing from script creation to completion
+- **Environment Validation**: Python version detection and executable verification
+- **Syntax Checking**: AST-based Python syntax validation without execution
+- **Error-Specific Exports**: Different filename patterns for errors vs successful runs
+- **Per-Item Debug**: Individual debug information for "Once per Item" execution mode
+
+### 📚 Documentation
+- **Debug Features Guide**: Complete documentation of all debug modes with examples
+- **Troubleshooting Workflows**: Step-by-step debugging approaches
+- **Performance Analysis**: How to use timing information for optimization
+- **Use Case Examples**: Real-world debugging scenarios and solutions
+
+### 🎯 User Experience
+- **Developer-Friendly**: Comprehensive debugging tools for script development
+- **Production-Safe Testing**: Validate scripts without side effects
+- **Performance Insights**: Understanding execution characteristics
+- **Script Portability**: Download and share working Python scripts
+- **Error Diagnosis**: Enhanced error reporting with full context
+
 ## [1.5.0] - 2024-01-XX
 
 ### 🚀 Major Features Added
