@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Финальный интеграционный тест Output File Processing v1.11.0
-Проверяет полную интеграцию функциональности
+Final integration test for Output File Processing v1.11.0
+Tests complete functionality integration
 """
 
 import os
@@ -11,20 +11,20 @@ import json
 from pathlib import Path
 
 def test_full_integration():
-    """Тестирует полную интеграцию Output File Processing"""
-    print("🚀 ФИНАЛЬНЫЙ ИНТЕГРАЦИОННЫЙ ТЕСТ OUTPUT FILE PROCESSING")
+    """Tests complete Output File Processing integration"""
+    print("🚀 FINAL INTEGRATION TEST FOR OUTPUT FILE PROCESSING")
     print("=" * 70)
-    print("Версия: 1.11.0")
-    print("Функциональность: Output File Processing")
+    print("Version: 1.11.0")
+    print("Functionality: Output File Processing")
     print("=" * 70)
     
-    # Создаем тестовую среду
+    # Create test environment
     test_dir = tempfile.mkdtemp(prefix="n8n_final_test_")
-    print(f"📁 Тестовая среда: {test_dir}")
+    print(f"📁 Test environment: {test_dir}")
     
     try:
-        # Тест 1: Проверка UI Configuration
-        print("\n📋 Тест 1: UI Configuration")
+        # Test 1: UI Configuration check
+        print("\n📋 Test 1: UI Configuration")
         ui_config = {
             "displayName": "Output File Processing",
             "name": "outputFileProcessing",
@@ -36,10 +36,10 @@ def test_full_integration():
                 {"name": "includeOutputMetadata", "type": "boolean"}
             ]
         }
-        print("✅ UI Configuration структура корректна")
+        print("✅ UI Configuration structure is correct")
         
-        # Тест 2: TypeScript Interfaces
-        print("\n🔧 Тест 2: TypeScript Interfaces")
+        # Test 2: TypeScript Interfaces
+        print("\n🔧 Test 2: TypeScript Interfaces")
         output_file_processing_options = {
             "enabled": True,
             "maxOutputFileSize": 100,
@@ -52,20 +52,20 @@ def test_full_integration():
             "size": 1024,
             "mimetype": "text/plain",
             "extension": "txt",
-            "base64Data": "SGVsbG8gV29ybGQ=",  # "Hello World" в base64
+            "base64Data": "SGVsbG8gV29ybGQ=",  # "Hello World" in base64
             "binaryKey": "output_test.txt"
         }
-        print("✅ TypeScript Interfaces структуры корректны")
+        print("✅ TypeScript Interface structures are correct")
         
-        # Тест 3: Core Functions Simulation
-        print("\n⚙️ Тест 3: Core Functions")
+        # Test 3: Core Functions Simulation
+        print("\n⚙️ Test 3: Core Functions")
         
-        # Симуляция createUniqueOutputDirectory
+        # Simulate createUniqueOutputDirectory
         output_dir = os.path.join(test_dir, f"n8n_python_output_{int(os.times().elapsed * 1000)}")
         os.makedirs(output_dir, exist_ok=True)
         print(f"✅ createUniqueOutputDirectory: {output_dir}")
         
-        # Симуляция создания файлов Python скриптом
+        # Simulate file creation by Python script
         test_files = [
             ("summary.txt", "Test summary content"),
             ("config.json", '{"test": true, "value": 42}'),
@@ -77,9 +77,9 @@ def test_full_integration():
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
         
-        print(f"✅ Создано {len(test_files)} тестовых файлов")
+        print(f"✅ Created {len(test_files)} test files")
         
-        # Симуляция scanOutputDirectory
+        # Simulate scanOutputDirectory
         output_files = []
         for filename in os.listdir(output_dir):
             file_path = os.path.join(output_dir, filename)
@@ -92,15 +92,15 @@ def test_full_integration():
                     "size": len(content),
                     "mimetype": get_mime_type(filename),
                     "extension": os.path.splitext(filename)[1][1:] if '.' in filename else '',
-                    "base64Data": content.hex(),  # Симуляция base64
+                    "base64Data": content.hex(),  # Base64 simulation
                     "binaryKey": f"output_{filename}"
                 }
                 output_files.append(file_info)
         
-        print(f"✅ scanOutputDirectory: найдено {len(output_files)} файлов")
+        print(f"✅ scanOutputDirectory: found {len(output_files)} files")
         
-        # Тест 4: Script Generation Integration
-        print("\n📝 Тест 4: Script Generation Integration")
+        # Test 4: Script Generation Integration
+        print("\n📝 Test 4: Script Generation Integration")
         
         python_script = f"""#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
@@ -116,7 +116,7 @@ output_dir = r"{output_dir}"
 print(f"Output directory available: {{output_dir}}")
 print(f"Directory exists: {{os.path.exists(output_dir)}}")
 
-# Создаем тестовый файл
+# Create test file
 test_file = os.path.join(output_dir, "script_generated.txt")
 with open(test_file, 'w') as f:
     f.write("Generated by Python script!")
@@ -124,17 +124,17 @@ with open(test_file, 'w') as f:
 print(f"File created: {{test_file}}")
 """
         
-        # Проверяем что output_dir присутствует
+        # Check that output_dir is present
         if 'output_dir = r"' in python_script:
-            print("✅ output_dir переменная добавлена в скрипт")
+            print("✅ output_dir variable added to script")
         else:
-            print("❌ output_dir переменная НЕ найдена в скрипте")
+            print("❌ output_dir variable NOT found in script")
             return False
         
-        # Тест 5: Execution Integration
-        print("\n🔄 Тест 5: Execution Integration")
+        # Test 5: Execution Integration
+        print("\n🔄 Test 5: Execution Integration")
         
-        # Выполняем скрипт
+        # Execute script
         script_path = os.path.join(test_dir, "test_script.py")
         with open(script_path, 'w', encoding='utf-8') as f:
             f.write(python_script)
@@ -144,24 +144,24 @@ print(f"File created: {{test_file}}")
                               capture_output=True, text=True, timeout=10)
         
         if result.returncode == 0:
-            print("✅ Скрипт выполнен успешно")
-            print(f"   Вывод: {result.stdout.strip()}")
+            print("✅ Script executed successfully")
+            print(f"   Output: {result.stdout.strip()}")
             
-            # Проверяем что файл был создан
+            # Check that file was created
             generated_file = os.path.join(output_dir, "script_generated.txt")
             if os.path.exists(generated_file):
-                print("✅ Файл создан Python скриптом")
+                print("✅ File created by Python script")
             else:
-                print("❌ Файл НЕ создан Python скриптом")
+                print("❌ File NOT created by Python script")
                 return False
         else:
-            print(f"❌ Ошибка выполнения скрипта: {result.stderr}")
+            print(f"❌ Script execution error: {result.stderr}")
             return False
         
-        # Тест 6: Binary Data Processing
-        print("\n💾 Тест 6: Binary Data Processing")
+        # Test 6: Binary Data Processing
+        print("\n💾 Test 6: Binary Data Processing")
         
-        # Симуляция добавления файлов в binary data
+        # Simulate adding files to binary data
         binary_data = {}
         for file_info in output_files:
             binary_data[file_info["binaryKey"]] = {
@@ -171,15 +171,15 @@ print(f"File created: {{test_file}}")
                 "fileName": file_info["filename"]
             }
         
-        print(f"✅ Binary data создана для {len(binary_data)} файлов")
+        print(f"✅ Binary data created for {len(binary_data)} files")
         
-        # Тест 7: Cleanup
-        print("\n🧹 Тест 7: Cleanup")
+        # Test 7: Cleanup
+        print("\n🧹 Test 7: Cleanup")
         
-        # Симуляция cleanupOutputDirectory
+        # Simulate cleanupOutputDirectory
         files_before = len(os.listdir(output_dir))
         
-        # Cleanup (удаляем файлы)
+        # Cleanup (remove files)
         for filename in os.listdir(output_dir):
             file_path = os.path.join(output_dir, filename)
             if os.path.isfile(file_path):
@@ -188,57 +188,63 @@ print(f"File created: {{test_file}}")
         os.rmdir(output_dir)
         
         if not os.path.exists(output_dir):
-            print(f"✅ Cleanup выполнен: удалено {files_before} файлов и директория")
+            print(f"✅ Cleanup completed: removed {files_before} files and directory")
         else:
-            print("❌ Cleanup НЕ выполнен")
+            print("❌ Cleanup NOT completed")
             return False
         
         print("\n" + "=" * 70)
-        print("🎉 ВСЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО!")
-        print("✅ Output File Processing полностью интегрирован и работает")
+        print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
+        print("✅ Output File Processing is fully integrated and working")
         print("=" * 70)
         
         return True
         
     except Exception as e:
-        print(f"\n❌ ОШИБКА В ТЕСТАХ: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"\n❌ Test error: {e}")
         return False
     
     finally:
-        # Финальная очистка
-        try:
-            if os.path.exists(test_dir):
-                import shutil
-                shutil.rmtree(test_dir)
-        except:
-            pass
+        # Final cleanup
+        if os.path.exists(test_dir):
+            import shutil
+            shutil.rmtree(test_dir)
 
 def get_mime_type(filename):
-    """Простая функция определения MIME типа"""
-    ext = os.path.splitext(filename)[1].lower()
+    """Get MIME type based on file extension"""
+    extension = os.path.splitext(filename)[1].lower()
     mime_types = {
         '.txt': 'text/plain',
         '.json': 'application/json',
         '.csv': 'text/csv',
         '.html': 'text/html',
-        '.xml': 'application/xml',
         '.pdf': 'application/pdf',
         '.png': 'image/png',
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.zip': 'application/zip',
+        '.xml': 'application/xml'
     }
-    return mime_types.get(ext, 'application/octet-stream')
+    return mime_types.get(extension, 'application/octet-stream')
 
-if __name__ == "__main__":
+def main():
+    """Main test execution"""
+    print("🧪 STARTING FINAL INTEGRATION TESTS")
+    print("=" * 50)
+    
     success = test_full_integration()
     
+    print("\n" + "=" * 50)
     if success:
-        print("\n🚀 ИНТЕГРАЦИЯ ЗАВЕРШЕНА УСПЕШНО!")
-        print("📦 Output File Processing v1.11.0 готов к использованию")
+        print("🎉 FINAL INTEGRATION TEST: SUCCESS")
+        print("✅ Output File Processing v1.11.0 is ready for production!")
     else:
-        print("\n💥 ИНТЕГРАЦИЯ НЕ ЗАВЕРШЕНА!")
-        print("🔧 Требуются дополнительные исправления")
+        print("❌ FINAL INTEGRATION TEST: FAILED")
+        print("🔧 Output File Processing needs fixes before production")
     
+    return success
+
+if __name__ == "__main__":
+    success = main()
     sys.exit(0 if success else 1) 

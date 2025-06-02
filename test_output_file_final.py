@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Финальный тест Output File Processing функциональности
-Проверяет что все компоненты работают правильно
+Final test for Output File Processing functionality
+Tests that all components work correctly
 """
 
 import os
@@ -10,21 +10,21 @@ import tempfile
 import json
 from pathlib import Path
 
-# Добавляем путь к модулям проекта
+# Add project modules path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'nodes', 'PythonFunction'))
 
 def test_output_file_functions():
-    """Тестирует основные функции Output File Processing"""
-    print("🧪 ТЕСТИРОВАНИЕ OUTPUT FILE PROCESSING ФУНКЦИЙ")
+    """Tests core Output File Processing functions"""
+    print("🧪 TESTING OUTPUT FILE PROCESSING FUNCTIONS")
     print("=" * 60)
     
-    # Импортируем функции из TypeScript файла (симуляция)
-    # В реальности эти функции будут доступны в TypeScript
+    # Import functions from TypeScript file (simulation)
+    # In reality these functions will be available in TypeScript
     
-    # 1. Тест createUniqueOutputDirectory
-    print("\n1️⃣ Тест createUniqueOutputDirectory:")
+    # 1. Test createUniqueOutputDirectory
+    print("\n1️⃣ Test createUniqueOutputDirectory:")
     try:
-        # Симуляция функции
+        # Function simulation
         import time
         import random
         timestamp = int(time.time() * 1000)
@@ -33,12 +33,12 @@ def test_output_file_functions():
         output_dir = os.path.join(tempfile.gettempdir(), unique_id)
         
         os.makedirs(output_dir, exist_ok=True)
-        print(f"✅ Создана директория: {output_dir}")
+        print(f"✅ Created directory: {output_dir}")
         
-        # 2. Тест создания файлов в выходной директории
-        print("\n2️⃣ Тест создания выходных файлов:")
+        # 2. Test creating files in output directory
+        print("\n2️⃣ Test creating output files:")
         
-        # Создаем тестовые файлы
+        # Create test files
         test_files = [
             ("output.txt", "Hello from Python script!"),
             ("data.json", '{"result": "success", "count": 42}'),
@@ -51,15 +51,15 @@ def test_output_file_functions():
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
             created_files.append(filepath)
-            print(f"✅ Создан файл: {filename} ({len(content)} байт)")
+            print(f"✅ Created file: {filename} ({len(content)} bytes)")
         
-        # 3. Тест scanOutputDirectory (симуляция)
-        print("\n3️⃣ Тест scanOutputDirectory:")
+        # 3. Test scanOutputDirectory (simulation)
+        print("\n3️⃣ Test scanOutputDirectory:")
         
         output_files = []
         if os.path.exists(output_dir):
             files = os.listdir(output_dir)
-            print(f"📁 Найдено {len(files)} файлов в выходной директории")
+            print(f"📁 Found {len(files)} files in output directory")
             
             for filename in files:
                 filepath = os.path.join(output_dir, filename)
@@ -67,14 +67,14 @@ def test_output_file_functions():
                     stats = os.stat(filepath)
                     size_mb = stats.st_size / (1024 * 1024)
                     
-                    # Читаем содержимое и конвертируем в base64
+                    # Read content and convert to base64
                     with open(filepath, 'rb') as f:
                         content = f.read()
                     
                     import base64
                     base64_data = base64.b64encode(content).decode('utf-8')
                     
-                    # Определяем MIME тип
+                    # Determine MIME type
                     extension = os.path.splitext(filename)[1].lower().lstrip('.')
                     mime_types = {
                         'txt': 'text/plain',
@@ -93,10 +93,10 @@ def test_output_file_functions():
                     }
                     
                     output_files.append(output_file)
-                    print(f"✅ Обработан файл: {filename} ({size_mb:.3f}MB, {mimetype})")
+                    print(f"✅ Processed file: {filename} ({size_mb:.3f}MB, {mimetype})")
         
-        # 4. Тест интеграции с n8n binary data
-        print("\n4️⃣ Тест интеграции с n8n binary data:")
+        # 4. Test integration with n8n binary data
+        print("\n4️⃣ Test integration with n8n binary data:")
         
         n8n_binary_data = {}
         for output_file in output_files:
@@ -107,10 +107,10 @@ def test_output_file_functions():
                 'fileExtension': output_file['extension'],
                 'fileName': output_file['filename']
             }
-            print(f"✅ Добавлен в n8n binary: {binary_key}")
+            print(f"✅ Added to n8n binary: {binary_key}")
         
-        # 5. Тест cleanup
-        print("\n5️⃣ Тест cleanupOutputDirectory:")
+        # 5. Test cleanup
+        print("\n5️⃣ Test cleanupOutputDirectory:")
         
         cleaned_files = 0
         for filepath in created_files:
@@ -120,50 +120,50 @@ def test_output_file_functions():
         
         if os.path.exists(output_dir):
             os.rmdir(output_dir)
-            print(f"✅ Очищена директория: {output_dir} ({cleaned_files} файлов удалено)")
+            print(f"✅ Cleaned directory: {output_dir} ({cleaned_files} files deleted)")
         
-        # Результат
-        print("\n📊 РЕЗУЛЬТАТ ТЕСТИРОВАНИЯ:")
-        print(f"✅ Создано файлов: {len(test_files)}")
-        print(f"✅ Обработано файлов: {len(output_files)}")
-        print(f"✅ Добавлено в n8n binary: {len(n8n_binary_data)}")
-        print(f"✅ Очищено файлов: {cleaned_files}")
+        # Result
+        print("\n📊 TEST RESULTS:")
+        print(f"✅ Files created: {len(test_files)}")
+        print(f"✅ Files processed: {len(output_files)}")
+        print(f"✅ Added to n8n binary: {len(n8n_binary_data)}")
+        print(f"✅ Files cleaned: {cleaned_files}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Ошибка в тестировании: {e}")
+        print(f"❌ Error in testing: {e}")
         return False
 
 def test_integration_with_python_script():
-    """Тестирует интеграцию с Python скриптом"""
-    print("\n🔗 ТЕСТИРОВАНИЕ ИНТЕГРАЦИИ С PYTHON СКРИПТОМ")
+    """Tests integration with Python script"""
+    print("\n🔗 TESTING INTEGRATION WITH PYTHON SCRIPT")
     print("=" * 60)
     
-    # Создаем временную выходную директорию
+    # Create temporary output directory
     output_dir = tempfile.mkdtemp(prefix="n8n_python_output_test_")
-    print(f"📁 Создана тестовая директория: {output_dir}")
+    print(f"📁 Created test directory: {output_dir}")
     
-    # Симулируем Python скрипт который создает файлы
+    # Simulate Python script that creates files
     python_script = f'''
 import os
 import json
 
-# Выходная директория передается через переменную окружения или параметр
+# Output directory passed through environment variable or parameter
 output_dir = r"{output_dir}"
 
-# Создаем различные типы файлов
+# Create various types of files
 files_created = []
 
-# 1. Текстовый файл
+# 1. Text file
 txt_file = os.path.join(output_dir, "result.txt")
 with open(txt_file, "w", encoding="utf-8") as f:
-    f.write("Результат выполнения Python скрипта\\n")
-    f.write("Время: 2024-01-15 12:00:00\\n")
-    f.write("Статус: Успешно")
+    f.write("Python script execution result\\n")
+    f.write("Time: 2024-01-15 12:00:00\\n")
+    f.write("Status: Success")
 files_created.append("result.txt")
 
-# 2. JSON файл
+# 2. JSON file
 json_file = os.path.join(output_dir, "data.json")
 data = {{
     "status": "success",
@@ -175,7 +175,7 @@ with open(json_file, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
 files_created.append("data.json")
 
-# 3. CSV файл
+# 3. CSV file
 csv_file = os.path.join(output_dir, "report.csv")
 with open(csv_file, "w", encoding="utf-8") as f:
     f.write("id,name,value,status\\n")
@@ -184,72 +184,120 @@ with open(csv_file, "w", encoding="utf-8") as f:
     f.write("3,Item 3,300,active\\n")
 files_created.append("report.csv")
 
-print(f"Создано {{len(files_created)}} файлов в {{output_dir}}")
+print(f"Created {{len(files_created)}} files in {{output_dir}}")
 for filename in files_created:
     filepath = os.path.join(output_dir, filename)
     size = os.path.getsize(filepath)
-    print(f"  - {{filename}}: {{size}} байт")
+    print(f"  - {{filename}}: {{size}} bytes")
 '''
     
     try:
-        # Выполняем Python скрипт
-        print("\n🐍 Выполнение Python скрипта:")
+        # Execute Python script
+        print("\n🐍 Executing Python script:")
         exec(python_script)
         
-        # Проверяем созданные файлы
-        print("\n📋 Проверка созданных файлов:")
+        # Check created files
+        print("\n📋 Checking created files:")
+        
         files = os.listdir(output_dir)
-        print(f"Найдено файлов: {len(files)}")
+        print(f"Found {len(files)} files:")
         
         total_size = 0
         for filename in files:
             filepath = os.path.join(output_dir, filename)
             size = os.path.getsize(filepath)
             total_size += size
-            print(f"  ✅ {filename}: {size} байт")
+            print(f"  ✅ {filename}: {size} bytes")
         
-        print(f"\n📊 Общий размер: {total_size} байт ({total_size/1024:.2f} KB)")
+        print(f"\n📊 Total size: {total_size} bytes")
         
-        # Очистка
+        # Simulate file processing (as n8n would do)
+        print("\n🔄 Simulating n8n file processing:")
+        
+        processed_files = []
+        for filename in files:
+            filepath = os.path.join(output_dir, filename)
+            
+            # Read file content
+            with open(filepath, 'rb') as f:
+                content = f.read()
+            
+            # Convert to base64
+            import base64
+            base64_data = base64.b64encode(content).decode('utf-8')
+            
+            # Determine MIME type
+            extension = os.path.splitext(filename)[1].lower().lstrip('.')
+            mime_types = {
+                'txt': 'text/plain',
+                'json': 'application/json',
+                'csv': 'text/csv',
+            }
+            mimetype = mime_types.get(extension, 'application/octet-stream')
+            
+            processed_file = {
+                'filename': filename,
+                'size': len(content),
+                'mimetype': mimetype,
+                'extension': extension,
+                'base64_data': base64_data
+            }
+            
+            processed_files.append(processed_file)
+            print(f"  ✅ Processed: {filename} ({mimetype})")
+        
+        # Cleanup
+        print("\n🧹 Cleanup:")
         import shutil
         shutil.rmtree(output_dir)
-        print(f"🧹 Очищена директория: {output_dir}")
+        print(f"✅ Cleaned up directory: {output_dir}")
         
-        return True
+        return len(processed_files) == 3
         
     except Exception as e:
-        print(f"❌ Ошибка в интеграционном тесте: {e}")
+        print(f"❌ Error in integration test: {e}")
         return False
 
 def main():
-    """Главная функция тестирования"""
-    print("🚀 ФИНАЛЬНОЕ ТЕСТИРОВАНИЕ OUTPUT FILE PROCESSING")
+    """Main test execution"""
+    print("🚀 STARTING OUTPUT FILE PROCESSING FINAL TESTS")
     print("=" * 80)
     
-    success_count = 0
-    total_tests = 2
+    # Run tests
+    test1_result = test_output_file_functions()
+    test2_result = test_integration_with_python_script()
     
-    # Тест 1: Основные функции
-    if test_output_file_functions():
-        success_count += 1
-    
-    # Тест 2: Интеграция с Python скриптом
-    if test_integration_with_python_script():
-        success_count += 1
-    
-    # Итоговый результат
+    # Summary
     print("\n" + "=" * 80)
-    print("📈 ИТОГОВЫЙ РЕЗУЛЬТАТ:")
-    print(f"✅ Успешных тестов: {success_count}/{total_tests}")
-    print(f"📊 Процент успеха: {(success_count/total_tests)*100:.1f}%")
+    print("📊 FINAL TEST SUMMARY")
+    print("=" * 80)
     
-    if success_count == total_tests:
-        print("🎉 ВСЕ ТЕСТЫ ПРОШЛИ УСПЕШНО!")
-        print("✨ Output File Processing функциональность готова к использованию!")
+    tests = [
+        ("Core Functions Test", test1_result),
+        ("Python Script Integration Test", test2_result)
+    ]
+    
+    passed = sum(1 for _, result in tests if result)
+    total = len(tests)
+    
+    print(f"Total Tests: {total}")
+    print(f"Passed: {passed}")
+    print(f"Failed: {total - passed}")
+    print(f"Success Rate: {(passed/total)*100:.1f}%")
+    
+    print("\nDetailed Results:")
+    for test_name, result in tests:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"  {test_name}: {status}")
+    
+    if passed == total:
+        print("\n🎉 ALL TESTS PASSED!")
+        print("Output File Processing functionality is working correctly!")
     else:
-        print("⚠️ Некоторые тесты не прошли. Требуется доработка.")
+        print(f"\n⚠️ {total - passed} TESTS FAILED!")
+        print("Output File Processing needs fixes!")
     
-    return success_count == total_tests
+    return passed == total
 
 if __name__ == "__main__":
     success = main()

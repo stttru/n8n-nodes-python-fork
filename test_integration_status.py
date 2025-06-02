@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Анализ статуса интеграции Output File Processing v1.11.0
-Проверяет насколько полно интегрирована функциональность в основной код
+Analysis of Output File Processing v1.11.0 integration status
+Checks how fully the functionality is integrated into the main code
 """
 
 import re
@@ -9,7 +9,7 @@ import os
 import json
 
 def analyze_node_file():
-    """Анализировать основной файл узла на предмет интеграции Output File Processing"""
+    """Analyze main node file for Output File Processing integration"""
     
     node_file = "nodes/PythonFunction/PythonFunction.node.ts"
     
@@ -22,7 +22,7 @@ def analyze_node_file():
     with open(node_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Проверки интеграции
+    # Integration checks
     checks = {
         "ui_configuration": {
             "name": "UI Configuration",
@@ -95,7 +95,7 @@ def analyze_node_file():
             
         results[category] = category_results
     
-    # Общий статус
+    # Overall status
     completion_rate = (total_passed / total_checks) * 100 if total_checks > 0 else 0
     
     if completion_rate >= 90:
@@ -118,7 +118,7 @@ def analyze_node_file():
     }
 
 def check_file_existence():
-    """Проверить существование ключевых файлов"""
+    """Check existence of key files"""
     files_to_check = [
         "nodes/PythonFunction/PythonFunction.node.ts",
         "OUTPUT_FILE_PROCESSING_GUIDE.md",
@@ -133,7 +133,7 @@ def check_file_existence():
     return results
 
 def check_version_consistency():
-    """Проверить консистентность версии в разных файлах"""
+    """Check version consistency across different files"""
     version_files = {
         "package.json": r'"version":\s*"([^"]+)"',
         "CHANGELOG.md": r"\[([0-9]+\.[0-9]+\.[0-9]+)\]",
@@ -154,7 +154,7 @@ def check_version_consistency():
         else:
             versions[file_path] = "FILE_NOT_FOUND"
     
-    # Проверить что все версии одинаковые
+    # Check that all versions are the same
     unique_versions = set(v for v in versions.values() if v not in ["NOT_FOUND", "FILE_NOT_FOUND"])
     consistent = len(unique_versions) <= 1
     
@@ -165,89 +165,89 @@ def check_version_consistency():
     }
 
 def main():
-    print("🔍 АНАЛИЗ СТАТУСА ИНТЕГРАЦИИ OUTPUT FILE PROCESSING")
+    print("🔍 OUTPUT FILE PROCESSING INTEGRATION STATUS ANALYSIS")
     print("=" * 60)
     
-    # 1. Проверить существование файлов
-    print("\n📁 Проверка файлов:")
+    # 1. Check file existence
+    print("\n📁 File Check:")
     file_status = check_file_existence()
     for file_path, exists in file_status.items():
         status = "✅" if exists else "❌"
         print(f"  {status} {file_path}")
     
-    # 2. Проверить версии
-    print("\n🏷️  Проверка версий:")
+    # 2. Check versions
+    print("\n🏷️  Version Check:")
     version_status = check_version_consistency()
     for file_path, version in version_status["versions"].items():
         status = "✅" if version == "1.11.0" else "⚠️ "
         print(f"  {status} {file_path}: {version}")
     
     version_consistency = "✅" if version_status["consistent"] else "❌"
-    print(f"  {version_consistency} Консистентность версий: {version_status['consistent']}")
+    print(f"  {version_consistency} Version consistency: {version_status['consistent']}")
     
-    # 3. Анализ интеграции кода
-    print("\n🔧 Анализ интеграции в коде:")
+    # 3. Code integration analysis
+    print("\n🔧 Code Integration Analysis:")
     integration_status = analyze_node_file()
     
     if "error" in integration_status:
-        print(f"❌ ОШИБКА: {integration_status['error']}")
+        print(f"❌ ERROR: {integration_status['error']}")
         return
     
-    print(f"📊 Общий статус: {integration_status['status']}")
-    print(f"📈 Процент завершения: {integration_status['completion_rate']:.1f}%")
-    print(f"📋 Проверок пройдено: {integration_status['total_passed']}/{integration_status['total_checks']}")
+    print(f"📊 Overall status: {integration_status['status']}")
+    print(f"📈 Completion rate: {integration_status['completion_rate']:.1f}%")
+    print(f"📋 Checks passed: {integration_status['total_passed']}/{integration_status['total_checks']}")
     
-    # Детальный анализ по категориям
-    print("\n📂 Детальный анализ по категориям:")
-    for category, details in integration_status["details"].items():
-        passed = details["passed"]
-        total = details["total"]
-        percentage = (passed / total) * 100 if total > 0 else 0
+    # Detailed analysis by categories
+    print("\n📋 Detailed Analysis:")
+    for category, results in integration_status["details"].items():
+        passed = results["passed"]
+        total = results["total"]
+        percentage = (passed / total * 100) if total > 0 else 0
         
-        status_icon = "✅" if percentage == 100 else "⚠️ " if percentage >= 50 else "❌"
-        print(f"\n  {status_icon} {details['name']}: {passed}/{total} ({percentage:.0f}%)")
+        status_icon = "✅" if percentage == 100 else "⚠️" if percentage >= 50 else "❌"
+        print(f"\n  {status_icon} {results['name']}: {passed}/{total} ({percentage:.1f}%)")
         
-        for item_name, found in details["items"].items():
-            item_status = "  ✓" if found else "  ✗"
+        for item_name, found in results["items"].items():
+            item_status = "✅" if found else "❌"
             print(f"    {item_status} {item_name}")
     
-    # Рекомендации
-    print("\n💡 РЕКОМЕНДАЦИИ:")
-    
-    if integration_status["status"] == "FULLY_INTEGRATED":
-        print("  🎉 Интеграция полностью завершена!")
-        print("  ✅ Можно переходить к тестированию в n8n")
-        
-    elif integration_status["status"] == "MOSTLY_INTEGRATED":
-        print("  🔨 Интеграция почти завершена, требуется доработка:")
-        missing_categories = [
-            cat for cat, details in integration_status["details"].items()
-            if details["passed"] < details["total"]
-        ]
-        for cat in missing_categories:
-            print(f"    - Доработать категорию: {integration_status['details'][cat]['name']}")
-            
-    elif integration_status["status"] == "PARTIALLY_INTEGRATED":
-        print("  🚧 Требуется значительная доработка интеграции:")
-        print("    - Завершить интеграцию в execute функции")
-        print("    - Добавить обработку выходных файлов")
-        print("    - Интегрировать с binary data системой n8n")
-        
-    elif integration_status["status"] == "BASIC_SETUP":
-        print("  🏗️  Базовая настройка есть, нужна полная интеграция:")
-        print("    - Добавить вызовы функций в execution pipeline")
-        print("    - Интегрировать getScriptCode с outputDir")
-        print("    - Добавить binary data обработку")
-        
-    else:
-        print("  🔴 Интеграция отсутствует:")
-        print("    - Добавить UI конфигурацию")
-        print("    - Реализовать core функции")
-        print("    - Интегрировать в execution flow")
-        
+    # Final assessment
     print("\n" + "=" * 60)
-    print(f"🎯 ИТОГ: {integration_status['status']} ({integration_status['completion_rate']:.1f}% готово)")
-    print("=" * 60)
+    print("🎯 FINAL ASSESSMENT:")
+    
+    overall_status = integration_status["status"]
+    completion_rate = integration_status["completion_rate"]
+    
+    if overall_status == "FULLY_INTEGRATED":
+        print("🎉 OUTPUT FILE PROCESSING IS FULLY INTEGRATED!")
+        print("✨ All components are properly implemented and ready for use.")
+    elif overall_status == "MOSTLY_INTEGRATED":
+        print("⚠️ OUTPUT FILE PROCESSING IS MOSTLY INTEGRATED")
+        print("🔧 Minor components may need attention.")
+    elif overall_status == "PARTIALLY_INTEGRATED":
+        print("⚠️ OUTPUT FILE PROCESSING IS PARTIALLY INTEGRATED")
+        print("🚧 Significant work still needed for full functionality.")
+    else:
+        print("❌ OUTPUT FILE PROCESSING IS NOT PROPERLY INTEGRATED")
+        print("🛠️ Major implementation work required.")
+    
+    print(f"📊 Overall completion: {completion_rate:.1f}%")
+    
+    # Save results to file
+    report_data = {
+        "timestamp": "2024-01-15",
+        "version_target": "1.11.0",
+        "file_status": file_status,
+        "version_status": version_status,
+        "integration_status": integration_status
+    }
+    
+    try:
+        with open("integration_status_report.json", "w") as f:
+            json.dump(report_data, f, indent=2)
+        print(f"\n📄 Report saved to: integration_status_report.json")
+    except Exception as e:
+        print(f"\n⚠️ Could not save report: {e}")
 
 if __name__ == "__main__":
     main() 
