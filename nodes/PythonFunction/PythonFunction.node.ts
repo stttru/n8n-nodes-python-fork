@@ -910,17 +910,52 @@ function formatCodeSnippet(code: string): string {
 
 
 function getScriptCode(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>): string {
+	// Extract __future__ imports from user code and move them to the top
+	const futureImports: string[] = [];
+	let cleanedCodeSnippet = codeSnippet;
+	
+	// Find and extract all __future__ imports
+	const futureImportRegex = /^(\s*from\s+__future__\s+import\s+[^\n]+)/gm;
+	let match;
+	while ((match = futureImportRegex.exec(codeSnippet)) !== null) {
+		futureImports.push(match[1].trim());
+	}
+	
+	// Remove __future__ imports from the original code
+	cleanedCodeSnippet = codeSnippet.replace(futureImportRegex, '').trim();
+	
+	// Extract individual variables from the first item if available
+	let individualVariables = '';
+	if (data.length > 0) {
+		const firstItem = data[0];
+		const variableAssignments: string[] = [];
+		
+		for (const [key, value] of Object.entries(firstItem)) {
+			// Create safe variable names (replace invalid characters)
+			const safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
+			variableAssignments.push(`${safeVarName} = ${JSON.stringify(value)}`);
+		}
+		
+		if (variableAssignments.length > 0) {
+			individualVariables = `
+# Individual variables from first input item
+${variableAssignments.join('\n')}
+`;
+		}
+	}
+
 	const script = `#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
+${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
 import json
 import sys
 
 # Input data and environment variables
 input_items = ${JSON.stringify(data)}
 env_vars = ${JSON.stringify(envVars)}
-
+${individualVariables}
 # User code starts here
-${codeSnippet}
+${cleanedCodeSnippet}
 `;
 	return script;
 }

@@ -248,6 +248,29 @@ The `input_items` variable contains an array of data objects from the previous n
 
 The content of `input_items` depends on your execution mode:
 
+#### **Variable Auto-Extraction (New in v1.6.1)**
+
+For convenience, fields from the **first input item** are automatically extracted as individual variables:
+
+```python
+# Your input data:
+[{"title": "My Video", "path": "/videos/video1.mp4", "duration": 120}]
+
+# Automatically available variables:
+title = "My Video"
+path = "/videos/video1.mp4" 
+duration = 120
+
+# Original data still available:
+input_items = [{"title": "My Video", "path": "/videos/video1.mp4", "duration": 120}]
+```
+
+**Benefits:**
+- **Direct access**: Use `title` instead of `input_items[0]['title']`
+- **Cleaner code**: More readable Python scripts
+- **Backward compatible**: `input_items` still works as before
+- **Safe naming**: Invalid Python identifiers are converted (e.g., `video-name` → `video_name`)
+
 #### **Once for All Items** (Default - Faster)
 - `input_items` contains **all** input data as an array
 - Script runs **once** with access to all items
@@ -368,6 +391,29 @@ report = {
 }
 
 print(json.dumps(report, indent=2))
+```
+
+#### Using Auto-Extracted Variables (New in v1.6.1)
+```python
+import json
+
+# Direct access to fields from first input item
+# No need for input_items[0]['field_name'] anymore!
+
+print(f"Processing: {title}")
+print(f"File path: {sftp_path_episode_completed}")
+print(f"Description length: {len(description)} characters")
+
+# Clean and process the data
+processed_data = {
+    "video_title": title.strip(),
+    "file_location": sftp_path_episode_completed,
+    "short_description": description[:100] + "..." if len(description) > 100 else description,
+    "tag_list": tags.split(",") if isinstance(tags, str) else tags,
+    "processing_timestamp": "2024-01-01T12:00:00Z"
+}
+
+print(json.dumps(processed_data, indent=2, ensure_ascii=False))
 ```
 
 ### 🚀 Real-World Use Cases

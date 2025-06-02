@@ -6,6 +6,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2024-01-XX
+
+### 🐛 Bug Fixes
+- **Fixed `from __future__` Import Error**: Automatically detect and move `from __future__` imports to the beginning of generated scripts
+- **Resolved SyntaxError**: Prevent "from __future__ imports must occur at the beginning of the file" error
+
+### 🚀 New Features  
+- **Auto-Variable Extraction**: Fields from the first input item are now automatically extracted as individual variables
+  - Direct access: use `title` instead of `input_items[0]['title']`
+  - Cleaner, more readable Python code
+  - Safe variable naming (invalid characters converted to underscores)
+  - Backward compatible - `input_items` still available
+
+### 🔧 Technical Improvements
+- Enhanced script generation with smart `__future__` import handling
+- Automatic variable extraction from input data fields
+- Improved code readability and user experience
+- Better Python syntax compliance
+
+### 📚 Examples
+```python
+# Before (v1.6.0):
+title = input_items[0]['title']
+path = input_items[0]['sftp_path_episode_completed']
+
+# After (v1.6.1):  
+# Variables automatically available:
+print(f"Processing: {title}")
+print(f"File: {sftp_path_episode_completed}")
+```
+
 ## [1.6.0] - 2024-01-XX
 
 ### 🚀 Major Features Added
