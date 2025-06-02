@@ -6,6 +6,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.2] - 2024-01-XX
+
+### 📚 Documentation Update
+- **Updated npm README**: Fixed missing documentation for Auto-Variable Extraction feature
+- **Version History**: Added complete version history including v1.6.1 changes
+- **Examples Update**: Added examples showing new auto-extracted variables usage
+
 ## [1.6.1] - 2024-01-XX
 
 ### 🐛 Bug Fixes

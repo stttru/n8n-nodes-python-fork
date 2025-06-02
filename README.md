@@ -7,22 +7,44 @@ This is a **fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-no
 ## ✨ Key Features
 
 - **Raw Python Script Execution**: Execute pure Python scripts without modifications
+- **Auto-Variable Extraction**: Fields from input data automatically available as individual Python variables
 - **Flexible Output Parsing**: Parse stdout as JSON, CSV, lines, or smart auto-detection
 - **Multiple Execution Modes**: Run once for all items or once per each item
 - **Pass Through Data**: Preserve and combine input data with Python results
 - **Variable Injection**: Optional injection of input items and environment variables
 - **Comprehensive Error Handling**: Detailed error reporting with Python traceback analysis
+- **Debug/Test System**: 5 debug modes including safe testing and script export
 - **Multiple Output Formats**: Support for single/multiple JSON objects, CSV data, and text lines
 - **Smart Parsing**: Automatic detection and parsing of JSON, CSV, and structured data
 - **Reliable Script Management**: Guaranteed script file overwriting for fresh execution
 
-##  Installation
+## 📦 Installation
 
 In n8n, go to **Settings** → **Community Nodes** and install:
 
 ```
 n8n-nodes-python-raw
 ```
+
+## 🚀 Quick Start Example
+
+**Input data from previous node:**
+```json
+[{"title": "My Video", "duration": 120, "author": "John"}]
+```
+
+**Your Python code:**
+```python
+# Variables automatically extracted from input:
+print(f"Processing: {title}")        # "My Video"
+print(f"Duration: {duration} sec")   # 120 sec  
+print(f"Author: {author}")           # "John"
+
+# Original data still available:
+print(f"Items count: {len(input_items)}")  # 1
+```
+
+**Result:** Direct access to your data without complex indexing!
 
 ## 🚀 Configuration Options
 
@@ -819,6 +841,8 @@ This is a community-maintained fork. Contributions welcome!
 
 ## 📝 Version History
 
+- **v1.6.2**: Documentation update with complete Auto-Variable Extraction examples
+- **v1.6.1**: Fixed `from __future__` imports + Auto-Variable Extraction feature
 - **v1.6.0**: Added comprehensive Debug/Test system with script export and syntax validation
 - **v1.5.0**: Enhanced error handling and comprehensive variable documentation
 - **v1.4.0**: Added execution modes and data pass-through capabilities
