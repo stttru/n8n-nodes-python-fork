@@ -2467,24 +2467,11 @@ ${envVariableAssignments.join('\n')}
 
 	// Prepare legacy data (only if enabled)
 	let legacyDataSection = '';
-	if (includeInputItems || includeEnvVarsDict) {
-		const legacyParts: string[] = [];
-		
-		if (includeInputItems) {
-			const inputItemsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(data);
-			legacyParts.push(`input_items = ${inputItemsValue}`);
-		}
-		
-		if (includeEnvVarsDict) {
-			const envVarsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(envVars);
-			legacyParts.push(`env_vars = ${envVarsValue}`);
-		}
-		
-		if (legacyParts.length > 0) {
-			legacyDataSection = `
+	if (includeEnvVarsDict) {
+		const envVarsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(envVars);
+		legacyDataSection = `
 # Legacy compatibility objects
-${legacyParts.join('\n')}`;
-		}
+env_vars = ${envVarsValue}`;
 	}
 
 	// Add input files array if files are provided
@@ -2520,21 +2507,22 @@ input_files = ${filesValue}`;
 	// Add output directory section if provided
 	let outputDirSection = '';
 	if (outputDir) {
-		const outputDirValue = hideVariableValues ? '"***hidden***"' : outputDir;
+		// Output file variables should never be hidden as they are essential for functionality
+		const outputDirValue = outputDir;
 		let outputFileInstructions = '';
 		let outputFilePathVariable = '';
 		let expectedFileNameVariable = '';
 		
 		// Add expected filename variable if configured
 		if (outputFileOptions?.expectedFileName) {
-			const expectedFileNameValue = hideVariableValues ? '"***hidden***"' : outputFileOptions.expectedFileName;
+			const expectedFileNameValue = outputFileOptions.expectedFileName;
 			expectedFileNameVariable = `expected_filename = "${expectedFileNameValue}"`;
 		}
 		
 		// Add expected file path variable if configured
 		if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'variable_path') {
 			const expectedFilePath = path.join(outputDir, outputFileOptions.expectedFileName);
-			const outputFilePathValue = hideVariableValues ? '"***hidden***"' : expectedFilePath;
+			const outputFilePathValue = expectedFilePath;
 			outputFilePathVariable = `output_file_path = r"${outputFilePathValue}"`;
 			
 			outputFileInstructions = `# 📁 Ready Variable Path Mode:

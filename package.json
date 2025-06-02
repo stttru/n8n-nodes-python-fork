@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-python-raw",
-  "version": "1.12.4",
+  "version": "1.12.5",
   "description": "A powerful n8n node for executing raw Python scripts with comprehensive features: multiple credential management, debug tools, file processing, output file generation, and flexible output parsing.",
   "main": "dist/index.js",
   "license": "SEE LICENSE IN LICENSE",

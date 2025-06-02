@@ -6,6 +6,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.5] - 2025-06-02
+
+### 🐛 Critical Fixes
+- **REMOVED**: Completely removed `input_items` variable from generated Python scripts (legacy cleanup)
+- **FIXED**: File-related variables (`output_dir`, `expected_filename`, `output_file_path`) now always remain visible even when "Hide Variable Values" is enabled
+- **IMPROVED**: Cleaner script generation without unnecessary legacy variables
+
+### 🔧 Technical Improvements
+- File processing variables are never hidden for security/functionality reasons
+- Reduced script bloat by removing unused `input_items` array
+- Better separation between sensitive credentials and functional file paths
+
 ## [1.12.4] - 2025-06-02
 
 ### 🚀 Enhanced Output File Processing
