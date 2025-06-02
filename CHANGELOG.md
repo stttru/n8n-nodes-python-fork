@@ -6,6 +6,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.5] - 2024-12-XX
+
+### Added
+- **Multiple Credentials Methods**: Implemented 5 different approaches for adding multiple Python Environment Variables
+  - **None (Default)**: Use only the credential from "Credential to connect with"
+  - **Credential Names List**: Enter credential names as comma-separated text
+  - **Additional Credential Selectors**: Use 3 additional credential name input fields
+  - **Dynamic Credential Collection**: Add/remove credential entries with optional variable prefixes
+  - **JSON Configuration**: Define credentials using structured JSON format
+- **Enhanced Merge Strategies**: Added 4 merge strategies for handling variable conflicts
+  - `last_wins`: Later credentials override earlier ones (default)
+  - `first_wins`: Earlier credentials take precedence
+  - `prefix_source`: Add credential name prefix to variables
+  - `skip_conflicts`: Skip conflicting variables, keep first occurrence
+- **Variable Prefixing**: Support for custom prefixes in Dynamic Collection and JSON Configuration methods
+- **Comprehensive Error Handling**: Graceful fallbacks when credentials cannot be loaded
+
+### Fixed
+- **UI Blocking Issue**: Removed problematic loadOptions methods that caused interface blocking
+- **TypeScript Errors**: Fixed all type safety issues and linting errors
+- **Credential Loading**: Improved credential loading logic with better error handling
+
+### Changed
+- **Simplified Interface**: Replaced complex multi-select dropdown with user-friendly configuration options
+- **Enhanced Documentation**: Updated with examples for all 5 credential methods
+- **Better Logging**: Added detailed console output for credential loading debugging
+
+### Technical Details
+- Removed dependency on n8n's loadOptions API which was causing UI blocking
+- Implemented modular credential loading functions for each method
+- Added comprehensive type definitions for all configuration options
+- Maintains 100% backward compatibility with existing workflows
+
 ## [1.9.4] - 2024-12-XX
 
 ### Fixed

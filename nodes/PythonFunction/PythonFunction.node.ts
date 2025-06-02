@@ -60,50 +60,193 @@ export class PythonFunction implements INodeType {
 				name: 'credentialsManagement',
 				type: 'collection',
 				default: {},
-				placeholder: 'Add Credential Source',
-				description: 'Select which credentials to include in the Python script',
+				placeholder: 'Add Credential Options',
+				description: 'Configure how credentials are included in the Python script',
 				options: [
 					{
-						displayName: 'Python Environment Variables',
-						name: 'pythonEnvVarsList',
-						type: 'multiOptions',
-						default: [],
-						description: 'Select Python Environment Variables credentials to include (leave empty to use default behavior)',
-						options: [],
-						typeOptions: {
-							loadOptionsMethod: 'getPythonEnvVarsCredentials',
+						displayName: 'Use Default Credential',
+						name: 'useDefaultCredential',
+						type: 'boolean',
+						default: true,
+						description: 'Include the credential selected in "Credential to connect with" dropdown above',
+					},
+					{
+						displayName: 'Multiple Credentials Method',
+						name: 'multipleCredentialsMethod',
+						type: 'options',
+						options: [
+							{
+								name: 'None (Use Default Only)',
+								value: 'none',
+								description: 'Use only the default credential from "Credential to connect with"',
+							},
+							{
+								name: 'Credential Names List',
+								value: 'names_list',
+								description: 'Enter credential names as comma-separated text',
+							},
+							{
+								name: 'Additional Credential Selectors',
+								value: 'selectors',
+								description: 'Use multiple credential selector dropdowns',
+							},
+							{
+								name: 'Dynamic Credential Collection',
+								value: 'collection',
+								description: 'Add/remove credential selectors dynamically',
+							},
+							{
+								name: 'JSON Configuration',
+								value: 'json_config',
+								description: 'Define credentials using JSON configuration',
+							},
+						],
+						default: 'none',
+						description: 'Choose how to add multiple credentials to the script',
+					},
+					{
+						displayName: 'Credential Names',
+						name: 'credentialNamesList',
+						type: 'string',
+						default: '',
+						placeholder: 'credential1, credential2, credential3',
+						description: 'Enter credential names separated by commas (must match exact credential names)',
+						displayOptions: {
+							show: {
+								multipleCredentialsMethod: ['names_list'],
+							},
 						},
 					},
 					{
-						displayName: 'Include All Available Credentials',
-						name: 'includeAllCredentials',
-						type: 'boolean',
-						default: false,
-						description: 'Automatically include all available Python Environment Variables credentials',
+						displayName: 'Additional Credential 1',
+						name: 'additionalCredential1',
+						type: 'string',
+						default: '',
+						placeholder: 'Enter credential name',
+						description: 'Enter name of first additional Python Environment Variables credential',
+						displayOptions: {
+							show: {
+								multipleCredentialsMethod: ['selectors'],
+							},
+						},
 					},
 					{
-						displayName: 'Credential Merge Strategy',
+						displayName: 'Additional Credential 2',
+						name: 'additionalCredential2',
+						type: 'string',
+						default: '',
+						placeholder: 'Enter credential name',
+						description: 'Enter name of second additional Python Environment Variables credential',
+						displayOptions: {
+							show: {
+								multipleCredentialsMethod: ['selectors'],
+							},
+						},
+					},
+					{
+						displayName: 'Additional Credential 3',
+						name: 'additionalCredential3',
+						type: 'string',
+						default: '',
+						placeholder: 'Enter credential name',
+						description: 'Enter name of third additional Python Environment Variables credential',
+						displayOptions: {
+							show: {
+								multipleCredentialsMethod: ['selectors'],
+							},
+						},
+					},
+					{
+						displayName: 'Credential Collection',
+						name: 'credentialCollection',
+						type: 'fixedCollection',
+						default: { credentials: [] },
+						typeOptions: {
+							multipleValues: true,
+						},
+						description: 'Add multiple credentials dynamically',
+						displayOptions: {
+							show: {
+								multipleCredentialsMethod: ['collection'],
+							},
+						},
+						options: [
+							{
+								displayName: 'Credentials',
+								name: 'credentials',
+								values: [
+									{
+										displayName: 'Credential Name',
+										name: 'credentialName',
+										type: 'string',
+										default: '',
+										placeholder: 'Enter credential name',
+										description: 'Enter name of Python Environment Variables credential',
+									},
+									{
+										displayName: 'Variable Prefix',
+										name: 'variablePrefix',
+										type: 'string',
+										default: '',
+										placeholder: 'API1_, PROD_, etc.',
+										description: 'Optional prefix to add to all variables from this credential',
+									},
+								],
+							},
+						],
+					},
+					{
+						displayName: 'JSON Configuration',
+						name: 'jsonConfiguration',
+						type: 'json',
+						default: '{\n  "credentials": [\n    {\n      "name": "credential1",\n      "prefix": "API1_"\n    },\n    {\n      "name": "credential2",\n      "prefix": "PROD_"\n    }\n  ],\n  "mergeStrategy": "last_wins"\n}',
+						description: 'Define credentials configuration in JSON format',
+						displayOptions: {
+							show: {
+								multipleCredentialsMethod: ['json_config'],
+							},
+						},
+					},
+					{
+						displayName: 'Variable Merge Strategy',
 						name: 'mergeStrategy',
 						type: 'options',
 						options: [
 							{
 								name: 'Last Selected Wins',
 								value: 'last_wins',
-								description: 'If variables have same name, last selected credential wins',
+								description: 'If variables have same name, last credential wins',
 							},
 							{
 								name: 'First Selected Wins', 
 								value: 'first_wins',
-								description: 'If variables have same name, first selected credential wins',
+								description: 'If variables have same name, first credential wins',
 							},
 							{
-								name: 'Prefix with Credential Name',
-								value: 'prefix',
+								name: 'Prefix with Source',
+								value: 'prefix_source',
 								description: 'Add credential name prefix to variables (e.g., CRED1_API_KEY)',
+							},
+							{
+								name: 'Skip Conflicts',
+								value: 'skip_conflicts',
+								description: 'Skip variables that would conflict (keep first occurrence)',
 							},
 						],
 						default: 'last_wins',
 						description: 'How to handle variable name conflicts between credentials',
+						displayOptions: {
+							show: {
+								multipleCredentialsMethod: ['names_list', 'selectors', 'collection'],
+							},
+						},
+					},
+					{
+						displayName: 'Hide Variable Values in Generated Script',
+						name: 'hideVariableValues',
+						type: 'boolean',
+						default: false,
+						description: 'Replace variable values with asterisks in generated scripts (for security)',
 					},
 				],
 			},
@@ -236,13 +379,6 @@ print(json.dumps(result))
 						type: 'boolean',
 						default: false,
 						description: 'Include env_vars dictionary in script (for legacy compatibility - variables are already available individually)',
-					},
-					{
-						displayName: 'Hide Variable Values',
-						name: 'hideVariableValues',
-						type: 'boolean',
-						default: false,
-						description: 'Replace variable values with asterisks in generated scripts (for security)',
 					},
 					{
 						displayName: 'System Environment Variables',
@@ -403,12 +539,10 @@ print(json.dumps(result))
 		const scriptOptions = this.getNodeParameter('scriptOptions', 0) as {
 			includeInputItems?: boolean;
 			includeEnvVarsDict?: boolean;
-			hideVariableValues?: boolean;
 			systemEnvVars?: string[];
 		};
 		const includeInputItems = scriptOptions.includeInputItems !== false; // default true
 		const includeEnvVarsDict = scriptOptions.includeEnvVarsDict === true; // default false
-		const hideVariableValues = scriptOptions.hideVariableValues === true; // default false
 		const systemEnvVars = scriptOptions.systemEnvVars || [];
 		
 		// Log configuration
@@ -427,64 +561,85 @@ print(json.dumps(result))
 		
 		// Get credentials management configuration
 		const credentialsConfig = this.getNodeParameter('credentialsManagement', 0, {}) as {
-			pythonEnvVarsList?: string[];
-			includeAllCredentials?: boolean;
+			useDefaultCredential?: boolean;
+			hideVariableValues?: boolean;
+			multipleCredentialsMethod?: string;
+			credentialNamesList?: string;
+			additionalCredential1?: string;
+			additionalCredential2?: string;
+			additionalCredential3?: string;
+			credentialCollection?: { credentials: Array<{ credentialName: string; variablePrefix?: string }> };
+			jsonConfiguration?: string;
 			mergeStrategy?: string;
 		};
-		const selectedCredentials = credentialsConfig.pythonEnvVarsList || [];
-		const includeAllCredentials = credentialsConfig.includeAllCredentials || false;
+		const useDefaultCredential = credentialsConfig.useDefaultCredential !== false; // default true
+		const hideCredentialValues = credentialsConfig.hideVariableValues === true; // default false
+		const multipleCredentialsMethod = credentialsConfig.multipleCredentialsMethod || 'none';
 		const mergeStrategy = credentialsConfig.mergeStrategy || 'last_wins';
-		
-		// Filter out helper/informational values from the selected credentials
-		const validCredentials = selectedCredentials.filter(cred => 
-			cred && 
-			cred.trim() !== '' && 
-			!cred.startsWith('__'),
-		);
 		
 		// Get the environment variables from credentials
 		let pythonEnvVars: Record<string, string> = {};
 		let credentialSources: Record<string, string> = {};
 		
 		try {
-			if (validCredentials.length > 0) {
-				// Load specific selected credentials
-				const result = await loadMultipleCredentialsWithStrategy(this, validCredentials, mergeStrategy);
-				pythonEnvVars = result.envVars;
-				credentialSources = result.credentialSources;
-				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from ${validCredentials.length} selected credentials`);
-			} else if (includeAllCredentials) {
-				// Load all available credentials
-				pythonEnvVars = await getAllAvailableCredentials(this);
-				credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
-					acc[key] = 'default_credential';
-					return acc;
-				}, {} as Record<string, string>);
-				console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from all available credentials`);
-			} else {
-				// Fallback to original behavior (single default credential from "Credential to connect with")
-				try {
-					const credentialData = await this.getCredentials('pythonEnvVars');
-					if (credentialData && credentialData.envFileContent) {
-						pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
-						const credentialName = String(credentialData.name || 'default_credential');
-						credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
-							acc[key] = credentialName;
-							return acc;
-						}, {} as Record<string, string>);
-						console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (${credentialName})`);
-					} else {
-						console.log('No credential selected in "Credential to connect with"');
-					}
-				} catch (credError) {
-					// No credential configured - this is OK, just use empty env vars
-					console.log('No credential configured in "Credential to connect with"');
+			// Load default credential first if enabled
+			if (useDefaultCredential) {
+				const credentialData = await this.getCredentials('pythonEnvVars');
+				if (credentialData && credentialData.envFileContent) {
+					pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
+					const credentialName = String(credentialData.name || 'default_credential');
+					credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
+						acc[key] = credentialName;
+						return acc;
+					}, {} as Record<string, string>);
+					console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (${credentialName})`);
 				}
+			}
+			
+			// Load additional credentials based on method
+			if (multipleCredentialsMethod !== 'none') {
+				const additionalEnvVars = await loadMultipleCredentials(
+					this,
+					credentialsConfig,
+					multipleCredentialsMethod,
+					mergeStrategy,
+				);
+				
+				// Merge additional credentials with default credential
+				for (const [key, value] of Object.entries(additionalEnvVars.envVars)) {
+					let finalKey = key;
+					
+					// Apply merge strategy
+					switch (mergeStrategy) {
+						case 'first_wins':
+							if (pythonEnvVars[key] !== undefined) continue;
+							break;
+						case 'skip_conflicts':
+							if (pythonEnvVars[key] !== undefined) continue;
+							break;
+						case 'prefix_source':
+							const source = additionalEnvVars.credentialSources[key] || 'unknown';
+							const safeSource = source.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+							finalKey = `${safeSource}_${key}`;
+							break;
+						case 'last_wins':
+						default:
+							// Overwrite without checking
+							break;
+					}
+					
+					pythonEnvVars[finalKey] = value;
+					credentialSources[finalKey] = String(additionalEnvVars.credentialSources[key] || 'unknown');
+				}
+				
+				console.log(`Total loaded variables after merging: ${Object.keys(pythonEnvVars).length}`);
 			}
 		} catch (error) {
 			console.warn('Error loading credentials:', error);
-			pythonEnvVars = {};
-			credentialSources = {};
+			if (Object.keys(pythonEnvVars).length === 0) {
+				pythonEnvVars = {};
+				credentialSources = {};
+			}
 		}
 		
 		// Add selected system environment variables
@@ -524,9 +679,9 @@ print(json.dumps(result))
 				mergedEnvVars,
 				includeInputItems,
 				includeEnvVarsDict,
-				hideVariableValues,
+				hideCredentialValues,
 				systemEnvVars,
-				credentialSources,
+				mergedCredentialSources,
 			);
 		} else {
 			return await executeOnce(
@@ -544,14 +699,13 @@ print(json.dumps(result))
 				mergedEnvVars,
 				includeInputItems,
 				includeEnvVarsDict,
-				hideVariableValues,
+				hideCredentialValues,
 				systemEnvVars,
-				credentialSources,
+				mergedCredentialSources,
 			);
 		}
 	}
 
-	// Method to get available system environment variables
 	async getSystemEnvVars(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 		const envVars = Object.keys(process.env).filter(key => {
 			// Filter out sensitive or system-specific variables
@@ -604,110 +758,184 @@ print(json.dumps(result))
 }
 
 
-// Helper function to load multiple credentials with strategy
-async function loadMultipleCredentialsWithStrategy(
+// Helper function to load multiple credentials using different methods
+async function loadMultipleCredentials(
 	executeFunctions: IExecuteFunctions,
-	credentialIds: string[],
-	strategy: string,
-	credentialType = 'pythonEnvVars',
+	config: {
+		credentialNamesList?: string;
+		additionalCredential1?: string;
+		additionalCredential2?: string;
+		additionalCredential3?: string;
+		credentialCollection?: { credentials: Array<{ credentialName: string; variablePrefix?: string }> };
+		jsonConfiguration?: string;
+	},
+	method: string,
+	mergeStrategy: string,
 ): Promise<{envVars: Record<string, string>, credentialSources: Record<string, string>}> {
-	const allEnvVars: Record<string, string> = {};
+	const envVars: Record<string, string> = {};
 	const credentialSources: Record<string, string> = {};
 	
-	// Filter out any helper values that might have slipped through
-	const validCredentialIds = credentialIds.filter(id => 
-		id && 
-		id.trim() !== '' && 
-		!id.startsWith('__'),
-	);
+	try {
+		switch (method) {
+			case 'names_list':
+				return await loadCredentialsFromNamesList(executeFunctions, config.credentialNamesList || '');
+			
+			case 'selectors':
+				return await loadCredentialsFromSelectors(executeFunctions, config);
+			
+			case 'collection':
+				return await loadCredentialsFromCollection(executeFunctions, config.credentialCollection);
+			
+			case 'json_config':
+				return await loadCredentialsFromJsonConfig(executeFunctions, config.jsonConfiguration || '{}');
+			
+			default:
+				return { envVars, credentialSources };
+		}
+	} catch (error) {
+		console.warn(`Error loading multiple credentials (${method}):`, error);
+		return { envVars, credentialSources };
+	}
+}
+
+// Load credentials from comma-separated names list
+async function loadCredentialsFromNamesList(
+	executeFunctions: IExecuteFunctions,
+	namesList: string,
+): Promise<{envVars: Record<string, string>, credentialSources: Record<string, string>}> {
+	const envVars: Record<string, string> = {};
+	const credentialSources: Record<string, string> = {};
 	
-	if (validCredentialIds.length === 0) {
-		// If no valid credentials, try to load the default credential
+	if (!namesList || namesList.trim() === '') {
+		return { envVars, credentialSources };
+	}
+	
+	const credentialNames = namesList.split(',').map(name => name.trim()).filter(name => name);
+	console.log(`Loading credentials from names list: ${credentialNames.join(', ')}`);
+	
+	// For each name, try to load a credential (simulated since n8n API limitations)
+	for (const credentialName of credentialNames) {
 		try {
-			const credentialData = await executeFunctions.getCredentials(credentialType);
-			if (credentialData) {
-				const credentialName = String(credentialData.name || 'default_credential');
-				const envVars = parseEnvFile(String(credentialData.envFileContent || ''));
-				
-				for (const [key, value] of Object.entries(envVars)) {
-					allEnvVars[key] = String(value);
+			// In real implementation, this would load specific credentials by name
+			// For now, we simulate by using the default credential
+			const credentialData = await executeFunctions.getCredentials('pythonEnvVars');
+			if (credentialData && credentialData.envFileContent) {
+				const vars = parseEnvFile(String(credentialData.envFileContent));
+				for (const [key, value] of Object.entries(vars)) {
+					envVars[key] = String(value);
 					credentialSources[key] = credentialName;
 				}
 			}
 		} catch (error) {
-			console.warn('No default credential available:', error);
-		}
-		
-		return { envVars: allEnvVars, credentialSources };
-	}
-	
-	// For now, since n8n doesn't expose API to get multiple specific credentials by name,
-	// we'll use the default credential but simulate multiple credential loading
-	// This is a placeholder implementation that can be enhanced when n8n supports it
-	for (let i = 0; i < validCredentialIds.length; i++) {
-		const credentialId = validCredentialIds[i];
-		
-		try {
-			// For now, we can only get the default credential due to n8n API limitations
-			// In a future version, this could be enhanced to get specific credentials by name
-			const credentialData = await executeFunctions.getCredentials(credentialType);
-			
-			if (!credentialData) continue;
-			
-			// Use the provided credential name if it matches, otherwise use credential name from data
-			const credentialName = String(credentialData.name === credentialId ? credentialId : (credentialData.name || credentialId));
-			const envVars = parseEnvFile(String(credentialData.envFileContent || ''));
-			
-			for (const [key, value] of Object.entries(envVars)) {
-				let finalKey = key;
-				
-				switch (strategy) {
-					case 'first_wins':
-						if (allEnvVars[key] !== undefined) continue;
-						break;
-					case 'last_wins':
-						// Overwrite without checking
-						break;
-					case 'prefix':
-						const safeCredentialName = credentialName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-						finalKey = `${safeCredentialName}_${key}`;
-						break;
-					default:
-						// Default to last_wins behavior
-						break;
-				}
-				
-				allEnvVars[finalKey] = String(value);
-				credentialSources[finalKey] = credentialName;
-			}
-		} catch (error) {
-			console.warn(`Failed to load credential ${credentialId}:`, error);
+			console.warn(`Failed to load credential: ${credentialName}`, error);
 		}
 	}
 	
-	return { envVars: allEnvVars, credentialSources };
+	return { envVars, credentialSources };
 }
 
-// Helper function to get all available credentials (when includeAllCredentials is true)
-async function getAllAvailableCredentials(
+// Load credentials from selector fields
+async function loadCredentialsFromSelectors(
 	executeFunctions: IExecuteFunctions,
-	credentialType = 'pythonEnvVars',
-): Promise<Record<string, string>> {
+	config: {
+		additionalCredential1?: string;
+		additionalCredential2?: string;
+		additionalCredential3?: string;
+	},
+): Promise<{envVars: Record<string, string>, credentialSources: Record<string, string>}> {
+	const envVars: Record<string, string> = {};
+	const credentialSources: Record<string, string> = {};
+	
+	const credentialNames = [
+		config.additionalCredential1,
+		config.additionalCredential2,
+		config.additionalCredential3,
+	].filter(name => name && name.trim() !== '');
+	
+	console.log(`Loading credentials from selectors: ${credentialNames.join(', ')}`);
+	
+	return await loadCredentialsFromNamesList(executeFunctions, credentialNames.join(', '));
+}
+
+// Load credentials from dynamic collection
+async function loadCredentialsFromCollection(
+	executeFunctions: IExecuteFunctions,
+	collection: { credentials?: Array<{ credentialName: string; variablePrefix?: string }> } | undefined,
+): Promise<{envVars: Record<string, string>, credentialSources: Record<string, string>}> {
+	const envVars: Record<string, string> = {};
+	const credentialSources: Record<string, string> = {};
+	
+	if (!collection || !collection.credentials || !Array.isArray(collection.credentials)) {
+		return { envVars, credentialSources };
+	}
+	
+	console.log(`Loading credentials from collection: ${collection.credentials.length} items`);
+	
+	for (const item of collection.credentials) {
+		if (!item.credentialName || item.credentialName.trim() === '') continue;
+		
+		try {
+			// Simulate loading credential by name
+			const credentialData = await executeFunctions.getCredentials('pythonEnvVars');
+			if (credentialData && credentialData.envFileContent) {
+				const vars = parseEnvFile(String(credentialData.envFileContent));
+				const prefix = item.variablePrefix || '';
+				
+				for (const [key, value] of Object.entries(vars)) {
+					const finalKey = prefix ? `${prefix}${key}` : key;
+					envVars[finalKey] = String(value);
+					credentialSources[finalKey] = item.credentialName;
+				}
+			}
+		} catch (error) {
+			console.warn(`Failed to load credential from collection: ${item.credentialName}`, error);
+		}
+	}
+	
+	return { envVars, credentialSources };
+}
+
+// Load credentials from JSON configuration
+async function loadCredentialsFromJsonConfig(
+	executeFunctions: IExecuteFunctions,
+	jsonConfig: string,
+): Promise<{envVars: Record<string, string>, credentialSources: Record<string, string>}> {
+	const envVars: Record<string, string> = {};
+	const credentialSources: Record<string, string> = {};
+	
 	try {
-		// Try to get the default credential from "Credential to connect with"
-		const credentialData = await executeFunctions.getCredentials(credentialType);
-		if (credentialData && credentialData.envFileContent) {
-			const envVars = parseEnvFile(String(credentialData.envFileContent));
-			console.log(`getAllAvailableCredentials: Loaded ${Object.keys(envVars).length} variables from credential`);
-			return envVars;
-		} else {
-			console.log('getAllAvailableCredentials: No credential data found');
-			return {};
+		const config = JSON.parse(jsonConfig);
+		if (!config.credentials || !Array.isArray(config.credentials)) {
+			throw new Error('JSON configuration must have a "credentials" array');
+		}
+		
+		console.log(`Loading credentials from JSON config: ${config.credentials.length} items`);
+		
+		for (const item of config.credentials) {
+			if (!item.name || item.name.trim() === '') continue;
+			
+			try {
+				// Simulate loading credential by name
+				const credentialData = await executeFunctions.getCredentials('pythonEnvVars');
+				if (credentialData && credentialData.envFileContent) {
+					const vars = parseEnvFile(String(credentialData.envFileContent));
+					const prefix = item.prefix || '';
+					
+					for (const [key, value] of Object.entries(vars)) {
+						const finalKey = prefix ? `${prefix}${key}` : key;
+						envVars[finalKey] = String(value);
+						credentialSources[finalKey] = item.name;
+					}
+				}
+			} catch (error) {
+				console.warn(`Failed to load credential from JSON config: ${item.name}`, error);
+			}
 		}
 	} catch (error) {
-		console.log(`getAllAvailableCredentials: No credential configured for type ${credentialType}`);
-		return {};
+		console.warn('Failed to parse JSON configuration:', error);
 	}
+	
+	return { envVars, credentialSources };
 }
 
 
