@@ -1,14 +1,18 @@
 # n8n-nodes-python-raw
 
-An n8n community node for executing Python scripts with raw output control and advanced parsing capabilities.
+An n8n community node for executing Python scripts with raw output control and advanced file processing capabilities.
 
-This is a **fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) with significant enhancements for raw Python script execution and structured output parsing.
+This is a **fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) with significant enhancements for raw Python script execution, structured output parsing, and comprehensive file processing.
 
 ## ✨ Key Features
 
 - **Raw Python Script Execution**: Execute pure Python scripts without modifications
 - **Auto-Variable Extraction**: Fields from input data automatically available as individual Python variables
-- **Multiple Credentials Support**: Select and use multiple Python Environment Variables credentials simultaneously (v1.9.0)
+- **Output File Processing**: Generate files in Python scripts and automatically include them in n8n output (v1.11.0+)
+- **Smart File Detection**: Automatic file detection with dual modes - Ready Variable Path and Auto Search (v1.12.2+)
+- **Advanced File Debugging**: Comprehensive file processing debugging system (v1.12.0+)
+- **Script Export Options**: Export scripts as .py or .txt files for security compliance (v1.12.1+)
+- **Multiple Credentials Support**: Select and use multiple Python Environment Variables credentials simultaneously (v1.9.0+)
 - **Flexible Output Parsing**: Parse stdout as JSON, CSV, lines, or smart auto-detection
 - **Multiple Execution Modes**: Run once for all items or once per each item
 - **Pass Through Data**: Preserve and combine input data with Python results
@@ -17,7 +21,6 @@ This is a **fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-no
 - **Debug/Test System**: 5 debug modes including safe testing and script export
 - **Multiple Output Formats**: Support for single/multiple JSON objects, CSV data, and text lines
 - **Smart Parsing**: Automatic detection and parsing of JSON, CSV, and structured data
-- **Reliable Script Management**: Guaranteed script file overwriting for fresh execution
 
 ## 📦 Installation
 
@@ -41,11 +44,194 @@ print(f"Processing: {title}")        # "My Video"
 print(f"Duration: {duration} sec")   # 120 sec  
 print(f"Author: {author}")           # "John"
 
-# Original data still available:
-print(f"Items count: {len(input_items)}")  # 1
+# Generate a report file:
+import os
+report_content = f"Video: {title}\nDuration: {duration}s\nAuthor: {author}"
+with open(os.path.join(output_dir, expected_filename), 'w') as f:
+    f.write(report_content)
+
+print("Report generated successfully!")
 ```
 
-**Result:** Direct access to your data without complex indexing!
+**Result:** Direct access to your data AND automatic file processing!
+
+## 📁 Output File Processing (v1.11.0+)
+
+### Overview
+Generate files in your Python scripts and automatically include them in n8n workflow output. Perfect for reports, images, data exports, and more.
+
+### Configuration
+- **Enable Output File Processing**: Toggle to activate file generation detection (default: disabled)
+- **Expected Output Filename**: Filename you expect the script to create (e.g., "report.pdf", "data.csv")
+- **File Detection Mode**: How to provide the output file path to your script:
+  - **Ready Variable Path**: Provides `output_file_path` variable with complete file path (recommended)
+  - **Auto Search by Name**: Automatically finds files by filename after script execution
+- **Max Output File Size**: Configurable size limit from 1-1000 MB (default: 100 MB)
+- **Auto-cleanup Output Directory**: Automatic cleanup of temporary files (default: enabled)
+- **Include File Metadata**: Option to include file metadata in output JSON (default: enabled)
+
+### Python Script Integration
+
+#### Ready Variable Path Mode (Recommended)
+```python
+import os
+import json
+
+# Method 1: Use the ready-made path (recommended)
+with open(output_file_path, 'w') as f:
+    json.dump({"results": "processed_data"}, f)
+
+# Method 2: Build path manually using provided variables  
+file_path = os.path.join(output_dir, expected_filename)
+with open(file_path, 'w') as f:
+    f.write("Report content")
+```
+
+#### Auto Search Mode
+```python
+# Create file with the exact filename specified
+# n8n will automatically find it after script execution
+with open(expected_filename, 'w') as f:
+    f.write("Generated content")
+
+# Or in a subdirectory - n8n will find it recursively
+os.makedirs("reports", exist_ok=True) 
+with open(os.path.join("reports", expected_filename), 'w') as f:
+    f.write("Report in subfolder")
+```
+
+### Supported File Types
+- **Documents**: PDF, Word, Excel, PowerPoint, HTML
+- **Images**: JPG, PNG, GIF, BMP, SVG, WebP
+- **Data**: CSV, JSON, XML, YAML, TXT
+- **Archives**: ZIP, TAR, GZ
+- **Media**: MP4, MP3, AVI, MOV
+- **Any file type** with automatic MIME type detection
+
+### Example Use Cases
+
+#### Generate PDF Report
+```python
+import os
+from reportlab.pdfgen import canvas
+
+# Create PDF report
+pdf_path = output_file_path  # or os.path.join(output_dir, expected_filename)
+c = canvas.Canvas(pdf_path)
+c.drawString(100, 750, f"Report for {title}")
+c.drawString(100, 730, f"Duration: {duration} seconds")
+c.save()
+
+print("PDF report generated!")
+```
+
+#### Export Data to CSV
+```python
+import csv
+import os
+
+# Process data and export to CSV
+csv_path = output_file_path
+with open(csv_path, 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(['Title', 'Duration', 'Author'])
+    for item in input_items:
+        writer.writerow([item.get('title'), item.get('duration'), item.get('author')])
+
+print(f"Exported {len(input_items)} items to CSV")
+```
+
+#### Generate Video with FFmpeg
+```python
+import subprocess
+import os
+from shutil import which
+
+# Ensure ffmpeg is available
+if which("ffmpeg") is None:
+    print("Error: ffmpeg not found")
+    exit(1)
+
+# Generate test video
+cmd = [
+    "ffmpeg", "-y",
+    "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30:duration=5",
+    "-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=44100:duration=5", 
+    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "128k",
+    output_file_path
+]
+
+subprocess.run(cmd, check=True)
+print("Test video generated successfully!")
+```
+
+## 🔍 File Debug System (v1.12.0+)
+
+### Overview
+Comprehensive debugging system for troubleshooting file processing issues with detailed diagnostics.
+
+### Configuration
+- **Enable File Debugging**: Toggle to include detailed file processing information
+- **Debug Input Files**: Information about input files processing
+- **Debug Output Files**: Output files and directory scanning information  
+- **Include System Information**: System permissions and environment analysis
+- **Include Directory Listings**: File listings from working and output directories
+
+### Debug Information Structure
+```json
+{
+  "fileDebugInfo": {
+    "input_files": {
+      "count": 2,
+      "total_size_mb": 5.47,
+      "files_by_type": {"image/jpeg": 1, "application/pdf": 1},
+      "files_details": [...],
+      "processing_errors": []
+    },
+    "output_files": {
+      "processing_enabled": true,
+      "output_directory": "/tmp/n8n_output_xyz",
+      "directory_exists": true,
+      "directory_writable": true,
+      "found_files": [...],
+      "scan_errors": []
+    },
+    "system_info": {
+      "python_executable": "/usr/bin/python3",
+      "working_directory": "/app",
+      "user_permissions": {"can_write_temp": true},
+      "environment_variables": {"output_dir_available": true}
+    },
+    "directory_listings": {
+      "working_directory": [...],
+      "output_directory": [...]
+    }
+  }
+}
+```
+
+### Troubleshooting Use Cases
+- **Problem**: `output_dir` variable not available → **Solution**: Check system_info.environment_variables
+- **Problem**: Files not detected → **Solution**: Check output_files.found_files and scan_errors
+- **Problem**: Permission issues → **Solution**: Check system_info.user_permissions
+- **Problem**: Input file processing → **Solution**: Check input_files.processing_errors
+
+## 🎨 Script Export Format (v1.12.1+)
+
+### Overview
+Choose export format for generated scripts in "Export Script" debug mode to comply with security policies.
+
+### Configuration
+- **Script Export Format**: Available when Debug Mode = "Export Script"
+  - **Python File (.py)**: Standard Python script format (default)
+  - **Text File (.txt)**: Plain text format for restricted environments
+
+### Use Cases
+- **Corporate Environments**: Export as .txt when .py files are blocked
+- **Email Sharing**: .txt files pass through email filters more easily
+- **Documentation**: Include Python scripts in documentation as text files
+- **Security Compliance**: Bypass antivirus restrictions on .py files
 
 ## 🚀 Configuration Options
 
@@ -53,55 +239,66 @@ print(f"Items count: {len(input_items)}")  # 1
 - **Python Code**: Multi-line Python script to execute
 - **Python Executable**: Path to Python executable (default: "python3")
 - **Inject Variables**: Enable/disable automatic variable injection (default: true)
-- **Return Error Details**: Return error info as data instead of throwing (default: true)
 
-### Credentials Management (New in v1.9.0)
-- **Python Environment Variables**: Multi-select dropdown to choose multiple credentials
-- **Include All Available Credentials**: Automatically include all available Python Environment Variables credentials
-- **Credential Merge Strategy**: How to handle variable name conflicts when using multiple credentials:
-  - **last_wins** (default): Later credentials override earlier ones for conflicting variable names
-  - **first_wins**: Earlier credentials take precedence for conflicting variable names
-  - **prefix**: Add credential name as prefix to variables (e.g., `SERVICE_A_API_KEY`, `SERVICE_B_API_KEY`)
+### Output File Processing (v1.11.0+)
+- **Enable Output File Processing**: Toggle file generation detection (default: disabled)
+- **Expected Output Filename**: Filename the script will create (e.g., "report.pdf")
+- **File Detection Mode**: Choose detection method:
+  - **Ready Variable Path**: Use provided `output_file_path` variable (recommended)
+  - **Auto Search by Name**: Automatic recursive file search by filename
+- **Max Output File Size**: Size limit 1-1000 MB (default: 100 MB)
+- **Auto-cleanup Output Directory**: Clean temporary files (default: enabled)
+- **Include File Metadata**: Add file info to output (default: enabled)
+- **Auto Intercept Files**: Automatic file processing (default: enabled)
 
-### Error Handling (New in v1.5.0)
-- **Return Error Details** (default): Continue execution and return error information as output data
-- **Throw Error on Non-Zero Exit**: Stop workflow execution if script exits with non-zero code
-- **Ignore Exit Code**: Continue execution regardless of exit code, only throw on system errors
+### File Debug Options (v1.12.0+)
+- **Enable File Debugging**: Include detailed file processing diagnostics
+- **Debug Input Files**: Input file processing information
+- **Debug Output Files**: Output directory and file scanning details
+- **Include System Information**: System permissions and environment data
+- **Include Directory Listings**: Directory content listings
 
-### Debug/Test Mode (New in v1.6.0)
-- **Off** (default): Normal execution without debug information
-- **Basic Debug**: Add script content and basic execution info to output
-- **Full Debug**: Add script content, metadata, timing, and detailed execution info
-- **Test Only**: Validate script and show preview without executing (safe testing)
-- **Export Script**: Full debug information plus script file as binary attachment
+### Credentials Management (v1.9.0+)
+- **Python Environment Variables**: Multi-select credentials
+- **Include All Available Credentials**: Auto-include all Python Environment Variables
+- **Credential Merge Strategy**: Handle variable conflicts:
+  - **last_wins** (default): Later credentials override earlier ones
+  - **first_wins**: Earlier credentials take precedence  
+  - **prefix**: Add credential name prefix to variables
 
-### Script Generation Options (New in v1.7.0)
-- **Legacy input_items Support** (default: enabled): Include `input_items` array in generated scripts for backward compatibility
-- **Hide Variable Values** (default: disabled): Replace variable values with asterisks in generated scripts for security
+### Error Handling (v1.5.0+)
+- **Return Error Details** (default): Continue execution, return error info
+- **Throw Error on Non-Zero Exit**: Stop workflow on script failure
+- **Ignore Exit Code**: Continue regardless of exit code
 
-### Execution Control (New in v1.4.0)
-- **Execution Mode**: Choose how to run the script:
-  - **Once for All Items**: Execute script once with all input items (faster, default)
-  - **Once per Item**: Execute script separately for each input item (more flexible)
+### Debug/Test Mode (v1.6.0+)
+- **Off** (default): Normal execution without debug overhead
+- **Basic Debug**: Add script content and basic execution info
+- **Full Debug**: Complete debugging with timing and environment info
+- **Test Only**: Safe validation without execution
+- **Export Script**: Full debug plus downloadable script files
 
-### Data Management (New in v1.4.0)
+### Script Generation Options (v1.7.0+)
+- **Hide Variable Values** (default: disabled): Replace sensitive values with asterisks
+
+### Execution Control (v1.4.0+)
+- **Execution Mode**: Choose script execution approach:
+  - **Once for All Items**: Execute once with all input items (faster, default)
+  - **Once per Item**: Execute separately for each input item (more flexible)
+
+### Data Management (v1.4.0+)
 - **Pass Through Input Data**: Include original input data in output (default: false)
 - **Pass Through Mode**: How to combine input with results:
   - **Merge with Result**: Add input fields directly to result object
   - **Separate Field**: Add input data as "inputData" field
   - **Multiple Outputs**: Return separate items for input and result
 
-### Output Parsing (v1.3.0)
-- **Parse Output**: Choose how to parse stdout:
+### Output Parsing (v1.3.0+)
+- **Parse Output**: Choose stdout parsing method:
   - **None (Raw String)**: Return stdout as plain text
   - **JSON**: Parse as JSON object(s)
   - **Lines**: Split into array of lines
   - **Smart Auto-detect**: Automatically detect and parse JSON/CSV/text
-
-### Parse Options (Advanced)
-- **Handle Multiple JSON Objects**: Parse multiple JSON objects separated by newlines
-- **Strip Non-JSON Text**: Remove text before/after JSON content
-- **Fallback on Parse Error**: Keep original stdout if parsing fails
 
 ## 📊 Output Structure
 
@@ -111,13 +308,27 @@ The node returns a comprehensive result object:
 {
   "exitCode": 0,
   "stdout": "raw output string",
-  "stderr": "error messages",
+  "stderr": "error messages", 
   "success": true,
   "error": null,
   "inputItemsCount": 1,
-  "executedAt": "2024-01-01T12:00:00.000Z",
+  "executedAt": "2025-06-02T12:00:00.000Z",
   "injectVariables": true,
-  "parseOutput": "json",
+  "parseOutput": "none",
+  "executionMode": "once",
+  
+  // Output File Processing results (when enabled)
+  "outputFiles": [
+    {
+      "filename": "report.pdf",
+      "size": 1024000,
+      "mimetype": "application/pdf",
+      "extension": "pdf",
+      "binaryKey": "report.pdf",
+      "createdAt": "2025-06-02T12:00:00.000Z"
+    }
+  ],
+  "outputFilesCount": 1,
   
   // Parsing results (when enabled)
   "parsed_stdout": {"key": "value"}, 
@@ -125,6 +336,14 @@ The node returns a comprehensive result object:
   "parsing_error": null,
   "output_format": "json",
   "parsing_method": "json",
+  
+  // File Debug Information (when enabled)
+  "fileDebugInfo": {
+    "input_files": {...},
+    "output_files": {...},
+    "system_info": {...},
+    "directory_listings": {...}
+  },
   
   // Error details (on failure)
   "pythonError": {
@@ -140,767 +359,283 @@ The node returns a comprehensive result object:
 
 ## 💡 Usage Examples
 
-### JSON Output with Parsing
+### File Generation with Debug
 ```python
+import os
 import json
 
-data = {
-    "users": 150,
-    "active": 42,
-    "metrics": [
-        {"cpu": 45.2},
-        {"memory": 68.1}
-    ]
+# Create a data analysis report
+report_data = {
+    "total_items": len(input_items),
+    "analysis": "completed",
+    "timestamp": "2025-06-02T12:00:00Z"
 }
-print(json.dumps(data))
-```
 
-**Configuration**: Parse Output = "JSON"
-**Result**: Access structured data via `parsed_stdout` field
+# Save as JSON file using the ready-made path
+with open(output_file_path, 'w') as f:
+    json.dump(report_data, f, indent=2)
 
-### Per-Item Processing (New in v1.4.0)
-```python
-import json
-
-# This script runs once for each input item
-# input_items will contain only the current item
-
-current_item = input_items[0]  # Always one item in per-item mode
-result = {
-    "original_id": current_item.get("id"),
-    "processed": True,
-    "timestamp": "2024-01-01T12:00:00Z"
-}
-print(json.dumps(result))
+print(f"Report saved to {expected_filename}")
 ```
 
 **Configuration**: 
-- Execution Mode = "Once per Item"
-- Parse Output = "JSON"
-- Pass Through Input Data = true
+- Output File Processing = enabled
+- Expected Output Filename = "analysis_report.json"
+- File Detection Mode = "Ready Variable Path"
+- File Debug Options = enabled
 
-**Result**: Each input item gets processed separately with its own result
+**Result**: JSON file automatically included as binary data in n8n output
 
-### Data Pass-Through with Merge (New in v1.4.0)
+### Multiple File Generation
 ```python
+import os
 import json
+import csv
 
-# Process all items and return summary
-summary = {
-    "total_processed": len(input_items),
-    "status": "completed",
-    "processing_time": 0.5
-}
-print(json.dumps(summary))
+# Create multiple output files
+os.makedirs(output_dir, exist_ok=True)
+
+# 1. Generate summary JSON
+summary = {"processed": len(input_items), "status": "complete"}
+with open(os.path.join(output_dir, "summary.json"), 'w') as f:
+    json.dump(summary, f)
+
+# 2. Generate detailed CSV  
+with open(os.path.join(output_dir, expected_filename), 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(['Title', 'Duration'])
+    for item in input_items:
+        writer.writerow([item.get('title'), item.get('duration')])
+
+print("Multiple files generated")
 ```
 
 **Configuration**:
-- Pass Through Input Data = true
-- Pass Through Mode = "Merge with Result"
+- Expected Output Filename = "details.csv" 
+- File Detection Mode = "Auto Search by Name"
 
-**Result**: Original input fields are merged directly into the result object
+**Result**: Both summary.json and details.csv files are automatically detected and included
 
-### Multiple Outputs Mode (New in v1.4.0)
+### Image Processing and Generation  
 ```python
+import os
+from PIL import Image, ImageDraw
+
+# Create a simple chart image
+img = Image.new('RGB', (800, 600), color='white')
+draw = ImageDraw.Draw(img)
+
+# Draw title
+draw.text((50, 50), f"Analysis Results", fill='black')
+draw.text((50, 100), f"Total Items: {len(input_items)}", fill='blue')
+
+# Save image
+img.save(output_file_path)
+print(f"Chart saved as {expected_filename}")
+```
+
+**Configuration**:
+- Expected Output Filename = "chart.png"
+- File Detection Mode = "Ready Variable Path"
+
+**Result**: PNG image automatically included as binary data
+
+### Multiple Credentials with File Processing
+```python
+# Using multiple API credentials to fetch data and generate report
+import requests
 import json
+import os
 
-analysis = {
-    "trend": "increasing",
-    "confidence": 0.95,
-    "recommendations": ["action1", "action2"]
+# Access different service credentials  
+api1_data = requests.get(f"https://api1.com/data", 
+                        headers={"Authorization": f"Bearer {API1_TOKEN}"}).json()
+
+api2_data = requests.get(f"https://api2.com/stats",
+                        headers={"X-API-Key": API2_KEY}).json()
+
+# Combine data and generate report
+combined_report = {
+    "api1_results": api1_data,
+    "api2_results": api2_data, 
+    "generated_at": "2025-06-02T12:00:00Z",
+    "total_items": len(input_items)
 }
-print(json.dumps(analysis))
+
+# Save comprehensive report
+with open(output_file_path, 'w') as f:
+    json.dump(combined_report, f, indent=2)
+
+print("Multi-API report generated")
 ```
 
 **Configuration**:
-- Pass Through Input Data = true
-- Pass Through Mode = "Multiple Outputs"
+- Credentials Management = ["API Service 1", "API Service 2"]
+- Expected Output Filename = "multi_api_report.json"
+- Output File Processing = enabled
 
-**Result**: Returns both the Python analysis result AND the original input items as separate output items
-
-### Multiple Credentials Usage (New in v1.9.0)
-
-#### Basic Multiple Credentials
-```python
-# With multiple credentials selected: "Production APIs" and "External Services"
-# Variables from all credentials are automatically available:
-
-# From "Production APIs" credential:
-print(f"API Key: {API_KEY}")
-print(f"Database: {DB_HOST}")
-
-# From "External Services" credential:  
-print(f"Webhook: {WEBHOOK_URL}")
-print(f"Token: {SECRET_TOKEN}")
-
-# All variables are directly accessible
-```
-
-**Configuration**:
-- Credentials Management → Python Environment Variables = ["Production APIs", "External Services"]
-- Credential Merge Strategy = "last_wins"
-
-#### Prefix Strategy for Name Conflicts
-```python
-# When multiple credentials have same variable names
-# Using prefix strategy to avoid conflicts:
-
-# From "Service_A" credential (prefixed):
-print(f"Service A API: {SERVICE_A_API_KEY}")
-print(f"Service A Host: {SERVICE_A_HOST}")
-
-# From "Service_B" credential (prefixed):
-print(f"Service B API: {SERVICE_B_API_KEY}")  
-print(f"Service B Host: {SERVICE_B_HOST}")
-```
-
-**Configuration**:
-- Credentials Management → Python Environment Variables = ["Service_A", "Service_B"]  
-- Credential Merge Strategy = "prefix"
-
-#### Include All Available Credentials
-```python
-# Automatically includes ALL Python Environment Variables credentials
-# No need to manually select each one
-
-# Access any credential variable that exists:
-if 'API_KEY' in globals():
-    print(f"Found API Key: {API_KEY}")
-
-if 'DATABASE_URL' in globals():
-    print(f"Found Database: {DATABASE_URL}")
-
-# Script adapts to available credentials automatically
-```
-
-**Configuration**:
-- Credentials Management → Include All Available Credentials = true
-
-### CSV Data Generation
-```python
-print("Name,Age,City,Score")
-print("Alice,25,New York,95.5")
-print("Bob,30,London,87.2")
-print("Charlie,35,Tokyo,92.0")
-```
-
-**Configuration**: Parse Output = "Smart Auto-detect"
-**Result**: Automatically parsed as array of objects with headers as keys
-
-### Multiple JSON Objects
-```python
-objects = [
-    {"id": 1, "name": "Item 1"},
-    {"id": 2, "name": "Item 2"},
-    {"id": 3, "name": "Item 3"}
-]
-for obj in objects:
-    print(json.dumps(obj))
-```
-
-**Configuration**: Parse Output = "JSON", Handle Multiple JSON Objects = true
-**Result**: Array of parsed objects in `parsed_stdout`
-
-### Mixed Output with Smart Parsing
-```python
-print("Processing started...")
-print("Status: OK")
-
-result = {"processed": 500, "errors": 0}
-print(json.dumps(result))
-
-print("Done!")
-```
-
-**Configuration**: Parse Output = "Smart Auto-detect", Strip Non-JSON Text = true
-**Result**: Only the JSON object is parsed, other text is filtered out
+**Result**: Report with data from multiple APIs saved as downloadable file
 
 ## 🔧 Working with Input Variables
 
 ### Variable Injection Overview
 
-When "Inject Variables" is enabled (default), the node automatically injects two powerful variables into your Python script:
+When "Inject Variables" is enabled (default), the node automatically injects powerful variables into your Python script:
 
-- **`input_items`**: Array containing input data from previous n8n nodes
-- **`env_vars`**: Dictionary of environment variables (from credentials or system)
+- **Individual field variables**: Fields from first input item (e.g., `title`, `duration`, `author`)
+- **`output_dir`**: Unique temporary directory for file generation (when Output File Processing enabled)
+- **`expected_filename`**: Filename specified in configuration (when Output File Processing enabled)
+- **`output_file_path`**: Complete file path for output file (when using Ready Variable Path mode)
+- **`env_vars`**: Dictionary of environment variables (from credentials or system, optional)
 
-### 📋 Understanding input_items Structure
-
-The `input_items` variable contains an array of data objects from the previous node in your workflow:
+### 📋 Understanding Input Data Structure
 
 ```python
-# input_items structure:
+# Input from previous n8n node:
 [
-  {"id": 1, "name": "John", "email": "john@example.com"},
-  {"id": 2, "name": "Jane", "email": "jane@example.com"},
-  {"id": 3, "name": "Bob", "email": "bob@example.com"}
+  {"title": "Video 1", "duration": 120, "author": "John"},
+  {"title": "Video 2", "duration": 90, "author": "Jane"}
 ]
-```
 
-### 🔄 Execution Mode Behavior
+# Automatically available variables (from first item):
+title = "Video 1"           # Direct access
+duration = 120             # No indexing needed
+author = "John"            # Clean variable names
 
-The content of `input_items` depends on your execution mode:
+# File processing variables (when enabled):
+output_dir = "/tmp/n8n_python_output_12345"
+expected_filename = "report.pdf"
+output_file_path = "/tmp/n8n_python_output_12345/report.pdf"
 
-#### **Variable Auto-Extraction (New in v1.6.1)**
-
-For convenience, fields from the **first input item** are automatically extracted as individual variables:
-
-```python
-# Your input data:
-[{"title": "My Video", "path": "/videos/video1.mp4", "duration": 120}]
-
-# Automatically available variables:
-title = "My Video"
-path = "/videos/video1.mp4" 
-duration = 120
-
-# Original data still available:
-input_items = [{"title": "My Video", "path": "/videos/video1.mp4", "duration": 120}]
+# Legacy compatibility (optional):
+env_vars = {...}           # Environment variables dictionary
 ```
 
 **Benefits:**
 - **Direct access**: Use `title` instead of `input_items[0]['title']`
 - **Cleaner code**: More readable Python scripts
-- **Backward compatible**: `input_items` still works as before
-- **Safe naming**: Invalid Python identifiers are converted (e.g., `video-name` → `video_name`)
+- **File processing**: Ready-to-use paths for file generation
+- **Safe naming**: Invalid Python identifiers converted (e.g., `video-name` → `video_name`)
+
+### 🔄 Execution Mode Behavior
 
 #### **Once for All Items** (Default - Faster)
-- `input_items` contains **all** input data as an array
+- Auto-extracted variables from **first item only**
 - Script runs **once** with access to all items
-- Ideal for: aggregations, batch processing, summary reports
+- Ideal for: aggregations, batch processing, file generation
 
 ```python
 import json
+import os
 
 print(f"Processing {len(input_items)} items total")
+print(f"First item: {title}")  # From first item
 
-# Example: Count by category
-categories = {}
-for item in input_items:
-    category = item.get('category', 'unknown')
-    categories[category] = categories.get(category, 0) + 1
-
-result = {
+# Generate summary report
+summary = {
     "total_items": len(input_items),
-    "categories": categories,
-    "processed_at": "2024-01-01T12:00:00Z"
+    "first_title": title,
+    "all_titles": [item.get('title') for item in input_items]
 }
-print(json.dumps(result))
+
+# Save to file
+with open(output_file_path, 'w') as f:
+    json.dump(summary, f, indent=2)
 ```
 
 #### **Once per Item** (More Flexible)
-- `input_items` contains **only one item** as an array `[current_item]`
+- Auto-extracted variables from **current item**
 - Script runs **separately** for each input item
-- Ideal for: individual processing, API calls per item, complex transformations
+- Ideal for: individual file generation, API calls per item
 
 ```python
 import json
+import os
 
-# input_items always has exactly one item in per-item mode
-current_item = input_items[0]
+# Variables extracted from current item
+print(f"Processing: {title}")    # Current item's title
+print(f"Duration: {duration}")   # Current item's duration
 
-print(f"Processing individual item: {current_item.get('id')}")
-
-# Example: Enrich individual item
-enriched_item = {
-    "original_id": current_item.get("id"),
-    "processed_name": current_item.get("name", "").upper(),
-    "status": "processed",
-    "timestamp": "2024-01-01T12:00:00Z"
-}
-print(json.dumps(enriched_item))
-```
-
-### 🌍 Working with env_vars
-
-The `env_vars` variable provides access to environment variables:
-
-```python
-import json
-
-# Access environment variables
-api_key = env_vars.get('API_KEY', 'default_key')
-environment = env_vars.get('NODE_ENV', 'development')
-debug_mode = env_vars.get('DEBUG', 'false').lower() == 'true'
-
-print(f"Running in {environment} mode")
-if debug_mode:
-    print(f"Available env vars: {list(env_vars.keys())}")
-
-# Use in API calls
-config = {
-    "api_endpoint": env_vars.get('API_URL', 'https://api.example.com'),
-    "timeout": int(env_vars.get('TIMEOUT', '30')),
-    "retries": int(env_vars.get('RETRIES', '3'))
-}
-print(json.dumps(config))
-```
-
-### 🔍 Data Inspection Examples
-
-#### Basic Data Exploration
-```python
-import json
-
-print("=== INPUT DATA ANALYSIS ===")
-print(f"Total items: {len(input_items)}")
-print(f"Environment variables: {len(env_vars)}")
-
-if input_items:
-    first_item = input_items[0]
-    print(f"First item keys: {list(first_item.keys())}")
-    print(f"Sample item: {json.dumps(first_item, indent=2)}")
-
-print(f"Environment keys: {list(env_vars.keys())}")
-```
-
-#### Advanced Data Processing
-```python
-import json
-from collections import Counter
-
-# Analyze data structure
-all_keys = set()
-data_types = {}
-
-for item in input_items:
-    all_keys.update(item.keys())
-    for key, value in item.items():
-        if key not in data_types:
-            data_types[key] = set()
-        data_types[key].add(type(value).__name__)
-
-# Generate report
+# Generate individual report file
 report = {
-    "summary": {
-        "total_items": len(input_items),
-        "unique_fields": len(all_keys),
-        "execution_mode": "once" if len(input_items) > 1 else "per_item"
-    },
-    "schema": {
-        field: list(types) for field, types in data_types.items()
-    },
-    "sample_data": input_items[:3] if input_items else []
+    "item_title": title,
+    "item_duration": duration,
+    "processed_at": "2025-06-02T12:00:00Z"
 }
 
-print(json.dumps(report, indent=2))
+# Each item gets its own output file
+with open(output_file_path, 'w') as f:
+    json.dump(report, f, indent=2)
 ```
 
-#### Using Auto-Extracted Variables (New in v1.6.1)
+## 🛠️ Troubleshooting Guide
+
+### File Processing Issues
+
+#### Problem: `output_dir` variable not available
+**Solution**: 
+1. Enable "Output File Processing"
+2. Check File Debug Info → system_info.environment_variables
+3. Verify "Inject Variables" is enabled
+
+#### Problem: Files not detected after generation
+**Solution**:
+1. Check expected filename matches exactly
+2. Use File Debug Options to see found_files
+3. Verify file was created in correct location
+4. Check file size doesn't exceed configured limit
+
+#### Problem: Permission errors
+**Solution**:
+1. Enable File Debug Options → system_info.user_permissions
+2. Check directory_writable status
+3. Verify output directory access rights
+
+#### Problem: Script execution fails
+**Solution**:
+1. Use "Test Only" mode to validate syntax
+2. Check Debug Info → environment_check for Python availability
+3. Verify all required imports are included
+4. Check pythonError details for specific issues
+
+### Common Import Issues
+**Problem**: `NameError: name 'os' is not defined`
+**Solution**: Add required imports to your script:
 ```python
+import os
+import subprocess
 import json
-
-# Direct access to fields from first input item
-# No need for input_items[0]['field_name'] anymore!
-
-print(f"Processing: {title}")
-print(f"File path: {sftp_path_episode_completed}")
-print(f"Description length: {len(description)} characters")
-
-# Clean and process the data
-processed_data = {
-    "video_title": title.strip(),
-    "file_location": sftp_path_episode_completed,
-    "short_description": description[:100] + "..." if len(description) > 100 else description,
-    "tag_list": tags.split(",") if isinstance(tags, str) else tags,
-    "processing_timestamp": "2024-01-01T12:00:00Z"
-}
-
-print(json.dumps(processed_data, indent=2, ensure_ascii=False))
+from shutil import which
+# ... your code
 ```
 
-### 🚀 Real-World Use Cases
+## 📄 Version History
 
-#### 1. API Integration with Error Handling
-```python
-import json
-import urllib.request
-import urllib.error
+- **v1.12.5**: Removed legacy variables and fixed file variables hiding issue
+- **v1.12.4**: Added `expected_filename` variable and enhanced output file processing instructions
+- **v1.12.3**: Fixed Expected Output Filename field UI issue and added default example
+- **v1.12.2**: Smart Output File Detection System with dual modes and enhanced file search
+- **v1.12.1**: Script Export Format selection (.py/.txt) for security compliance
+- **v1.12.0**: Advanced File Debugging System for troubleshooting file processing
+- **v1.11.0**: Output File Processing - generate files in Python and auto-include in n8n output
+- **v1.9.0**: Multiple credentials support with merge strategies and backward compatibility
+- **v1.8.0**: Enhanced script generation and credential source tracking
+- **v1.7.0**: Script Generation Options with legacy support toggle and value hiding
+- **v1.6.1**: Auto-Variable Extraction feature for direct field access
+- **v1.6.0**: Comprehensive Debug/Test system with script export and syntax validation
+- **v1.5.0**: Enhanced error handling and comprehensive variable documentation
+- **v1.4.0**: Execution modes and data pass-through capabilities
+- **v1.3.0**: Comprehensive output parsing (JSON/CSV/Lines/Smart modes)
+- **v1.2.0**: Enhanced error handling and user experience
+- **v1.1.0**: Variable injection control and improved error parsing
+- **v1.0.0**: Initial fork with raw execution functionality
 
-api_key = env_vars.get('API_KEY')
-if not api_key:
-    print(json.dumps({"error": "API_KEY not found in environment"}))
-    exit(1)
+## 🔗 Links
 
-results = []
-for item in input_items:
-    try:
-        # Make API call
-        url = f"https://api.example.com/users/{item.get('id')}"
-        headers = {'Authorization': f'Bearer {api_key}'}
-        
-        # Simulate API call result
-        enriched_data = {
-            "original": item,
-            "api_status": "success",
-            "enriched_at": "2024-01-01T12:00:00Z"
-        }
-        results.append(enriched_data)
-        
-    except Exception as e:
-        results.append({
-            "original": item,
-            "api_status": "error",
-            "error": str(e)
-        })
-
-print(json.dumps({"processed": len(results), "results": results}))
-```
-
-#### 2. Data Validation and Cleaning
-```python
-import json
-import re
-
-email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-required_fields = ['name', 'email']
-
-valid_items = []
-invalid_items = []
-
-for item in input_items:
-    errors = []
-    
-    # Check required fields
-    for field in required_fields:
-        if not item.get(field):
-            errors.append(f"Missing required field: {field}")
-    
-    # Validate email format
-    email = item.get('email', '')
-    if email and not email_pattern.match(email):
-        errors.append("Invalid email format")
-    
-    if errors:
-        invalid_items.append({"item": item, "errors": errors})
-    else:
-        # Clean and normalize data
-        cleaned_item = {
-            "id": item.get('id'),
-            "name": item.get('name', '').strip().title(),
-            "email": item.get('email', '').strip().lower(),
-            "validated_at": "2024-01-01T12:00:00Z"
-        }
-        valid_items.append(cleaned_item)
-
-result = {
-    "validation_summary": {
-        "total_processed": len(input_items),
-        "valid_count": len(valid_items),
-        "invalid_count": len(invalid_items)
-    },
-    "valid_items": valid_items,
-    "invalid_items": invalid_items
-}
-
-print(json.dumps(result))
-```
-
-#### 3. Conditional Processing Based on Environment
-```python
-import json
-
-environment = env_vars.get('NODE_ENV', 'development')
-debug_enabled = env_vars.get('DEBUG', 'false').lower() == 'true'
-
-if debug_enabled:
-    print(f"Debug: Processing {len(input_items)} items in {environment} mode")
-
-# Different processing based on environment
-if environment == 'production':
-    # Production: process all items
-    processed_items = []
-    for item in input_items:
-        processed_items.append({
-            "id": item.get('id'),
-            "status": "processed",
-            "environment": "production"
-        })
-    print(json.dumps({"items": processed_items}))
-    
-elif environment == 'development':
-    # Development: process only first 5 items
-    limited_items = input_items[:5]
-    if debug_enabled:
-        print(f"Debug: Limited to {len(limited_items)} items for development")
-    
-    print(json.dumps({
-        "message": "Development mode - limited processing",
-        "processed_count": len(limited_items),
-        "total_available": len(input_items)
-    }))
-    
-else:
-    print(json.dumps({"error": f"Unknown environment: {environment}"}))
-```
-
-### 💡 Best Practices
-
-1. **Always check data availability**:
-   ```python
-   if not input_items:
-       print(json.dumps({"warning": "No input data received"}))
-       exit(0)
-   ```
-
-2. **Handle missing fields gracefully**:
-   ```python
-   name = item.get('name', 'Unknown')
-   email = item.get('email', '')
-   ```
-
-3. **Use environment variables for configuration**:
-   ```python
-   batch_size = int(env_vars.get('BATCH_SIZE', '100'))
-   timeout = int(env_vars.get('TIMEOUT', '30'))
-   ```
-
-4. **Always output valid JSON for parsing**:
-   ```python
-   import json
-   result = {"status": "success", "data": processed_data}
-   print(json.dumps(result))
-   ```
-
-5. **Log important information for debugging**:
-   ```python
-   if env_vars.get('DEBUG', '').lower() == 'true':
-       print(f"Debug: Processing item {item.get('id')}", file=sys.stderr)
-   ```
-
-## 🎯 Smart Parsing Features
-
-The Smart Auto-detect mode intelligently handles:
-
-1. **JSON Detection**: Automatically identifies and parses JSON objects/arrays
-2. **CSV Recognition**: Detects comma/tab-separated data and converts to objects
-3. **Multiple Formats**: Handles mixed output with JSON embedded in text
-4. **Error Recovery**: Falls back to line splitting if specialized parsing fails
-
-## 🔧 Debug and Testing Features (New in v1.6.0)
-
-### Debug Modes Overview
-
-The Debug/Test Mode option provides comprehensive debugging and testing capabilities for Python script development:
-
-#### **Off** (Default)
-- Normal execution without additional debug overhead
-- Minimal output for production workflows
-- Best performance
-
-#### **Basic Debug**
-```json
-{
-  "exitCode": 0,
-  "stdout": "Hello World",
-  "stderr": "",
-  "success": true,
-  "script_content": "print('Hello World')",
-  "execution_command": "python3 /tmp/script_abc123.py"
-}
-```
-
-#### **Full Debug**
-```json
-{
-  "exitCode": 0,
-  "stdout": "Hello World", 
-  "stderr": "",
-  "success": true,
-  "script_content": "print('Hello World')",
-  "execution_command": "python3 /tmp/script_abc123.py",
-  "debug_info": {
-    "script_path": "/tmp/script_abc123.py",
-    "timing": {
-      "script_created_at": "2024-01-01T12:00:00.000Z",
-      "execution_started_at": "2024-01-01T12:00:00.100Z", 
-      "execution_finished_at": "2024-01-01T12:00:00.250Z",
-      "total_duration_ms": 150
-    },
-    "environment_check": {
-      "python_executable_found": true,
-      "python_version_output": "3.11.2 (main, Mar 13 2023...)",
-      "python_path_resolved": "python3"
-    },
-    "syntax_validation": {
-      "is_valid": true
-    },
-    "injected_data": {
-      "input_items": [...],
-      "env_vars": {...}
-    }
-  }
-}
-```
-
-#### **Test Only**
-- **Safe validation** without script execution
-- **Syntax checking** using Python AST parser
-- **Environment verification** (Python executable, version)
-- **Data preview** showing what would be injected
-- **No side effects** - perfect for testing in production environments
-
-```json
-{
-  "exitCode": null,
-  "stdout": "",
-  "stderr": "",
-  "success": null,
-  "test_mode": true,
-  "execution_skipped": true,
-  "validation_only": true,
-  "script_content": "print('Hello World')",
-  "debug_info": {
-    "syntax_validation": {
-      "is_valid": true
-    },
-    "environment_check": {
-      "python_executable_found": true,
-      "python_version_output": "3.11.2..."
-    }
-  }
-}
-```
-
-#### **Export Script** 
-- **All Full Debug information** 
-- **Plus binary script file** as downloadable attachment
-- **Timestamped filenames** for easy identification
-- **Error-specific naming** (e.g., `python_script_error_2024-01-01T12-00-00.py`)
-
-### Debug Features in Detail
-
-#### **Script Content Access**
-- **Exact script source** that was executed
-- **With or without** variable injection
-- **Helpful for troubleshooting** unexpected behavior
-
-#### **Execution Timing**
-- **Script creation time**
-- **Execution start/finish timestamps** 
-- **Total duration in milliseconds**
-- **Performance profiling** for optimization
-
-#### **Environment Validation**
-- **Python executable detection**
-- **Version information** 
-- **Path resolution verification**
-- **Dependency checking** capabilities
-
-#### **Syntax Validation** 
-- **Pre-execution syntax checking** using Python AST
-- **Line number reporting** for syntax errors
-- **Error type identification**
-- **Safe validation** without code execution
-
-#### **Binary Script Export**
-- **Download .py files** directly from n8n interface
-- **Inspect generated scripts** in your IDE
-- **Share scripts** with team members
-- **Archive successful scripts** for reuse
-
-### Use Cases for Debug Modes
-
-#### **Development Workflow**
-```javascript
-1. Start with "Test Only" - validate syntax and environment
-2. Switch to "Basic Debug" - check script content and commands  
-3. Use "Full Debug" - analyze timing and detailed execution info
-4. Export scripts with "Export Script" - save working versions
-5. Deploy with "Off" - optimal production performance
-```
-
-#### **Troubleshooting Problems**
-```javascript
-// Problem: Script works locally but fails in n8n
-✅ Use "Full Debug" to compare:
-   - Environment differences (Python version, paths)
-   - Input data structure (injected_data field)
-   - Execution timing and performance
-
-// Problem: Syntax errors in generated scripts  
-✅ Use "Test Only" to validate:
-   - Python syntax without execution
-   - Environment setup
-   - Variable injection preview
-
-// Problem: Need to inspect exact executed script
-✅ Use "Export Script" to:
-   - Download actual .py file
-   - Debug in external Python IDE
-   - Share with team for review
-```
-
-#### **Performance Analysis**
-```javascript
-// Analyze execution performance
-✅ Use "Full Debug" timing info:
-   - Script creation overhead
-   - Execution duration
-   - Total processing time
-   - Compare "Once" vs "Per Item" modes
-```
-
-### Debug Mode Examples
-
-#### Testing Script Syntax
-```python
-# Enable "Test Only" mode to safely validate:
-import json
-import requests  # Will be validated for syntax
-
-data = {"test": True}
-print(json.dumps(data))
-
-# Result: Shows syntax validation without execution
-# Safe to test in production workflows
-```
-
-#### Performance Profiling
-```python
-# Enable "Full Debug" to measure performance:
-import time
-
-start_time = time.time()
-# Your processing logic here
-for item in input_items:
-    time.sleep(0.1)  # Simulate processing
-    
-print(f"Processed {len(input_items)} items")
-
-# Result: Get exact timing metrics in debug_info
-```
-
-#### Script Inspection
-```python
-# Enable "Export Script" to download and inspect:
-complex_logic = """
-def process_data(items):
-    return [item for item in items if item.get('active')]
-
-result = process_data(input_items)
-print(len(result))
-"""
-
-exec(complex_logic)
-
-# Result: Download exact executed script with all injected variables
-```
-
-## 🆚 Differences from Original Package
-
-This fork provides several enhancements over the original `n8n-nodes-python`:
-
-| Feature | Original | This Fork (Raw) |
-|---------|----------|-----------------|
-| Execution Model | Item-by-item processing | Single script execution |
-| Output Control | Transformed items only | Full stdout/stderr/exitCode |
-| Output Parsing | None | JSON/CSV/Lines/Smart modes |
-| Error Handling | Basic error throwing | Detailed error analysis |
-| Variable Injection | Always enabled | Optional configuration |
-| Python Dependencies | Required python-fire | No external dependencies |
-| Multiple JSON | Not supported | Full support with options |
-| CSV Parsing | Not supported | Automatic detection & parsing |
+- [npm Package](https://www.npmjs.com/package/n8n-nodes-python-raw)
+- [GitHub Repository](https://github.com/stttru/n8n-nodes-python-fork)
+- [Original Package](https://github.com/naskio/n8n-nodes-python)
+- [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
 
 ## 📄 License
 
@@ -908,73 +643,4 @@ Apache License 2.0 with Commons Clause - see [LICENSE](LICENSE.md)
 
 ## 🤝 Contributing
 
-This is a community-maintained fork. Contributions welcome!
-
-## 📝 Version History
-
-- **v1.9.0**: Added multiple credentials support with Credentials Management section, multi-select credentials, three merge strategies (last_wins/first_wins/prefix), and 100% backward compatibility
-- **v1.8.0**: Enhanced script generation and credential source tracking with improved debug support  
-- **v1.7.0**: Script Generation Options with Legacy support toggle, Hide Values option, and automatic cleanup
-- **v1.6.2**: Documentation update with complete Auto-Variable Extraction examples
-- **v1.6.1**: Fixed `from __future__` imports + Auto-Variable Extraction feature
-- **v1.6.0**: Added comprehensive Debug/Test system with script export and syntax validation
-- **v1.5.0**: Enhanced error handling and comprehensive variable documentation
-- **v1.4.0**: Added execution modes and data pass-through capabilities
-- **v1.3.0**: Added comprehensive output parsing (JSON/CSV/Lines/Smart modes)
-- **v1.2.0**: Enhanced error handling and user experience
-- **v1.1.0**: Added variable injection control and improved error parsing  
-- **v1.0.0**: Initial fork with raw execution functionality
-
-## 🔗 Links
-
-- [npm Package](https://www.npmjs.com/package/n8n-nodes-python-raw)
-- [Original Package](https://github.com/naskio/n8n-nodes-python)
-- [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
-
-## 🎯 Smart Parsing Features
-
-#### Script Generation Options Examples (New in v1.7.0)
-
-**Clean Scripts (Legacy Support Disabled):**
-```python
-# Input: [{"title": "My Video", "api_key": "secret123"}]
-# Configuration: Legacy input_items Support = OFF
-
-# Generated script contains only:
-title = "My Video" 
-api_key = "secret123"
-
-# No input_items or env_vars arrays!
-print(f"Processing: {title}")
-```
-
-**Secure Script Export (Hide Values Enabled):**
-```python
-# Input: [{"title": "My Video", "api_key": "secret123"}]  
-# Configuration: Hide Variable Values = ON, Export Script mode
-
-# Generated script for security:
-title = "***hidden***"
-api_key = "***hidden***"
-input_items = "***hidden***"
-env_vars = "***hidden***"
-
-# Code is preserved, data is hidden
-print(f"Processing: {title}")
-```
-
-**Legacy Compatible (Default):**
-```python
-# Both old and new approaches work:
-title = "My Video"              # New: direct access
-api_key = "secret123"
-
-input_items = [{"title": "My Video", "api_key": "secret123"}]  # Legacy
-env_vars = {}
-
-# Use either approach:
-print(f"Title: {title}")                    # Direct
-print(f"Title: {input_items[0]['title']}")  # Legacy
-```
-
-### 🚀 Real-World Use Cases
+This is a community-maintained fork. Contributions welcome! 

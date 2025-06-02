@@ -6,6 +6,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.6] - 2025-06-02
+
+### 📚 Documentation Update
+- **UPDATED**: Complete README.md overhaul with comprehensive documentation for all features
+- **NEW**: Detailed Output File Processing guide with examples for PDF, CSV, image, and video generation
+- **NEW**: File Debug System documentation with troubleshooting guides
+- **NEW**: Script Export Format documentation for security compliance
+- **ENHANCED**: Configuration options documentation with all v1.12.x features
+- **IMPROVED**: Usage examples with real-world scenarios and complete code samples
+- **ADDED**: Troubleshooting guide for common issues and solutions
+
+### 📖 Documentation Highlights
+- Complete file processing workflow examples
+- FFmpeg video generation tutorial
+- Multiple credentials with file output examples
+- File debugging and diagnostics guide
+- Common import issues and solutions
+- Version history with feature summaries
+
 ## [1.12.5] - 2025-06-02
 
 ### 🐛 Critical Fixes
