@@ -905,12 +905,44 @@ print(json.dumps(result))
 			autoCleanup: fileProcessingConfig.autoCleanup !== false, // default true
 		};
 		
+		// Get output file processing options
+		const outputFileProcessingConfig = this.getNodeParameter('outputFileProcessing', 0, {}) as {
+			enabled?: boolean;
+			maxOutputFileSize?: number;
+			autoCleanupOutput?: boolean;
+			includeOutputMetadata?: boolean;
+		};
+		
+		const outputFileProcessingOptions: OutputFileProcessingOptions = {
+			enabled: outputFileProcessingConfig.enabled === true, // default false
+			maxOutputFileSize: outputFileProcessingConfig.maxOutputFileSize || 100,
+			autoCleanupOutput: outputFileProcessingConfig.autoCleanupOutput !== false, // default true
+			includeOutputMetadata: outputFileProcessingConfig.includeOutputMetadata !== false, // default true
+		};
+		
+		// Create output directory if output file processing is enabled
+		let outputDir: string | undefined;
+		let outputDirToCleanup: string | undefined;
+		
+		if (outputFileProcessingOptions.enabled) {
+			try {
+				outputDir = createUniqueOutputDirectory();
+				if (outputFileProcessingOptions.autoCleanupOutput) {
+					outputDirToCleanup = outputDir;
+				}
+				console.log(`Output file processing enabled, created directory: ${outputDir}`);
+			} catch (error) {
+				console.error('Failed to create output directory:', error);
+				throw new NodeOperationError(this.getNode(), `Failed to create output directory: ${(error as Error).message}`);
+			}
+		}
+		
 		// Log configuration
 		console.log('Python Function Raw node configuration:', {
 			pythonPath,
 			injectVariables,
 			errorHandling,
-			debugMode,
+			 debugMode,
 			parseOutput,
 			parseOptions,
 			executionMode,
@@ -1077,6 +1109,8 @@ print(json.dumps(result))
 					systemEnvVars,
 					mergedCredentialSources,
 					inputFiles,
+					outputDir,
+					outputFileProcessingOptions,
 				);
 			} else {
 				return await executeOnce(
@@ -1098,6 +1132,8 @@ print(json.dumps(result))
 					systemEnvVars,
 					mergedCredentialSources,
 					inputFiles,
+					outputDir,
+					outputFileProcessingOptions,
 				);
 			}
 		} catch (error) {
@@ -1106,6 +1142,16 @@ print(json.dumps(result))
 			// Cleanup temporary files if enabled
 			if (tempFilesToCleanup.length > 0) {
 				await cleanupTemporaryFiles(tempFilesToCleanup);
+			}
+			
+			// Cleanup output directory if needed
+			if (outputDirToCleanup) {
+				try {
+					await cleanupOutputDirectory(outputDirToCleanup);
+				} catch (error) {
+					console.warn('Failed to cleanup output directory:', error);
+					// Don't throw error - cleanup should not break main process
+				}
 			}
 		}
 	}
@@ -1362,6 +1408,8 @@ async function executeOnce(
 	systemEnvVars: string[],
 	credentialSources: Record<string, string>,
 	inputFiles: FileMapping[],
+	outputDir?: string,
+	outputFileProcessingOptions?: OutputFileProcessingOptions,
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
@@ -1373,7 +1421,7 @@ async function executeOnce(
 	let scriptPath = '';
 	try {
 		if (injectVariables) {
-			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles);
+			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
 		} else {
 			scriptPath = await getTemporaryPureScriptPath(functionCode);
 		}
@@ -1385,7 +1433,7 @@ async function executeOnce(
 		// Initialize debug information
 		if (debugMode !== 'off') {
 			const scriptContent = injectVariables 
-				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles)
+				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir)
 				: functionCode;
 			
 			debugInfo = await createDebugInfo(
@@ -1470,6 +1518,22 @@ async function executeOnce(
 			});
 		}
 
+		// Process output files if enabled
+		if (outputFileProcessingOptions?.enabled && outputDir) {
+			try {
+				const outputFiles = await scanOutputDirectory(outputDir, outputFileProcessingOptions);
+				
+				// Add output file information to result
+				baseResult.outputFiles = outputFiles;
+				baseResult.outputFilesCount = outputFiles.length;
+				
+				console.log(`Found ${outputFiles.length} output files for processing`);
+			} catch (error) {
+				console.error('Error processing output files:', error);
+				baseResult.outputFileError = `Failed to process output files: ${(error as Error).message}`;
+			}
+		}
+
 		// Add debug information if enabled
 		if (debugInfo && debugMode !== 'off') {
 			debugInfo.timing = debugTiming;
@@ -1478,6 +1542,23 @@ async function executeOnce(
 
 		// Handle pass through data
 		const resultWithPassThrough = handlePassThroughData(baseResult, items, passThrough, passThroughMode);
+
+		// Add output files as binary data if enabled
+		if (outputFileProcessingOptions?.enabled && baseResult.outputFiles && Array.isArray(baseResult.outputFiles)) {
+			for (const resultItem of resultWithPassThrough) {
+				for (const outputFile of baseResult.outputFiles as OutputFileInfo[]) {
+					if (!resultItem.binary) {
+						resultItem.binary = {};
+					}
+					resultItem.binary[outputFile.binaryKey] = {
+						data: outputFile.base64Data,
+						mimeType: outputFile.mimetype,
+						fileExtension: outputFile.extension,
+						fileName: outputFile.filename,
+					};
+				}
+			}
+		}
 
 		// Add binary script file for Export mode
 		if (debugMode === 'export' && debugInfo) {
@@ -1505,6 +1586,19 @@ async function executeOnce(
 		// Add error details to result
 		baseResult.pythonError = pythonError;
 		baseResult.detailedError = `Script failed with exit code ${exitCode}. ${pythonError.errorType || 'Error'}: ${pythonError.errorMessage || stderr}`;
+		
+		// Process output files even for errors if enabled
+		if (outputFileProcessingOptions?.enabled && outputDir) {
+			try {
+				const outputFiles = await scanOutputDirectory(outputDir, outputFileProcessingOptions);
+				baseResult.outputFiles = outputFiles;
+				baseResult.outputFilesCount = outputFiles.length;
+				console.log(`Found ${outputFiles.length} output files for error case`);
+			} catch (error) {
+				console.error('Error processing output files in error case:', error);
+				baseResult.outputFileError = `Failed to process output files: ${(error as Error).message}`;
+			}
+		}
 
 		// Add debug information if enabled
 		if (debugInfo && debugMode !== 'off') {
@@ -1514,6 +1608,23 @@ async function executeOnce(
 
 		// Handle pass through for errors too
 		const errorResultWithPassThrough = handlePassThroughData(baseResult, items, passThrough, passThroughMode);
+
+		// Add output files as binary data for errors if enabled
+		if (outputFileProcessingOptions?.enabled && baseResult.outputFiles && Array.isArray(baseResult.outputFiles)) {
+			for (const resultItem of errorResultWithPassThrough) {
+				for (const outputFile of baseResult.outputFiles as OutputFileInfo[]) {
+					if (!resultItem.binary) {
+						resultItem.binary = {};
+					}
+					resultItem.binary[outputFile.binaryKey] = {
+						data: outputFile.base64Data,
+						mimeType: outputFile.mimetype,
+						fileExtension: outputFile.extension,
+						fileName: outputFile.filename,
+					};
+				}
+			}
+		}
 
 		// Add binary script file for Export mode (even for errors)
 		if (debugMode === 'export' && debugInfo) {
@@ -1611,6 +1722,8 @@ async function executePerItem(
 	systemEnvVars: string[],
 	credentialSources: Record<string, string>,
 	inputFiles: FileMapping[],
+	outputDir?: string,
+	outputFileProcessingOptions?: OutputFileProcessingOptions,
 ): Promise<INodeExecutionData[][]> {
 	
 	const results: INodeExecutionData[] = [];
@@ -1628,7 +1741,7 @@ async function executePerItem(
 		try {
 			if (injectVariables) {
 				// For per-item execution, pass only current item
-				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles);
+				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
 			} else {
 				scriptPath = await getTemporaryPureScriptPath(functionCode);
 			}
@@ -1636,7 +1749,7 @@ async function executePerItem(
 			// Create debug information for this item
 			if (debugMode !== 'off') {
 				const scriptContent = injectVariables 
-					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles)
+					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir)
 					: functionCode;
 				
 				debugInfo = await createDebugInfo(
@@ -1769,6 +1882,22 @@ async function executePerItem(
 				});
 			}
 
+			// Process output files if enabled
+			if (outputFileProcessingOptions?.enabled && outputDir) {
+				try {
+					const outputFiles = await scanOutputDirectory(outputDir, outputFileProcessingOptions);
+					
+					// Add output file information to result
+					itemResult.outputFiles = outputFiles;
+					itemResult.outputFilesCount = outputFiles.length;
+					
+					console.log(`Found ${outputFiles.length} output files for item ${i}`);
+				} catch (error) {
+					console.error(`Error processing output files for item ${i}:`, error);
+					itemResult.outputFileError = `Failed to process output files: ${(error as Error).message}`;
+				}
+			}
+
 			// Handle errors
 			if (exitCode !== 0) {
 				const pythonError = parsePythonError(stderr);
@@ -1789,6 +1918,23 @@ async function executePerItem(
 
 			// Handle pass through data
 			const resultWithPassThrough = handlePassThroughData(itemResult, [item], passThrough, passThroughMode);
+
+			// Add output files as binary data if enabled
+			if (outputFileProcessingOptions?.enabled && itemResult.outputFiles && Array.isArray(itemResult.outputFiles)) {
+				for (const resultItem of resultWithPassThrough) {
+					for (const outputFile of itemResult.outputFiles as OutputFileInfo[]) {
+						if (!resultItem.binary) {
+							resultItem.binary = {};
+						}
+						resultItem.binary[outputFile.binaryKey] = {
+							data: outputFile.base64Data,
+							mimeType: outputFile.mimetype,
+							fileExtension: outputFile.extension,
+							fileName: outputFile.filename,
+						};
+					}
+				}
+			}
 
 			// Add binary script file for Export mode
 			if (debugMode === 'export' && debugInfo) {
@@ -1937,6 +2083,7 @@ function getScriptCode(
 	hideVariableValues = false,
 	credentialSources?: Record<string, string>,
 	inputFiles?: FileMapping[],
+	outputDir?: string,
 ): string {
 	// Extract __future__ imports from user code and move them to the top
 	const futureImports: string[] = [];
@@ -2085,12 +2232,22 @@ ${legacyParts.join('\n')}`;
 input_files = ${filesValue}`;
 	}
 
+	// Add output directory section if provided
+	let outputDirSection = '';
+	if (outputDir) {
+		const outputDirValue = hideVariableValues ? '"***hidden***"' : outputDir;
+		outputDirSection = `
+# Output directory for generated files (Output File Processing enabled)
+output_dir = r"${outputDirValue}"
+`;
+	}
+
 	const script = `#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
 ${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
 import json
 import sys
-${envVariablesSection}${individualVariables}${legacyDataSection}${inputFilesSection}
+${envVariablesSection}${individualVariables}${legacyDataSection}${inputFilesSection}${outputDirSection}
 # User code starts here
 ${cleanedCodeSnippet}
 `;
@@ -2098,9 +2255,9 @@ ${cleanedCodeSnippet}
 }
 
 
-async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems = true, includeEnvVarsDict = false, hideVariableValues = false, credentialSources?: Record<string, string>, inputFiles?: FileMapping[]): Promise<string> {
+async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], envVars: Record<string, string>, includeInputItems = true, includeEnvVarsDict = false, hideVariableValues = false, credentialSources?: Record<string, string>, inputFiles?: FileMapping[], outputDir?: string): Promise<string> {
 	const tmpPath = tempy.file({extension: 'py'});
-	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles);
+	const codeStr = getScriptCode(codeSnippet, data, envVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir);
 	
 	// Ensure file is overwritten by explicitly writing with 'w' flag
 	try {

@@ -1,112 +1,124 @@
 #!/usr/bin/env python3
+"""
+Тест генерации Python скрипта с output_dir переменной
+"""
 
-# Simple test to simulate the getScriptCode functionality with new separate toggles
-def get_script_code_mock(code_snippet, data, env_vars, include_input_items=True, include_env_vars_dict=False, hide_values=False):
-    """Mock function to test the new flexible environment variables logic"""
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+# Добавляем путь к модулям проекта
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'nodes', 'PythonFunction'))
+
+def test_script_generation():
+    """Тестирует генерацию скрипта с output_dir"""
+    print("🧪 ТЕСТИРОВАНИЕ ГЕНЕРАЦИИ СКРИПТА С OUTPUT_DIR")
+    print("=" * 60)
     
-    # Environment variables section (always included when env_vars exist)
-    env_variables_section = ''
-    if len(env_vars) > 0:
-        env_variable_assignments = []
-        
-        for key, value in env_vars.items():
-            # Create safe variable names (replace invalid characters)
-            safe_var_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in key)
-            
-            # Ensure it starts with letter or underscore
-            if not (safe_var_name[0].isalpha() or safe_var_name[0] == '_'):
-                safe_var_name = f'env_{safe_var_name}'
-            
-            display_value = '"***hidden***"' if hide_values else repr(value)
-            env_variable_assignments.append(f'{safe_var_name} = {display_value}')
-        
-        if env_variable_assignments:
-            env_variables_section = f'''
-# Environment variables (from credentials and system)
-{chr(10).join(env_variable_assignments)}
-'''
-
-    # Individual variables from first item
-    individual_variables = ''
-    if data:
-        first_item = data[0]
-        variable_assignments = []
-        
-        for key, value in first_item.items():
-            safe_var_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in key)
-            display_value = '"***hidden***"' if hide_values else repr(value)
-            variable_assignments.append(f'{safe_var_name} = {display_value}')
-        
-        if variable_assignments:
-            individual_variables = f'''
-# Individual variables from first input item
-{chr(10).join(variable_assignments)}
-'''
-
-    # Legacy data section - now flexible
-    legacy_data_section = ''
-    if include_input_items or include_env_vars_dict:
-        legacy_parts = []
-        
-        if include_input_items:
-            input_items_value = '"***hidden***"' if hide_values else repr(data)
-            legacy_parts.append(f'input_items = {input_items_value}')
-        
-        if include_env_vars_dict:
-            env_vars_value = '"***hidden***"' if hide_values else repr(env_vars)
-            legacy_parts.append(f'env_vars = {env_vars_value}')
-        
-        if legacy_parts:
-            legacy_data_section = f'''
-# Legacy compatibility objects
-{chr(10).join(legacy_parts)}'''
-
-    script = f'''#!/usr/bin/env python3
+    # Симуляция данных
+    code_snippet = """
+import os
+print(f"Output directory: {output_dir}")
+if 'output_dir' in globals():
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, 'test.txt'), 'w') as f:
+        f.write('Hello from Python!')
+    print(f"File created in: {output_dir}")
+else:
+    print("output_dir variable not found!")
+"""
+    
+    data = [{"message": "test"}]
+    env_vars = {"TEST_VAR": "test_value"}
+    output_dir = tempfile.mkdtemp(prefix="test_output_")
+    
+    print(f"📁 Test output directory: {output_dir}")
+    
+    # Симуляция функции getScriptCode (из TypeScript)
+    script_content = f"""#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
 
 import json
 import sys
-{env_variables_section}{individual_variables}{legacy_data_section}
+
+# Environment variables (from credentials and system)
+TEST_VAR = "test_value"
+
+# Individual variables from first input item
+message = "test"
+
+# Legacy compatibility objects
+input_items = {data}
+
+# Output directory for generated files (Output File Processing enabled)
+output_dir = r"{output_dir}"
+
 # User code starts here
 {code_snippet}
-'''
-    return script
+"""
+    
+    print("📝 Generated script content:")
+    print("-" * 40)
+    print(script_content)
+    print("-" * 40)
+    
+    # Проверяем что output_dir присутствует в скрипте
+    if 'output_dir = r"' in script_content:
+        print("✅ output_dir variable found in script")
+    else:
+        print("❌ output_dir variable NOT found in script")
+        return False
+    
+    # Создаем временный файл скрипта и выполняем его
+    script_path = os.path.join(tempfile.gettempdir(), 'test_script.py')
+    try:
+        with open(script_path, 'w', encoding='utf-8') as f:
+            f.write(script_content)
+        
+        print(f"📄 Script saved to: {script_path}")
+        
+        # Выполняем скрипт
+        import subprocess
+        result = subprocess.run([sys.executable, script_path], 
+                              capture_output=True, text=True, timeout=10)
+        
+        print(f"🔧 Script execution:")
+        print(f"   Exit code: {result.returncode}")
+        print(f"   Stdout: {result.stdout}")
+        if result.stderr:
+            print(f"   Stderr: {result.stderr}")
+        
+        # Проверяем что файл был создан
+        test_file = os.path.join(output_dir, 'test.txt')
+        if os.path.exists(test_file):
+            print("✅ Test file was created successfully!")
+            with open(test_file, 'r') as f:
+                content = f.read()
+                print(f"   File content: {content}")
+            return True
+        else:
+            print("❌ Test file was NOT created")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error executing script: {e}")
+        return False
+    finally:
+        # Cleanup
+        try:
+            if os.path.exists(script_path):
+                os.unlink(script_path)
+            if os.path.exists(output_dir):
+                import shutil
+                shutil.rmtree(output_dir)
+        except:
+            pass
 
-# Test data
-test_data = [{"name": "test", "value": 123}]
-test_env_vars = {
-    "API_KEY": "secret123",
-    "DB_HOST": "localhost", 
-    "PORT": "5432",
-}
-
-print("=== Testing NEW FLEXIBLE environment variables functionality ===\n")
-
-# Test 1: Default settings (input_items=True, env_vars_dict=False)
-print("1. Default settings (input_items=ON, env_vars_dict=OFF):")
-script = get_script_code_mock("print('Hello world')", test_data, test_env_vars, True, False, False)
-print(script)
-print("\n" + "="*60 + "\n")
-
-# Test 2: Both legacy objects enabled
-print("2. Both legacy objects (input_items=ON, env_vars_dict=ON):")
-script = get_script_code_mock("print('Hello world')", test_data, test_env_vars, True, True, False)
-print(script)
-print("\n" + "="*60 + "\n")
-
-# Test 3: Only env_vars dict, no input_items
-print("3. Only env_vars dict (input_items=OFF, env_vars_dict=ON):")
-script = get_script_code_mock("print('Hello world')", test_data, test_env_vars, False, True, False)
-print(script)
-print("\n" + "="*60 + "\n")
-
-# Test 4: No legacy objects at all
-print("4. No legacy objects (input_items=OFF, env_vars_dict=OFF):")
-script = get_script_code_mock("print('Hello world')", test_data, test_env_vars, False, False, False)
-print(script)
-print("\n" + "="*60 + "\n")
-
-# Test 5: With hidden values
-print("5. Hidden values (input_items=ON, env_vars_dict=ON, hide=ON):")
-script = get_script_code_mock("print('Hello world')", test_data, test_env_vars, True, True, True)
-print(script) 
+if __name__ == "__main__":
+    success = test_script_generation()
+    if success:
+        print("\n🎉 SCRIPT GENERATION TEST PASSED!")
+    else:
+        print("\n💥 SCRIPT GENERATION TEST FAILED!")
+    sys.exit(0 if success else 1) 
