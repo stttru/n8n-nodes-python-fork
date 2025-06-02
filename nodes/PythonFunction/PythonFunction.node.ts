@@ -1986,12 +1986,12 @@ ${legacyParts.join('\n')}`;
 	let inputFilesSection = '';
 	if (inputFiles && inputFiles.length > 0) {
 		const filesArray = inputFiles.map(file => {
-			const fileInfo: any = {
+			const fileInfo: Record<string, unknown> = {
 				filename: file.filename,
 				mimetype: file.mimetype,
 				size: file.size,
 				extension: file.extension,
-				binary_key: file.binaryKey,
+					binary_key: file.binaryKey,
 				item_index: file.itemIndex,
 			};
 			
