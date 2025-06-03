@@ -6,6 +6,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.1] - 2025-06-03
+
+### Fixed
+- **Extract Code Template**: Fixed "Node type does not have method defined" error when using Extract Code Template functionality
+- **UI Enhancement**: Improved template display in Extract Code Template dropdown with full template preview
+- **Error Handling**: Better error handling and user feedback for template generation
+
 ## [1.13.0] - 2025-01-27
 
 ### 🔍 Extract Code Template Functionality

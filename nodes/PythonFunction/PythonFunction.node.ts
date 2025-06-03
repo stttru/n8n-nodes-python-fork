@@ -1564,23 +1564,30 @@ print(json.dumps(result))
 				{
 					name: `✅ Template Generated (${nonEmptyLines} lines)`,
 					value: 'template_generated',
-					description: `Generated at ${timestamp}\n\nPreview:\n${preview}${truncated}\n\nCopy full template from "Auto-Generated Code Template" field below`,
+					description: `Generated at ${timestamp}\n\nPreview:\n${preview}${truncated}\n\nCopy the full template code from console output below`,
 				},
 				{
 					name: '📋 Template Info',
 					value: 'template_info',
 					description: `
-Includes:
+Template includes:
 • ${scriptOptions.includeInputItems !== false ? '✓' : '✗'} Input items array
-• ${scriptOptions.includeEnvVarsDict === true ? '✓' : '✗'} Environment variables dict
+• ${scriptOptions.includeEnvVarsDict === true ? '✓' : '✗'} Environment variables dict  
 • ${fileProcessing.enabled === true ? '✓' : '✗'} File processing
 • ${outputFileProcessing.enabled === true ? '✓' : '✗'} Output file processing
+
+Generated ${nonEmptyLines} lines of Python code
 					`.trim(),
 				},
 				{
-					name: '🔄 Refresh Template',
-					value: 'refresh',
-					description: 'Template reflects current node configuration. Change settings and click again to update.',
+					name: '📄 Full Template',
+					value: 'full_template',
+					description: `\`\`\`python\n${templateCode}\n\`\`\``,
+				},
+				{
+					name: '🔄 Generate Again',
+					value: 'generate_again',
+					description: 'Click to regenerate template with current node settings. Template reflects your current configuration.',
 				},
 			];
 
@@ -1590,7 +1597,7 @@ Includes:
 				{
 					name: '❌ Template Generation Failed',
 					value: 'error',
-					description: `Error: ${(error as Error).message}\n\nCheck that the node configuration is valid.`,
+					description: `Error: ${(error as Error).message}\n\nPlease check that the node configuration is valid and try again.`,
 				},
 			];
 		}
