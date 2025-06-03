@@ -6,6 +6,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0] - 2025-01-27
+
+### 🔍 Extract Code Template Functionality
+- **NEW**: Code Template Mode toggle to enable template extraction functionality
+- **NEW**: Interactive "Extract Code Template" button with loadOptionsMethod integration
+- **NEW**: Auto-Generated Code Template field with Python syntax highlighting and 15-row display
+- **NEW**: Dynamic template generation based on current node configuration
+- **NEW**: Support for all node options (file processing, credentials, environment variables, output processing)
+
+### 🎯 Developer Experience Enhancement
+- **CodeTemplateData Interface**: Comprehensive data structure for template metadata and generation info
+- **generateCodeTemplate() Method**: Interactive UI method with proper error handling and user feedback
+- **generateCodeTemplateStatic() Function**: Core template generation with configuration analysis
+- **Template Validation**: Reflects current node settings including Script Generation Options, File Processing, and Credentials
+
+### 🛠️ Technical Implementation
+- **UI Integration**: Seamless integration with existing node interface using displayOptions
+- **Configuration Awareness**: Template automatically reflects enabled features (inject variables, file processing, output files, etc.)
+- **Error Handling**: Graceful handling of incomplete configurations with informative messages
+- **Code Structure**: Clean separation between UI methods and core generation logic
+
+### 📚 User Benefits
+- **Code Understanding**: View the auto-generated Python code structure that n8n creates around user scripts
+- **Debugging Aid**: Identify variable injection and configuration issues before execution
+- **Learning Tool**: Understand n8n Python integration patterns and best practices
+- **External Development**: Copy boilerplate code for use in external Python projects
+- **Configuration Validation**: Verify node settings are correct before script execution
+
+### 🧪 Testing & Quality
+- **Comprehensive Testing**: Full test coverage with `test_extract_code_template.py`
+- **Conda Environment Support**: Tested with Python conda environments
+- **TypeScript Compilation**: Clean compilation without linting errors
+- **Backward Compatibility**: All existing functionality preserved without breaking changes
+
+### 📋 Usage Instructions
+1. Enable "Code Template Mode" checkbox in node configuration
+2. Configure node settings (Script Generation Options, File Processing, Credentials, etc.)
+3. Click "Extract Code Template" button to generate current template
+4. View generated code in "Auto-Generated Code Template" field with syntax highlighting
+5. Copy and use template code for external development or debugging
+
+### 🎨 UI Enhancements
+- **Conditional Display**: Template options only show when Code Template Mode is enabled
+- **Syntax Highlighting**: Python code editor with proper formatting
+- **Interactive Feedback**: Button provides immediate response with template generation
+- **Clean Integration**: Seamlessly fits into existing node interface design
+
 ## [1.12.6] - 2025-06-02
 
 ### 📚 Documentation Update
