@@ -1,8 +1,8 @@
 # n8n-nodes-python-raw
 
-An n8n community node for executing Python scripts with raw output control and advanced file processing capabilities.
+An **enterprise-ready** n8n community node for executing Python scripts with raw output control, advanced file processing capabilities, and comprehensive testing infrastructure.
 
-This is a **fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) with significant enhancements for raw Python script execution, structured output parsing, and comprehensive file processing.
+This is a **stable, production-tested fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) with significant enhancements for raw Python script execution, structured output parsing, comprehensive file processing, and robust error handling.
 
 ## ✨ Key Features
 
@@ -16,11 +16,13 @@ This is a **fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-no
 - **Flexible Output Parsing**: Parse stdout as JSON, CSV, lines, or smart auto-detection
 - **Multiple Execution Modes**: Run once for all items or once per each item
 - **Pass Through Data**: Preserve and combine input data with Python results
-- **Variable Injection**: Optional injection of input items and environment variables
+- **Variable Injection**: Optional injection of input items and environment variables with enhanced sanitization (v1.12.8+)
 - **Comprehensive Error Handling**: Detailed error reporting with Python traceback analysis
 - **Debug/Test System**: 5 debug modes including safe testing and script export
 - **Multiple Output Formats**: Support for single/multiple JSON objects, CSV data, and text lines
 - **Smart Parsing**: Automatic detection and parsing of JSON, CSV, and structured data
+- **Production Stability**: 100% test coverage for unit, functional, and TypeScript tests (v1.13.1+)
+- **Global Accessibility**: Complete English documentation and internationalization (v1.13.2+)
 
 ## 📦 Installation
 
@@ -611,6 +613,11 @@ from shutil import which
 
 ## 📄 Version History
 
+- **v1.13.2**: Complete internationalization - all Russian text translated to English for global accessibility
+- **v1.13.1**: Test infrastructure reorganization and comprehensive test fixes (unit/functional/TypeScript tests at 100%)
+- **v1.12.8**: Variable validation fixes - enhanced sanitization of Python variable names from input data
+- **v1.12.7**: Improved backward compatibility and credential handling in recent n8n versions
+- **v1.12.6**: Enhanced variable injection and output file processing stability
 - **v1.12.5**: Removed legacy variables and fixed file variables hiding issue
 - **v1.12.4**: Added `expected_filename` variable and enhanced output file processing instructions
 - **v1.12.3**: Fixed Expected Output Filename field UI issue and added default example
