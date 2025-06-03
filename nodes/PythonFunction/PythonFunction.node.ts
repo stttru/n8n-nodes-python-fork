@@ -1523,7 +1523,7 @@ print(json.dumps(result))
 				} else {
 					console.log('No binary files found in input data');
 				}
-			} catch (error) {
+		} catch (error) {
 				console.error('File processing failed:', error);
 				// Cleanup any partial temp files
 				if (tempFilesToCleanup.length > 0) {
@@ -1885,12 +1885,12 @@ async function executeOnce(
 		debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 			new Date(debugTiming.execution_started_at).getTime();
 
-		const {
-			error: returnedError,
-			exitCode,
+			const {
+				error: returnedError,
+				exitCode,
 			stdout,
 			stderr,
-		} = execResults;
+			} = execResults;
 
 		// Parse stdout based on configuration
 		let parseResult: ParseResult | null = null;
@@ -2017,7 +2017,7 @@ async function executeOnce(
 				baseResult.outputFiles = outputFiles;
 				baseResult.outputFilesCount = outputFiles.length;
 				console.log(`Found ${outputFiles.length} output files for error case`);
-			} catch (error) {
+		} catch (error) {
 				console.error('Error processing output files in error case:', error);
 				baseResult.outputFileError = `Failed to process output files: ${(error as Error).message}`;
 			}
@@ -2069,7 +2069,7 @@ async function executeOnce(
 			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
 		} else if (errorHandling === 'throw') {
 			throw new NodeOperationError(executeFunctions.getNode(), baseResult.detailedError as string);
-		} else {
+			} else {
 			// 'ignore' mode - return error details but continue execution
 			console.log('Ignoring exit code error:', baseResult);
 			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
@@ -2118,7 +2118,7 @@ async function executeOnce(
 
 			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
 		} else {
-			throw error;
+				throw error;
 		}
 	} finally {
 		await cleanupScript(scriptPath);
