@@ -1537,9 +1537,9 @@ print(json.dumps(result))
 			// Get current node parameters
 			const currentNodeParameter = this.getCurrentNodeParameter;
 			const functionCode = currentNodeParameter('functionCode') as string || '';
-			const scriptOptions = (currentNodeParameter('scriptOptions') as any) || {};
-			const fileProcessing = (currentNodeParameter('fileProcessing') as any) || {};
-			const outputFileProcessing = (currentNodeParameter('outputFileProcessing') as any) || {};
+			const scriptOptions = (currentNodeParameter('scriptOptions') as IDataObject) || {};
+			const fileProcessing = (currentNodeParameter('fileProcessing') as IDataObject) || {};
+			const outputFileProcessing = (currentNodeParameter('outputFileProcessing') as IDataObject) || {};
 			
 			// Generate template using the helper function
 			const templateCode = generateCodeTemplateStatic(
@@ -1548,7 +1548,7 @@ print(json.dumps(result))
 				scriptOptions.includeEnvVarsDict === true,
 				true, // Always hide variable values in template
 				fileProcessing.enabled === true,
-				outputFileProcessing.enabled === true
+				outputFileProcessing.enabled === true,
 			);
 
 			// Get statistics about the template
@@ -3793,9 +3793,9 @@ async function searchForFileByName(fileName: string, searchPaths?: string[]): Pr
 								filename: fileName,
 								size: stats.size,
 								mimetype: getMimeType(extension),
-								extension: extension,
+								extension,
 								base64Data: content.toString('base64'),
-								binaryKey: `found_${fileName.replace(/[^a-zA-Z0-9]/g, '_')}`
+								binaryKey: `found_${fileName.replace(/[^a-zA-Z0-9]/g, '_')}`,
 							});
 						} catch (error) {
 							console.warn(`Failed to read found file ${fullPath}:`, error);
@@ -3817,32 +3817,32 @@ async function searchForFileByName(fileName: string, searchPaths?: string[]): Pr
 
 // Helper function to generate code template for Extract Code Template functionality
 function generateCodeTemplateStatic(
-	functionCode: string = '',
-	includeInputItems: boolean = true,
-	includeEnvVarsDict: boolean = false,
-	hideVariableValues: boolean = true,
-	includeFiles: boolean = false,
-	includeOutputDir: boolean = false
+	functionCode = '',
+	includeInputItems = true,
+	includeEnvVarsDict = false,
+	hideVariableValues = true,
+	includeFiles = false,
+	includeOutputDir = false,
 ): string {
 	try {
 		// Mock data for template generation
 		const mockData: IDataObject[] = [
 			{ id: 1, name: 'Sample Item 1', status: 'active' },
-			{ id: 2, name: 'Sample Item 2', status: 'pending' }
+			{ id: 2, name: 'Sample Item 2', status: 'pending' },
 		];
 		
 		const mockEnvVars: Record<string, string> = {
 			API_KEY: hideVariableValues ? '***HIDDEN***' : 'your_api_key_here',
 			DATABASE_URL: hideVariableValues ? '***HIDDEN***' : 'postgresql://user:pass@host:5432/db',
 			DEBUG: 'true',
-			PORT: '3000'
+			PORT: '3000',
 		};
 
 		const mockCredentialSources: Record<string, string> = {
 			API_KEY: 'main_credential',
 			DATABASE_URL: 'main_credential',
 			DEBUG: 'main_credential',
-			PORT: 'main_credential'
+			PORT: 'main_credential',
 		};
 
 		const mockInputFiles: FileMapping[] = includeFiles ? [
@@ -3854,8 +3854,8 @@ function generateCodeTemplateStatic(
 				itemIndex: 0,
 				extension: 'txt',
 				tempPath: '/tmp/example.txt',
-				base64Data: 'ZXhhbXBsZSBjb250ZW50'
-			}
+				base64Data: 'ZXhhbXBsZSBjb250ZW50',
+			},
 		] : [];
 
 		const outputDir = includeOutputDir ? '/tmp/n8n_output_YYYYMMDD_HHMMSS_random' : undefined;
@@ -3870,7 +3870,7 @@ function generateCodeTemplateStatic(
 			hideVariableValues,
 			mockCredentialSources,
 			mockInputFiles,
-			outputDir
+			outputDir,
 		);
 
 		// Extract only the auto-generated part (everything before user code)
