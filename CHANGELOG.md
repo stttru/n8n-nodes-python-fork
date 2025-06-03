@@ -6,6 +6,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.2] - 2025-01-27
+
+### 🌐 Internationalization
+- **TRANSLATED**: All Russian text in project documentation and code comments to English
+- **FIXED**: `VARIABLE_VALIDATION_FIXES.md` - complete translation of technical documentation
+- **FIXED**: `tests/examples/video_generation_demo.py` - translated all Python code comments and print messages
+- **IMPROVED**: Project now fully in English for international accessibility
+- **MAINTAINED**: Existing functionality unchanged, translation-only update
+
+### 📝 Files Updated
+- **VARIABLE_VALIDATION_FIXES.md**: Complete translation of variable validation documentation
+- **tests/examples/video_generation_demo.py**: Translated video generation demo comments and output messages
+- **Documentation Consistency**: All project files now use consistent English language
+
 ## [1.13.1] - 2025-06-03
 
 ### Fixed

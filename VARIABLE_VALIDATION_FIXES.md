@@ -1,37 +1,37 @@
 # Variable Validation Fixes - v1.12.8
 
-## Проблема
-В предыдущих версиях узел мог генерировать Python скрипты с синтаксическими ошибками, когда входные данные содержали:
-- Пустые ключи (`""`)
-- Ключи только с пробелами (`"   "`)
-- Ключи, начинающиеся с цифр (`"123abc"`)
-- Ключи с недопустимыми символами (`"invalid-name"`, `"@#$%"`)
+## Problem
+Previous versions of the node could generate Python scripts with syntax errors when input data contained:
+- Empty keys (`""`)
+- Keys with only spaces (`"   "`)
+- Keys starting with digits (`"123abc"`)
+- Keys with invalid symbols (`"invalid-name"`, `"@#$%"`)
 
-Это приводило к ошибкам типа:
+This led to errors like:
 ```
 SyntaxError: invalid syntax
  = ""
 ```
 
-## Исправления
+## Fixes
 
-### 1. Добавлена функция `sanitizeVariableName()`
+### 1. Added `sanitizeVariableName()` function
 ```typescript
 function sanitizeVariableName(key: string, prefix = 'var'): string | null {
-    // Пропускаем пустые ключи
+    // Skip empty keys
     if (!key || key.trim() === '') {
         return null;
     }
     
-    // Заменяем недопустимые символы на подчеркивания
+    // Replace invalid characters with underscores
     let safeVarName = key.replace(/[^a-zA-Z0-9_]/g, '_');
     
-    // Добавляем префикс если имя начинается с цифры
+    // Add prefix if name starts with digit
     if (!/^[a-zA-Z_]/.test(safeVarName)) {
         safeVarName = `${prefix}_${safeVarName}`;
     }
     
-    // Пропускаем если после санитизации имя невалидно
+    // Skip if after sanitization name is invalid
     if (!safeVarName || safeVarName.trim() === '' || safeVarName === `${prefix}_`) {
         return null;
     }
@@ -40,54 +40,54 @@ function sanitizeVariableName(key: string, prefix = 'var'): string | null {
 }
 ```
 
-### 2. Улучшена генерация переменных из входных данных
-- Используется `sanitizeVariableName()` для всех ключей
-- Пропускаются невалидные ключи вместо создания ошибочного кода
-- Добавлены проверки для предотвращения пустых присваиваний
+### 2. Improved variable generation from input data
+- Uses `sanitizeVariableName()` for all keys
+- Skips invalid keys instead of creating erroneous code
+- Added checks to prevent empty assignments
 
-### 3. Улучшена генерация переменных окружения
-- Применена та же валидация к переменным из credentials
-- Пропускаются невалидные ключи из переменных окружения
-- Сохранена совместимость с существующими конфигурациями
+### 3. Improved environment variable generation
+- Applied the same validation to variables from credentials
+- Skips invalid keys from environment variables
+- Preserved compatibility with existing configurations
 
-### 4. Добавлена дополнительная проверка синтаксиса
-В функции `getTemporaryScriptPath()` добавлена проверка:
+### 4. Added additional syntax checking
+In the `getTemporaryScriptPath()` function added check:
 ```typescript
-// Проверка на недопустимые присваивания переменных
+// Check for invalid variable assignments
 if (line.match(/^\s*=\s*/) || line.match(/^[^a-zA-Z_]\w*\s*=/)) {
     throw new Error(`Invalid variable assignment detected at line ${i + 1}: "${line}"`);
 }
 ```
 
-## Примеры обработки
+## Processing Examples
 
-### До исправления:
+### Before fix:
 ```python
-# Генерировался невалидный код:
+# Generated invalid code:
 = "empty_key_value"        # SyntaxError!
 123abc = "numeric_value"   # SyntaxError!
 ```
 
-### После исправления:
+### After fix:
 ```python
-# Пустые ключи пропускаются
-# Числовые ключи получают префикс:
+# Empty keys are skipped
+# Numeric keys get prefix:
 var_123abc = "numeric_value"
-# Недопустимые символы заменяются:
+# Invalid characters are replaced:
 invalid_name = "hyphen_value"
 ```
 
-## Тестирование
-Создан тестовый скрипт `test_variable_validation.py` который проверяет:
-- ✅ Санитизацию имен переменных
-- ✅ Обработку проблематичных входных данных
-- ✅ Паттерны валидации синтаксиса
+## Testing
+Created test script `test_variable_validation.py` which verifies:
+- ✅ Variable name sanitization
+- ✅ Handling of problematic input data
+- ✅ Syntax validation patterns
 
-## Совместимость
-- ✅ Полная обратная совместимость
-- ✅ Существующие рабочие скрипты продолжают работать
-- ✅ Улучшена обработка ошибочных данных
-- ✅ Более понятные сообщения об ошибках
+## Compatibility
+- ✅ Full backward compatibility
+- ✅ Existing working scripts continue to work
+- ✅ Improved handling of erroneous data
+- ✅ More clear error messages
 
-## Результат
-Узел теперь устойчив к некорректным входным данным и не генерирует Python скрипты с синтаксическими ошибками. 
+## Result
+The node is now resilient to incorrect input data and does not generate Python scripts with syntax errors. 

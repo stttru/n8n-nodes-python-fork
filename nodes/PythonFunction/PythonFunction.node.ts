@@ -579,23 +579,23 @@ print(json.dumps(result))
 				displayName: 'Extract Code Template',
 				name: 'extractCodeTemplate',
 				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Click to Generate Template',
+						value: '',
+					},
+				],
+				default: '',
+				typeOptions: {
+					loadOptionsMethod: 'generateCodeTemplate',
+				},
 				displayOptions: {
 					show: {
 						codeTemplateMode: [true],
 					},
 				},
-				options: [
-					{
-						name: '🔄 Generate Template',
-						value: 'generate',
-						description: 'Click to generate code template',
-					},
-				],
-				typeOptions: {
-					loadOptionsMethod: 'generateCodeTemplate',
-				},
-				default: '',
-				description: 'Generate and display the auto-generated Python code template with current settings',
+				description: 'Generate and view the auto-generated Python code template',
 			},
 			{
 				displayName: 'Auto-Generated Code Template',
@@ -1155,6 +1155,132 @@ print(json.dumps(result))
 		],
 	};
 
+	methods = {
+		loadOptions: {
+			async generateCodeTemplate(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				try {
+					// Get current node parameters
+					const currentNodeParameter = this.getCurrentNodeParameter;
+					const functionCode = currentNodeParameter('functionCode') as string || '';
+					const scriptOptions = (currentNodeParameter('scriptOptions') as IDataObject) || {};
+					const fileProcessing = (currentNodeParameter('fileProcessing') as IDataObject) || {};
+					const outputFileProcessing = (currentNodeParameter('outputFileProcessing') as IDataObject) || {};
+					
+					// Generate template using the helper function
+					const templateCode = generateCodeTemplateStatic(
+						functionCode,
+						scriptOptions.includeInputItems !== false,
+						scriptOptions.includeEnvVarsDict === true,
+						true, // Always hide variable values in template
+						fileProcessing.enabled === true,
+						outputFileProcessing.enabled === true,
+					);
+
+					// Get statistics about the template
+					const lines = templateCode.split('\n');
+					const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
+					const timestamp = new Date().toLocaleString();
+
+					// Truncate template for preview in description
+					const preview = lines.slice(0, 3).join('\n');
+					const truncated = lines.length > 3 ? '...' : '';
+
+					return [
+						{
+							name: `✅ Template Generated (${nonEmptyLines} lines)`,
+							value: 'template_generated',
+							description: `Generated at ${timestamp}\n\nPreview:\n${preview}${truncated}\n\nCopy the full template code from console output below`,
+						},
+						{
+							name: '📋 Template Info',
+							value: 'template_info',
+							description: `Total lines: ${lines.length}\nNon-empty lines: ${nonEmptyLines}\nGenerated: ${timestamp}`,
+						},
+						{
+							name: '📄 Full Template',
+							value: 'full_template',
+							description: `Complete auto-generated Python code:\n\n\`\`\`python\n${templateCode}\n\`\`\``,
+						},
+					];
+				} catch (error) {
+					return [
+						{
+							name: '❌ Error generating template',
+							value: 'error',
+							description: `Failed to generate code template: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					];
+				}
+			},
+			async getSystemEnvVars(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const envVars = Object.keys(process.env).filter(key => {
+					// Filter out sensitive or system-specific variables
+					const sensitivePatterns = [
+						/^HOME$/,
+						/^USER$/,
+						/^SHELL$/,
+						/^PWD$/,
+						/^PATH$/,
+						/^TEMP$/,
+						/^TMP$/,
+						/PASS/i,
+						/SECRET/i,
+						/TOKEN/i,
+						/API_KEY/i,
+						/PRIVATE/i,
+					];
+					
+					return !sensitivePatterns.some(pattern => pattern.test(key));
+				}).sort();
+				
+				return envVars.map(key => ({
+					name: `${key} = ${process.env[key]?.substring(0, 50)}${(process.env[key]?.length || 0) > 50 ? '...' : ''}`,
+					value: key,
+				}));
+			},
+			async getPythonEnvVarsCredentials(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				try {
+					const credentials = await this.getCredentials('pythonEnvVars');
+					if (!credentials || !credentials.envFileContent) {
+						return [
+							{
+								name: 'No credentials configured',
+								value: '',
+								description: 'Please configure Python Environment Variables credentials first',
+							},
+						];
+					}
+
+					const envVars = parseEnvFile(String(credentials.envFileContent));
+					const envVarKeys = Object.keys(envVars).sort();
+
+					if (envVarKeys.length === 0) {
+						return [
+							{
+								name: 'No environment variables found',
+								value: '',
+								description: 'The configured credentials contain no environment variables',
+							},
+						];
+					}
+
+					return envVarKeys.map(key => ({
+						name: `${key} = ${envVars[key]?.substring(0, 50)}${(envVars[key]?.length || 0) > 50 ? '...' : ''}`,
+						value: key,
+					}));
+				} catch (error) {
+					return [
+						{
+							name: 'Error loading credentials',
+							value: '',
+							description: `Failed to load Python Environment Variables credentials: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					];
+				}
+			},
+		},
+	};
+
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 
 		let items = this.getInputData();
@@ -1480,132 +1606,7 @@ print(json.dumps(result))
 			}
 		}
 	}
-
-	async getSystemEnvVars(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-		const envVars = Object.keys(process.env).filter(key => {
-			// Filter out sensitive or system-specific variables
-			const sensitivePatterns = [
-				/^HOME$/,
-				/^USER$/,
-				/^SHELL$/,
-				/^PWD$/,
-				/^PATH$/,
-				/^TEMP$/,
-				/^TMP$/,
-				/PASS/i,
-				/SECRET/i,
-				/TOKEN/i,
-				/API_KEY/i,
-				/PRIVATE/i,
-			];
-			
-			return !sensitivePatterns.some(pattern => pattern.test(key));
-		}).sort();
-		
-		return envVars.map(key => ({
-			name: `${key} = ${process.env[key]?.substring(0, 50)}${(process.env[key]?.length || 0) > 50 ? '...' : ''}`,
-			value: key,
-		}));
-	}
-
-	// Method to get available Python Environment Variables credentials
-	async getPythonEnvVarsCredentials(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-		// Since n8n doesn't provide a way to list all available credentials of a type,
-		// we'll return informational options to guide the user
-		return [
-			{
-				name: '⚠️ Use the main "Credential to connect with" dropdown above',
-				value: '__use_main_credential__',
-				description: 'The credential selected in "Credential to connect with" will be used automatically',
-			},
-			{
-				name: '💡 Enable "Include All Available Credentials" option',
-				value: '__use_include_all__',
-				description: 'This will automatically include all available Python Environment Variables credentials',
-			},
-			{
-				name: '📝 Note: Multi-credential selection coming in future update',
-				value: '__future_feature__',
-				description: 'Currently uses the credential from "Credential to connect with" dropdown',
-			},
-		];
-	}
-
-	// Method to generate code template for Extract Code Template functionality
-	async generateCodeTemplate(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-		try {
-			// Get current node parameters
-			const currentNodeParameter = this.getCurrentNodeParameter;
-			const functionCode = currentNodeParameter('functionCode') as string || '';
-			const scriptOptions = (currentNodeParameter('scriptOptions') as IDataObject) || {};
-			const fileProcessing = (currentNodeParameter('fileProcessing') as IDataObject) || {};
-			const outputFileProcessing = (currentNodeParameter('outputFileProcessing') as IDataObject) || {};
-			
-			// Generate template using the helper function
-			const templateCode = generateCodeTemplateStatic(
-				functionCode,
-				scriptOptions.includeInputItems !== false,
-				scriptOptions.includeEnvVarsDict === true,
-				true, // Always hide variable values in template
-				fileProcessing.enabled === true,
-				outputFileProcessing.enabled === true,
-			);
-
-			// Get statistics about the template
-			const lines = templateCode.split('\n');
-			const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
-			const timestamp = new Date().toLocaleString();
-
-			// Truncate template for preview in description
-			const preview = lines.slice(0, 3).join('\n');
-			const truncated = lines.length > 3 ? '...' : '';
-
-			return [
-				{
-					name: `✅ Template Generated (${nonEmptyLines} lines)`,
-					value: 'template_generated',
-					description: `Generated at ${timestamp}\n\nPreview:\n${preview}${truncated}\n\nCopy the full template code from console output below`,
-				},
-				{
-					name: '📋 Template Info',
-					value: 'template_info',
-					description: `
-Template includes:
-• ${scriptOptions.includeInputItems !== false ? '✓' : '✗'} Input items array
-• ${scriptOptions.includeEnvVarsDict === true ? '✓' : '✗'} Environment variables dict  
-• ${fileProcessing.enabled === true ? '✓' : '✗'} File processing
-• ${outputFileProcessing.enabled === true ? '✓' : '✗'} Output file processing
-
-Generated ${nonEmptyLines} lines of Python code
-					`.trim(),
-				},
-				{
-					name: '📄 Full Template',
-					value: 'full_template',
-					description: `\`\`\`python\n${templateCode}\n\`\`\``,
-				},
-				{
-					name: '🔄 Generate Again',
-					value: 'generate_again',
-					description: 'Click to regenerate template with current node settings. Template reflects your current configuration.',
-				},
-			];
-
-		} catch (error) {
-			console.error('Error generating code template:', error);
-			return [
-				{
-					name: '❌ Template Generation Failed',
-					value: 'error',
-					description: `Error: ${(error as Error).message}\n\nPlease check that the node configuration is valid and try again.`,
-				},
-			];
-		}
-	}
 }
-
-
-// Helper function to load multiple credentials using different methods
 async function loadMultipleCredentials(
 	executeFunctions: IExecuteFunctions,
 	config: {

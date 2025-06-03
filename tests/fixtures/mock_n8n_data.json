@@ -1,0 +1,52 @@
+{
+  "mock_input_items": [
+    {
+      "json": {
+        "id": 1,
+        "name": "Test Item 1",
+        "value": 100,
+        "category": "test"
+      },
+      "binary": {}
+    },
+    {
+      "json": {
+        "id": 2,
+        "name": "Test Item 2", 
+        "value": 200,
+        "category": "demo"
+      },
+      "binary": {
+        "attachment": {
+          "data": "SGVsbG8gV29ybGQ=",
+          "fileName": "test.txt",
+          "mimeType": "text/plain"
+        }
+      }
+    }
+  ],
+  "mock_credentials": {
+    "pythonEnvVars": {
+      "API_KEY": "test_api_key_123",
+      "DATABASE_URL": "postgresql://test:test@localhost:5432/testdb",
+      "SECRET_TOKEN": "secret_token_456"
+    }
+  },
+  "mock_node_parameters": {
+    "code": "print('Hello from test!')",
+    "credentialsManagement": {
+      "enabled": true,
+      "multipleCredentials": true
+    },
+    "fileProcessing": {
+      "enabled": true,
+      "includeInputFiles": true
+    },
+    "outputFileProcessing": {
+      "enabled": true,
+      "maxOutputFileSize": 100,
+      "autoCleanupOutput": true,
+      "includeOutputMetadata": true
+    }
+  }
+} 

@@ -1,0 +1,52 @@
+{
+  "test_categories": {
+    "unit": {
+      "timeout": 30,
+      "parallel": true,
+      "description": "Unit tests for individual functions and components",
+      "priority": 1
+    },
+    "integration": {
+      "timeout": 120,
+      "parallel": false,
+      "description": "End-to-end integration tests",
+      "priority": 2
+    },
+    "functional": {
+      "timeout": 60,
+      "parallel": true,
+      "description": "Functional tests for main user-facing features",
+      "priority": 3
+    },
+    "performance": {
+      "timeout": 300,
+      "parallel": false,
+      "description": "Performance and load tests",
+      "priority": 4
+    },
+    "typescript": {
+      "timeout": 60,
+      "parallel": true,
+      "description": "TypeScript/Jest tests for node implementation",
+      "priority": 1
+    }
+  },
+  "test_environment": {
+    "python_executable": "python",
+    "node_executable": "node",
+    "npm_executable": "npm",
+    "temp_dir": "./tmp",
+    "fixtures_dir": "./tests/fixtures"
+  },
+  "reporting": {
+    "verbose_output": false,
+    "save_results": true,
+    "results_file": "./tests/results.json",
+    "coverage_enabled": false
+  },
+  "project_info": {
+    "name": "n8n-nodes-python",
+    "version": "1.13.1",
+    "description": "Test suite for Python Function node"
+  }
+} 

@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-python-raw",
-  "version": "1.13.1",
+  "version": "1.13.2",
   "description": "A powerful n8n node for executing raw Python scripts with comprehensive features: multiple credential management, debug tools, file processing, output file generation, and flexible output parsing.",
   "main": "dist/index.js",
   "license": "SEE LICENSE IN LICENSE",
@@ -41,7 +41,14 @@
     "lintfix": "tslint --fix -p tsconfig.json -c tslint.json",
     "nodelinter": "nodelinter",
     "watch": "tsc --watch",
-    "test": "jest",
+    "test": "I:\\ALL_PROG\\conda\\envs\\n8n-python-dev\\python.exe tests/run_all.py",
+    "test:unit": "I:\\ALL_PROG\\conda\\envs\\n8n-python-dev\\python.exe tests/run_all.py --category unit",
+    "test:integration": "I:\\ALL_PROG\\conda\\envs\\n8n-python-dev\\python.exe tests/run_all.py --category integration",
+    "test:functional": "I:\\ALL_PROG\\conda\\envs\\n8n-python-dev\\python.exe tests/run_all.py --category functional",
+    "test:performance": "I:\\ALL_PROG\\conda\\envs\\n8n-python-dev\\python.exe tests/run_all.py --category performance",
+    "test:js": "jest",
+    "test:list": "I:\\ALL_PROG\\conda\\envs\\n8n-python-dev\\python.exe tests/run_all.py --list",
+    "test:verbose": "I:\\ALL_PROG\\conda\\envs\\n8n-python-dev\\python.exe tests/run_all.py --verbose",
     "coverage": "jest --coverage",
     "demo": "./demo/run_demo.sh"
   },
@@ -78,10 +85,16 @@
       "^.+\\.tsx?$": "ts-jest"
     },
     "testURL": "http://localhost/",
-    "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
+    "testRegex": "(tests/typescript/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
     "testPathIgnorePatterns": [
       "/dist/",
-      "/node_modules/"
+      "/node_modules/",
+      "/tests/unit/",
+      "/tests/integration/",
+      "/tests/functional/",
+      "/tests/performance/",
+      "/tests/examples/",
+      "/tests/fixtures/"
     ],
     "moduleFileExtensions": [
       "ts",
