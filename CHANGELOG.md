@@ -6,6 +6,107 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.6] - 2025-06-03
+
+### 🚨 CRITICAL UPDATE: 100% AI-GENERATED CODE DISCLOSURE 🚨
+- **MAJOR**: Updated all documentation to reflect 100% AI-generated modifications (not 70%)
+- **CRITICAL**: Enhanced package.json description with immediate AI danger warning
+- **STRENGTHENED**: README.md opening with "CRITICAL DANGER" and "ABSOLUTELY NOT FOR PRODUCTION USE"
+- **UPDATED**: All source code copyright headers to reflect 100% AI modifications
+- **ENHANCED**: NOTICE.md with 100% AI-generated code warnings throughout
+- **IMPROVED**: AI_DISCLAIMER.md with "EXTREME DANGER" and "NO HUMAN-VALIDATED" warnings
+
+### 🔒 Enterprise Claims Removal
+- **REMOVED**: All "enterprise-ready" claims from documentation
+- **REPLACED**: Enterprise language with experimental/high-risk warnings
+- **CLARIFIED**: This is experimental AI-generated code, not production-ready software
+- **EMPHASIZED**: Personal use only, not suitable for business or critical applications
+
+### 📋 Accuracy Improvements
+- **CORRECTED**: All percentage claims from 70% to 100% AI-generated modifications
+- **CLARIFIED**: Only fork modifications are AI-generated, original naskio code remains unchanged
+- **ENHANCED**: Distinction between original stable code and AI-generated experimental features
+- **IMPROVED**: Risk assessment accuracy throughout all documentation
+
+### 🎯 User Safety Priority
+- **IMMEDIATE**: AI warnings now appear first in package description and README
+- **PROMINENT**: Critical danger warnings at all entry points
+- **COMPREHENSIVE**: Risk disclosure covers all aspects of AI-generated code
+- **MANDATORY**: Clear requirements for testing and validation before any use
+
+## [1.13.5] - 2025-06-03
+
+### 🚨 CRITICAL AI WARNING ENHANCEMENTS 🚨
+- **MAJOR**: Enhanced all AI-generated code warnings throughout the project
+- **CRITICAL**: Added comprehensive AI_DISCLAIMER.md with detailed risk analysis
+- **ENHANCED**: Strengthened README.md with prominent critical AI warnings
+- **IMPROVED**: Package.json description now includes explicit AI risk warning
+- **UPDATED**: Source code copyright headers with critical AI warnings
+- **ADDED**: AI-related keywords to npm package (ai-generated, experimental, use-at-own-risk, no-warranty, testing-required)
+
+### 🔒 Absolute Liability Disclaimer Strengthening
+- **ENHANCED**: NOTICE.md with absolute liability disclaimer section
+- **STRENGTHENED**: Personal use statement with experimental software warnings
+- **IMPROVED**: Clear warnings about production use and mission-critical applications
+- **ADDED**: Explicit warnings about security vulnerabilities and data corruption risks
+
+### 📋 Comprehensive Risk Documentation
+- **NEW**: AI_DISCLAIMER.md with detailed analysis of AI-generated code risks
+- **DOCUMENTED**: Specific high-risk components and functions identified
+- **DETAILED**: Security, reliability, and data integrity risk categories
+- **PROVIDED**: Mandatory safety requirements and testing procedures
+- **INCLUDED**: Incident reporting procedures and legal disclaimers
+
+### 🎯 User Safety Improvements
+- **EXPLICIT**: Critical warnings at package level and documentation entry points
+- **CLEAR**: Distinction between experimental/personal use vs production readiness
+- **COMPREHENSIVE**: Risk assessment for different use case scenarios
+- **MANDATORY**: Testing and validation requirements before any use
+
+### ⚖️ Legal & Attribution Updates
+- **CORRECTED**: Author name from "Sergei Titov" to "Sergei Trufanov" throughout project
+- **MAINTAINED**: All existing functionality without breaking changes
+- **PRESERVED**: Backward compatibility and API consistency
+
+## [1.13.4] - 2025-01-27
+
+### 🔒 Legal Compliance & Risk Mitigation
+- **CRITICAL**: Added comprehensive copyright notices to all modified source files
+- **ENHANCED**: Updated README.md with prominent disclaimers and warnings
+- **IMPROVED**: Package.json license field now correctly references LICENSE.md file
+- **RESTRUCTURED**: Author attribution - original author (naskio) moved to contributors array
+- **ADDED**: Explicit AI-generated code warnings throughout documentation
+- **STRENGTHENED**: Personal use and non-commercial disclaimers
+- **CLARIFIED**: No warranty and liability disclaimers
+- **UPDATED**: NOTICE.md with comprehensive legal information
+
+### 📋 Copyright & Attribution Updates
+- **Source Files**: Added copyright headers to PythonFunction.node.ts and PythonEnvVars.credentials.ts
+- **Documentation**: Clear attribution to original project and author naskio
+- **License Compliance**: Explicit Commons Clause restrictions and Apache 2.0 compliance
+- **Responsibility Disclaimer**: Clear statements about maintainer liability limitations
+
+### 🤖 AI Code Transparency
+- **Disclosure**: Explicit warnings about AI-generated code portions (~70% of codebase)
+- **Risk Awareness**: Warnings about potential errors, security issues, and best practice deviations
+- **Usage Recommendations**: Guidelines for testing and validation before production use
+
+### 📝 Legal Documentation Improvements
+- **README.md**: Comprehensive disclaimers section with liability, warranty, and usage restrictions
+- **NOTICE.md**: Complete rewrite with detailed modification history and legal information
+- **Package.json**: Proper license reference and contributor attribution
+
+### 🎯 Risk Mitigation Focus
+- **Commercial Use**: Clear prohibition statements throughout documentation
+- **Third-party Use**: Explicit disclaimers about maintainer responsibility
+- **Production Use**: Warnings about testing requirements and suitability limitations
+- **Platform Compliance**: Improved adherence to npm and GitHub policies
+
+### 🔧 Maintained Functionality
+- **No Breaking Changes**: All existing functionality preserved
+- **Version Consistency**: Clean upgrade path from previous versions
+- **API Compatibility**: All node interfaces and capabilities unchanged
+
 ## [1.13.3] - 2025-01-27
 
 ### 📚 Documentation Update

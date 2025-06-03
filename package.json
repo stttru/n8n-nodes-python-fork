@@ -1,14 +1,21 @@
 {
   "name": "n8n-nodes-python-raw",
-  "version": "1.13.3",
-  "description": "A powerful n8n node for executing raw Python scripts with comprehensive features: multiple credential management, debug tools, file processing, output file generation, and flexible output parsing.",
+  "version": "1.13.6",
+  "description": "🚨 WARNING: 100% AI-GENERATED EXPERIMENTAL CODE - HIGH RISK! Use at own risk, not for production. Python execution for n8n with file processing, multiple credentials, debug tools. Personal use only - Commons Clause license.",
   "main": "dist/index.js",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "SEE LICENSE IN LICENSE.md",
   "homepage": "https://github.com/stttru/n8n-nodes-python-fork",
   "author": {
-    "name": "Sergei (fork of naskio/n8n-nodes-python)",
+    "name": "Sergei Trufanov",
     "email": "stttru@gmail.com"
   },
+  "contributors": [
+    {
+      "name": "naskio",
+      "url": "https://github.com/naskio",
+      "role": "original author"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stttru/n8n-nodes-python-fork.git"
@@ -32,6 +39,14 @@
     "stdout",
     "stderr",
     "exit code",
+    "community",
+    "fork",
+    "non-commercial",
+    "ai-generated",
+    "experimental",
+    "use-at-own-risk",
+    "no-warranty",
+    "testing-required",
     "n8n-community-node-package"
   ],
   "scripts": {

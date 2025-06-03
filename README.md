@@ -1,8 +1,20 @@
 # n8n-nodes-python-raw
 
-An **enterprise-ready** n8n community node for executing Python scripts with raw output control, advanced file processing capabilities, and comprehensive testing infrastructure.
+> **🚨 CRITICAL DANGER: 100% AI-GENERATED EXPERIMENTAL CODE 🚨**: ALL modifications and features in this fork were created using AI assistance. This code may contain CRITICAL ERRORS, security vulnerabilities, or unexpected behavior. ABSOLUTELY NOT FOR PRODUCTION USE. HIGH RISK - USE AT YOUR OWN EXTREME CAUTION.
 
-This is a **stable, production-tested fork** of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) with significant enhancements for raw Python script execution, structured output parsing, comprehensive file processing, and robust error handling.
+> **⚠️ DISCLAIMER**: This is an unofficial fork of n8n-nodes-python, not affiliated with or endorsed by n8n GmbH. The name "n8n" is used solely to indicate compatibility with the n8n platform. This project is not for commercial use - see Commons Clause license restrictions.
+
+> **🤖 AI-Generated Code Notice**: Large portions of this codebase were developed with AI assistance. Code may contain errors or unexpected behavior. Use at your own risk.
+
+> **📝 Personal Project**: This fork was created for personal, non-commercial use and educational purposes. The maintainer assumes no responsibility for any use by third parties.
+
+> **📋 READ FULL AI DISCLAIMER**: For comprehensive details about AI-generated code risks, see [AI_DISCLAIMER.md](AI_DISCLAIMER.md)
+
+A community fork of [naskio/n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) for executing Python scripts with raw output control, advanced file processing capabilities, and comprehensive testing infrastructure.
+
+**Original Project**: https://github.com/naskio/n8n-nodes-python by [naskio](https://github.com/naskio) - Thank you for the foundation!
+
+This fork includes significant enhancements for raw Python script execution, structured output parsing, comprehensive file processing, and robust error handling.
 
 ## ✨ Key Features
 
@@ -23,6 +35,8 @@ This is a **stable, production-tested fork** of [naskio/n8n-nodes-python](https:
 - **Smart Parsing**: Automatic detection and parsing of JSON, CSV, and structured data
 - **Production Stability**: 100% test coverage for unit, functional, and TypeScript tests (v1.13.1+)
 - **Global Accessibility**: Complete English documentation and internationalization (v1.13.2+)
+
+**⚠️ Not for Commercial Use**: This software is licensed under Apache 2.0 with Commons Clause - commercial use is prohibited.
 
 ## 📦 Installation
 
@@ -646,7 +660,57 @@ from shutil import which
 
 ## 📄 License
 
-Apache License 2.0 with Commons Clause - see [LICENSE](LICENSE.md)
+Apache License 2.0 with Commons Clause - see [LICENSE.md](LICENSE.md)
+
+**⚠️ IMPORTANT DISCLAIMERS:**
+
+### 🚨 ABSOLUTE LIABILITY DISCLAIMER 🚨
+**THE MAINTAINER ACCEPTS NO RESPONSIBILITY WHATSOEVER FOR:**
+- **ANY DAMAGES, DATA LOSS, SYSTEM FAILURES, OR SECURITY BREACHES** caused by this software
+- **CRITICAL ERRORS IN AI-GENERATED CODE** (100% of modifications) that may cause system failures
+- **PRODUCTION USE FAILURES** - this software is NOT tested for production environments
+- **SECURITY VULNERABILITIES** - AI-generated code may contain exploitable security flaws
+- **DATA CORRUPTION OR LOSS** from script execution or file processing
+- **THIRD-PARTY USE** of this software for any purpose whatsoever
+- **COMPLIANCE FAILURES** - no guarantees of regulatory or policy compliance
+
+### ⛔ CRITICAL AI-GENERATED CODE WARNINGS ⛔
+Large portions of this codebase were developed with AI assistance. **CRITICAL RISKS:**
+- **UNTESTED CODE PATTERNS** - AI may generate code that appears correct but fails unexpectedly
+- **SECURITY VULNERABILITIES** - AI cannot guarantee secure coding practices
+- **LOGIC ERRORS** - Complex interactions may not be properly validated
+- **PERFORMANCE ISSUES** - AI-generated code may not be optimized for production use
+- **UNDOCUMENTED BEHAVIORS** - AI code may have side effects not captured in documentation
+
+**MANDATORY REQUIREMENTS BEFORE USE:**
+- **THOROUGH TESTING** in isolated environments before any real use
+- **SECURITY AUDIT** of all AI-generated code portions
+- **VALIDATION** of all functionality critical to your use case
+- **BACKUP SYSTEMS** - never rely on this software as single point of failure
+
+### 🚫 Commercial Use Restriction
+This software is licensed under Apache License 2.0 with Commons Clause, which **prohibits commercial use**. You may not sell, distribute for a fee, or use this software in any commercial product or service.
+
+### ⚠️ No Warranty & Liability Disclaimer
+This software is provided "AS IS" without warranty of any kind. The maintainer assumes **NO RESPONSIBILITY** for:
+- Any damages or issues caused by using this software
+- Use by third parties for any purpose
+- Errors, bugs, or unexpected behavior in the code
+- Data loss, system damage, or security vulnerabilities
+
+**Use at your own risk and thoroughly test before any production use.**
+
+### Personal Use Disclaimer
+This fork was created for **personal, non-commercial use and educational purposes only**. It is not intended for:
+- Production environments without thorough testing
+- Commercial applications or services
+- Mission-critical systems
+- Environments where reliability is essential
+
+### Attribution
+- **Original Project**: [n8n-nodes-python](https://github.com/naskio/n8n-nodes-python) by [naskio](https://github.com/naskio)
+- **Fork Maintainer**: Sergei Trufanov (stttru@gmail.com)
+- **Disclaimer**: This is an unofficial fork, not affiliated with n8n GmbH
 
 ## 🤝 Contributing
 
