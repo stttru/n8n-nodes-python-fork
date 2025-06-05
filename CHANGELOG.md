@@ -6,6 +6,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.3] - 2025-01-06
+
+### Fixed
+- **UI FIX**: Fixed Python Code editor not working properly 
+- Removed conflicting Monaco editor parameters from Python Code field
+- Python Code field now works as standard text area with proper functionality
+- Code Template Mode field retains advanced Monaco editor with syntax highlighting and line numbers
+
+### Technical Details
+- Removed `codeAutocomplete: 'editor'` and `editorLanguage: 'python'` from Python Code field typeOptions
+- Kept advanced editor features only for Auto-Generated Code Template field  
+- Maintains backward compatibility with existing workflows
+- Users can now properly input Python code in the main Python Code field
+
 ## [1.14.2] - 2025-01-06
 
 ### Fixed

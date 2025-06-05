@@ -35,7 +35,7 @@ import * as tempy from 'tempy';
 function getNodeVersionFromPackage(): number {
 	try {
 		// Пробуем несколько путей для совместимости dev/compiled окружений
-		let packageJson: any;
+		let packageJson: { version: string };
 		try {
 			// Для compiled версии (dist/nodes/PythonFunction/ -> корень пакета)
 			packageJson = require('../../../package.json');
@@ -560,8 +560,6 @@ export class PythonFunction implements INodeType {
 				typeOptions: {
 					alwaysOpenEditWindow: true,
 					rows: 15,
-					editor: 'code',
-					editorLanguage: 'python',
 				},
 				type: 'string',
 				default: `# Example: Use with "Inject Variables" enabled (default)
