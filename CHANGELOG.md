@@ -1,10 +1,61 @@
-# Change Log
++# Change Log
 
 - fix optional credentials issue in recent n8n versions.
 
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [1.14.1] - 2025-01-06
+
+### Fixed
+- **CRITICAL FIX**: User code validation issue causing "Invalid variable assignment detected" errors
+- Fixed validation logic to only check auto-generated n8n variables, not user Python code
+- User code is now inserted without any parsing or modifications (as intended)
+- Resolved issue with string literals in user code being incorrectly flagged as invalid variable assignments
+
+### Enhanced
+- **UI IMPROVEMENT**: Python Code editor now has syntax highlighting and line numbers
+- Added `editor: 'code'` and `editorLanguage: 'python'` options to Python Code field
+- Python Code input field now matches the Auto-Generated Code Template formatting
+- Improved code readability and development experience with Monaco editor integration
+
+### Technical Details
+- Modified `getTemporaryScriptPath()` function to validate only the auto-generated portion before "# User code starts here" marker
+- User Python code is now completely isolated from n8n's variable validation
+- This maintains the intended behavior: auto-generated variables are validated, user code is untouched
+- Enhanced typeOptions configuration for Python Code field with code editor features
+- Automatic version synchronization between npm package version and n8n node version
+
+## [1.14.0] - 2025-06-03
+
+### 🔄 Code Template Refresh Functionality
+- **NEW**: Refresh button functionality for Extract Code Template feature
+- **ENHANCED**: generateCodeTemplate method now returns 3 options: Template Summary, Template Preview, and Full Template
+- **IMPROVED**: Template Summary shows statistics about included features and components
+- **ADDED**: Template Preview displays first 20 lines with markdown formatting for quick overview
+- **COMPLETE**: Full Template option provides complete generated code for copying
+- **FIXED**: Refresh button now properly appears in Extract Code Template dropdown field
+- **UI**: Proper configuration of loadOptionsMethod with empty options array for refresh functionality
+- **UX**: Better user experience with informative option descriptions and formatted output
+
+### 🧪 Testing Enhancements
+- **RESTORED**: test_template_generation.js - JavaScript unit tests for template generation
+- **RESTORED**: test_refresh_functionality.js - Comprehensive refresh button functionality tests
+- **VALIDATED**: All JavaScript and Python test suites pass successfully
+- **COVERAGE**: 4 test scenarios covering different node configurations for refresh functionality
+
+### 🛠️ Technical Improvements
+- **METHOD**: Enhanced generateCodeTemplate to return structured options with value/name pairs
+- **EXPORT**: Added generateCodeTemplateStatic export for external testing and integration
+- **FORMATTING**: Improved template output with better markdown formatting and code structure
+- **CONFIG**: Fixed field configuration for proper refresh button display in n8n UI
+
+### 📋 User Experience
+- **WORKFLOW**: Users can now enable Code Template Mode, configure node, and use refresh button
+- **OPTIONS**: Three different template views cater to different user needs (summary, preview, full)
+- **COPYING**: Easy template copying for external development and debugging purposes
+- **INSIGHT**: Better understanding of n8n's Python code generation process
 
 ## [1.13.6] - 2025-06-03
 

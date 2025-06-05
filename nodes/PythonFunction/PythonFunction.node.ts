@@ -31,6 +31,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as tempy from 'tempy';
 
+// Автоматически читаем версию из package.json
+const packageJson = require('../../package.json');
+
+// Преобразуем версию npm в числовую версию для n8n (например, "1.14.1" -> 14)
+function getNodeVersionFromPackage(): number {
+	try {
+		const version = packageJson.version; // например, "1.14.1"
+		const versionParts = version.split('.');
+		// Используем вторую часть версии как версию ноды (14 из "1.14.1")
+		// Это позволит отслеживать изменения в минорных версиях
+		return parseInt(versionParts[1], 10) || 1;
+	} catch (error) {
+		console.warn('Failed to read package version, using default version 1');
+		return 1;
+	}
+}
+
 
 export interface IExecReturnData {
 	exitCode: number;
@@ -307,13 +324,14 @@ async function cleanupTemporaryFiles(fileMappings: FileMapping[]): Promise<void>
 }
 
 
+// Преобразуем версию npm в числовую версию для n8n (например, "1.14.1" -> 14)
 export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Python Function (Raw)',
 		name: 'pythonFunctionRaw',
 		icon: 'fa:code',
 		group: ['transform'],
-		version: 1,
+		version: getNodeVersionFromPackage(),
 		description: 'Run custom Python script once and return raw output (exitCode, stdout, stderr)',
 		defaults: {
 			name: 'PythonFunctionRaw',
@@ -529,6 +547,8 @@ export class PythonFunction implements INodeType {
 				typeOptions: {
 					alwaysOpenEditWindow: true,
 					rows: 15,
+					editor: 'code',
+					editorLanguage: 'python',
 				},
 				type: 'string',
 				default: `# Example: Use with "Inject Variables" enabled (default)
@@ -599,12 +619,7 @@ print(json.dumps(result))
 				name: 'extractCodeTemplate',
 				type: 'options',
 				noDataExpression: true,
-				options: [
-					{
-						name: 'Click to Generate Template',
-						value: '',
-					},
-				],
+				options: [],
 				default: '',
 				typeOptions: {
 					loadOptionsMethod: 'generateCodeTemplate',
@@ -614,7 +629,7 @@ print(json.dumps(result))
 						codeTemplateMode: [true],
 					},
 				},
-				description: 'Generate and view the auto-generated Python code template',
+				description: '🔄 Click the refresh button to generate code template based on current node settings',
 			},
 			{
 				displayName: 'Auto-Generated Code Template',
@@ -627,49 +642,72 @@ print(json.dumps(result))
 				},
 				typeOptions: {
 					alwaysOpenEditWindow: false,
-					rows: 15,
+					rows: 20,
 					editor: 'code',
 					editorLanguage: 'python',
 				},
 				default: `# ===== AUTO-GENERATED PYTHON CODE TEMPLATE =====
 # This template shows the code structure that n8n automatically generates
-# around your Python code. To see current template:
-# 1. Configure your node settings (Script Generation Options, File Processing, etc.)
-# 2. Click the "Extract Code Template" button above
+# around your Python code.
+#
+# 🔄 IMPORTANT: Click the refresh button above to generate the current template 
+#    based on your node settings (Script Generation Options, File Processing, etc.)
+#
+# The template will show:
+# • Environment variables from credentials (as individual Python variables)
+# • Input data from previous nodes (if "Include input_items Array" is enabled)
+# • Binary file processing variables (if "File Processing" is enabled)  
+# • Output directory for generated files (if "Output File Processing" is enabled)
+# • All necessary imports and boilerplate code
 
 # Example template structure:
-# #!/usr/bin/env python3
-# import json, sys, os, base64
-# 
-# # Input data from previous nodes
-# input_items = [
-#     {"id": 1, "name": "Sample Item 1", "status": "active"},
-#     {"id": 2, "name": "Sample Item 2", "status": "pending"}
-# ]
-# 
-# # Environment variables from credentials
-# API_KEY = "***HIDDEN***"
-# DATABASE_URL = "***HIDDEN***"
-# DEBUG = "true"
-# 
-# # File processing variables (if enabled)
-# input_files = [...]
-# 
-# # Output directory (if enabled)
-# output_dir = "/tmp/n8n_output_YYYYMMDD_HHMMSS_random"
-# 
-# # === YOUR PYTHON CODE WOULD GO HERE ===
+#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
 
-# Click "Extract Code Template" to see the actual template for current settings`,
-				description: 'Auto-generated Python code template showing the boilerplate code that n8n creates around your script',
-				placeholder: 'Click "Extract Code Template" button to generate current template...',
+import json
+import sys
+
+# Environment variables (from credentials and system)
+API_KEY = "your_api_key_here"  # From: main_credential
+DATABASE_URL = "postgresql://user:pass@host:5432/db"  # From: main_credential
+DEBUG = "true"  # From: main_credential
+
+# Input data from previous nodes
+input_items = [
+    {"id": 1, "name": "Sample Item 1", "status": "active"},
+    {"id": 2, "name": "Sample Item 2", "status": "pending"}
+]
+
+# Binary files from previous nodes (if File Processing enabled)
+input_files = [
+    {
+        "filename": "example.txt",
+        "mimetype": "text/plain", 
+        "size": 1024,
+        "extension": "txt",
+        "temp_path": "/tmp/example.txt",
+        "base64_data": "ZXhhbXBsZSBjb250ZW50"
+    }
+]
+
+# Output directory for generated files (if Output File Processing enabled)
+output_dir = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random"
+expected_filename = "result.json"
+output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
+
+# === YOUR PYTHON CODE WOULD GO HERE ===
+
+# 🔄 Click "Extract Code Template" button above to see the ACTUAL template
+#    generated for your current node configuration!`,
+				description: 'Shows the auto-generated Python code template with current node settings. Click the refresh button above to update with your current configuration.',
+				placeholder: 'Click "Extract Code Template" button above to generate current template...',
 			},
 			{
 				displayName: 'Inject Variables',
 				name: 'injectVariables',
 				type: 'boolean',
-				default: true,
-				description: 'Whether to inject input_items and env_vars variables. Disable for pure Python scripts.',
+				default: false,
+				description: 'Whether to inject input_items and env_vars variables. Enable for n8n integration features. Disable for pure Python scripts (recommended).',
 			},
 			{
 				displayName: 'Python Executable',
@@ -1184,13 +1222,14 @@ print(json.dumps(result))
 					const scriptOptions = (currentNodeParameter('scriptOptions') as IDataObject) || {};
 					const fileProcessing = (currentNodeParameter('fileProcessing') as IDataObject) || {};
 					const outputFileProcessing = (currentNodeParameter('outputFileProcessing') as IDataObject) || {};
+					const credentialsManagement = (currentNodeParameter('credentialsManagement') as IDataObject) || {};
 					
 					// Generate template using the helper function
 					const templateCode = generateCodeTemplateStatic(
 						functionCode,
 						scriptOptions.includeInputItems !== false,
 						scriptOptions.includeEnvVarsDict === true,
-						true, // Always hide variable values in template
+						credentialsManagement.hideVariableValues === true,
 						fileProcessing.enabled === true,
 						outputFileProcessing.enabled === true,
 					);
@@ -1199,26 +1238,27 @@ print(json.dumps(result))
 					const lines = templateCode.split('\n');
 					const nonEmptyLines = lines.filter(line => line.trim() !== '').length;
 					const timestamp = new Date().toLocaleString();
-
-					// Truncate template for preview in description
-					const preview = lines.slice(0, 3).join('\n');
-					const truncated = lines.length > 3 ? '...' : '';
+					const hasUserCode = functionCode && functionCode.trim();
+					
+					// Prepare template preview (first 20 lines)
+					const previewLines = lines.slice(0, 20);
+					const preview = previewLines.join('\n') + (lines.length > 20 ? '\n\n# ... (truncated)' : '');
 
 					return [
 						{
-							name: `✅ Template Generated (${nonEmptyLines} lines)`,
+							name: `🔄 Generated Template (${lines.length} lines, ${nonEmptyLines} non-empty)`,
 							value: 'template_generated',
-							description: `Generated at ${timestamp}\n\nPreview:\n${preview}${truncated}\n\nCopy the full template code from console output below`,
+							description: `✅ Template generated at ${timestamp}\n\n📋 Features included:\n• Input items: ${scriptOptions.includeInputItems !== false ? 'Yes' : 'No'}\n• Environment variables: ${scriptOptions.includeEnvVarsDict === true ? 'Yes' : 'No'}\n• File processing: ${fileProcessing.enabled === true ? 'Yes' : 'No'}\n• Output file processing: ${outputFileProcessing.enabled === true ? 'Yes' : 'No'}\n• Hidden credentials: ${credentialsManagement.hideVariableValues === true ? 'Yes' : 'No'}\n• User code: ${hasUserCode ? 'Found' : 'None (template only)'}`,
 						},
 						{
-							name: '📋 Template Info',
-							value: 'template_info',
-							description: `Total lines: ${lines.length}\nNon-empty lines: ${nonEmptyLines}\nGenerated: ${timestamp}`,
+							name: '📋 Template Preview (first 20 lines)',
+							value: 'template_preview',
+							description: `\`\`\`python\n${preview}\n\`\`\`\n\n💡 Copy this template to the code field below to see the complete structure that n8n generates around your Python code.`,
 						},
 						{
-							name: '📄 Full Template',
-							value: 'full_template',
-							description: `Complete auto-generated Python code:\n\n\`\`\`python\n${templateCode}\n\`\`\``,
+							name: '📖 Full Template (click to view)',
+							value: templateCode,
+							description: `Complete auto-generated template with all n8n boilerplate code:\n\n\`\`\`python\n${templateCode}\n\`\`\`\n\n🔧 This is the exact code structure that n8n will use when executing your Python function.`,
 						},
 					];
 				} catch (error) {
@@ -1226,7 +1266,7 @@ print(json.dumps(result))
 						{
 							name: '❌ Error generating template',
 							value: 'error',
-							description: `Failed to generate code template: ${error instanceof Error ? error.message : 'Unknown error'}`,
+							description: `Failed to generate code template: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check your node configuration and try again.`,
 						},
 					];
 				}
@@ -1842,12 +1882,17 @@ async function executeOnce(
 		if (injectVariables) {
 			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
 		} else {
-			// Even when injectVariables is false, we still need to inject output_dir for Output File Processing
+			// For pure Python mode, always use the pure script path without any parsing/validation
+			// Output directory and other settings will be passed via environment variables if needed
+			scriptPath = await getTemporaryPureScriptPath(functionCode);
+			
+			// Add output_dir to environment variables if Output File Processing is enabled
 			if (outputDir) {
-				// Create script with just output_dir variable injection
-				scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir, outputFileProcessingOptions);
-			} else {
-				scriptPath = await getTemporaryPureScriptPath(functionCode);
+				pythonEnvVars.output_dir = outputDir;
+				if (outputFileProcessingOptions?.expectedFileName) {
+					pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
+				}
+				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
 			}
 		}
 	} catch (error) {
@@ -2186,15 +2231,20 @@ async function executePerItem(
 			if (injectVariables) {
 				// For per-item execution, pass only current item
 				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
-			} else {
-				// Even when injectVariables is false, we still need to inject output_dir for Output File Processing
-				if (outputDir) {
-					// Create script with just output_dir variable injection
-					scriptPath = await getTemporaryScriptPath(functionCode, [], {}, false, false, hideVariableValues, undefined, [], outputDir, outputFileProcessingOptions);
-				} else {
-					scriptPath = await getTemporaryPureScriptPath(functionCode);
+					} else {
+			// For pure Python mode, always use the pure script path without any parsing/validation
+			// Output directory and other settings will be passed via environment variables if needed
+			scriptPath = await getTemporaryPureScriptPath(functionCode);
+			
+			// Add output_dir to environment variables if Output File Processing is enabled
+			if (outputDir) {
+				pythonEnvVars.output_dir = outputDir;
+				if (outputFileProcessingOptions?.expectedFileName) {
+					pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
 				}
+				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
 			}
+		}
 
 			// Create debug information for this item
 			if (debugMode !== 'off') {
@@ -2824,21 +2874,70 @@ async function getTemporaryScriptPath(codeSnippet: string, data: IDataObject[], 
 			fs.unlinkSync(tmpPath);
 		}
 		
-		// Basic syntax validation before writing the file
-		// Check for obvious syntax errors that could be caused by invalid variable names
+		// Basic syntax validation for auto-generated variables only
+		// Only validate the n8n-generated portion, not user code
 		const lines = codeStr.split('\n');
+		let userCodeStartIndex = -1;
+		
+		// Find where user code starts (marked by "# User code starts here")
 		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i].trim();
+			if (lines[i].includes('# User code starts here')) {
+				userCodeStartIndex = i;
+				break;
+			}
+		}
+		
+		// Only validate lines before user code starts
+		for (let i = 0; i < (userCodeStartIndex > 0 ? userCodeStartIndex : lines.length); i++) {
+			const line = lines[i];
+			const trimmedLine = line.trim();
 			
-			// Check for invalid variable assignments (empty variable names)
-			if (line.match(/^\s*=\s*/) || line.match(/^[^a-zA-Z_]\w*\s*=/)) {
-				throw new Error(`Invalid variable assignment detected at line ${i + 1}: "${line}". This usually happens when input data contains empty keys or invalid field names. Please check your input data structure.`);
+			// Skip empty lines and comments
+			if (!trimmedLine || trimmedLine.startsWith('#')) {
+				continue;
 			}
 			
-			// Check for other obvious syntax issues
-			if (line.match(/^\s*[0-9]+\w*\s*=/) && !line.match(/^\s*[a-zA-Z_]/)) {
-				throw new Error(`Invalid variable name detected at line ${i + 1}: "${line}". Variable names cannot start with numbers. This usually happens when input data contains numeric keys.`);
+			// Only check top-level variable assignments that start at column 0
+			const assignmentMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*/);
+			if (assignmentMatch) {
+				const varName = assignmentMatch[1];
+				
+				// Check for invalid variable names in auto-generated section only
+				if (!varName || !varName.match(/^[a-zA-Z_][a-zA-Z0-9_]*$/)) {
+					throw new Error(`Invalid variable assignment detected at line ${i + 1}: "${line}". This usually happens when input data contains empty keys or invalid field names. Please check your input data structure.`);
+				}
 			}
+		}
+		
+		// Optional: Pre-validate user code syntax (non-blocking)
+		try {
+			// Extract just the user code part for validation
+			const userCodeStart = codeStr.indexOf('# User code starts here');
+			if (userCodeStart !== -1) {
+				const userCodeSection = codeStr.substring(userCodeStart + '# User code starts here'.length).trim();
+				if (userCodeSection) {
+					// Create temporary file for user code validation
+					const userTmpPath = tempy.file({extension: 'py'});
+					fs.writeFileSync(userTmpPath, userCodeSection, { encoding: 'utf8', flag: 'w' });
+					
+					// Quick syntax check without blocking execution
+					const userValidation = await validatePythonSyntax(userTmpPath, 'python3');
+					if (!userValidation.is_valid) {
+						console.warn(`User code syntax warning (line ${userValidation.line_number}): ${userValidation.syntax_error}`);
+						// Don't throw error - just log warning
+					}
+					
+					// Clean up validation file
+					try {
+						fs.unlinkSync(userTmpPath);
+					} catch (e) {
+						// Ignore cleanup errors
+					}
+				}
+			}
+		} catch (validationError) {
+			console.warn(`User code validation warning: ${(validationError as Error).message}`);
+			// Don't throw error - validation is optional
 		}
 		
 		// Write new content
@@ -3916,5 +4015,8 @@ function generateCodeTemplateStatic(
 		return `# Error generating template: ${(error as Error).message}\n# Please check your node configuration`;
 	}
 }
+
+// Export the function for testing purposes
+export { generateCodeTemplateStatic };
 
 
