@@ -3526,9 +3526,13 @@ function createScriptBinary(scriptContent: string, filename = 'script.py', forma
 
 function createOutputJsonBinary(outputData: IDataObject, filename = 'output.json'): { [key: string]: unknown } {
 	// Create output.json file with the execution results
+	// Убираем script_content из результатов так как скрипт экспортируется отдельным файлом
+	const cleanedOutputData = { ...outputData };
+	delete cleanedOutputData.script_content;
+	
 	const outputJsonContent = {
 		timestamp: new Date().toISOString(),
-		execution_results: outputData,
+		execution_results: cleanedOutputData,
 		export_info: {
 			description: "Результаты выполнения Python скрипта из n8n",
 			format_version: "1.0",
@@ -3560,17 +3564,22 @@ function addDebugInfoToResult(
 
 	const debugData: IDataObject = {};
 
-	if (['basic', 'full', 'test', 'export'].includes(debugMode)) {
+	if (['basic', 'full', 'test'].includes(debugMode)) {
 		debugData.script_content = debugInfo.script_content;
+		debugData.execution_command = debugInfo.execution_command.join(' ');
+	}
+
+	if (['export'].includes(debugMode)) {
+		// В режиме экспорта не добавляем script_content, только execution_command
 		debugData.execution_command = debugInfo.execution_command.join(' ');
 	}
 
 	if (['full', 'test', 'export'].includes(debugMode)) {
 		debugData.debug_info = {
 			script_path: debugInfo.script_path,
-			timing: debugInfo.timing,
-			environment_check: debugInfo.environment_check,
-			syntax_validation: debugInfo.syntax_validation,
+				timing: debugInfo.timing,
+				environment_check: debugInfo.environment_check,
+				syntax_validation: debugInfo.syntax_validation,
 		};
 
 		if (debugInfo.injected_data) {
