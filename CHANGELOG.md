@@ -6,6 +6,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.2] - 2025-01-06
+
+### Fixed
+- **CRITICAL FIX**: Package loading issue "Cannot find module '../../package.json'"
+- Fixed dynamic package.json loading to work in both development and compiled environments
+- Enhanced fallback mechanism for version detection with multiple path attempts
+- Resolves n8n package installation and loading errors
+
+### Technical Details
+- Updated `getNodeVersionFromPackage()` function to try multiple paths: `../../../package.json` (compiled) and `../../package.json` (dev)
+- Added robust error handling with fallback version when package.json cannot be loaded
+- Ensures node works correctly when installed via npm in production n8n instances
+
 ## [1.14.1] - 2025-01-06
 
 ### Fixed

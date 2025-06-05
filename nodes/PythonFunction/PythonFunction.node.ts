@@ -31,20 +31,33 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as tempy from 'tempy';
 
-// Автоматически читаем версию из package.json
-const packageJson = require('../../package.json');
-
 // Преобразуем версию npm в числовую версию для n8n (например, "1.14.1" -> 14)
 function getNodeVersionFromPackage(): number {
 	try {
+		// Пробуем несколько путей для совместимости dev/compiled окружений
+		let packageJson: any;
+		try {
+			// Для compiled версии (dist/nodes/PythonFunction/ -> корень пакета)
+			packageJson = require('../../../package.json');
+		} catch (e1) {
+			try {
+				// Для dev версии (nodes/PythonFunction/ -> корень проекта)
+				packageJson = require('../../package.json');
+			} catch (e2) {
+				// Fallback - используем версию из dist
+				console.warn('Could not load package.json dynamically, using fallback version');
+				return 14; // версия 1.14.x -> 14
+			}
+		}
+		
 		const version = packageJson.version; // например, "1.14.1"
 		const versionParts = version.split('.');
 		// Используем вторую часть версии как версию ноды (14 из "1.14.1")
 		// Это позволит отслеживать изменения в минорных версиях
 		return parseInt(versionParts[1], 10) || 1;
 	} catch (error) {
-		console.warn('Failed to read package version, using default version 1');
-		return 1;
+		console.warn('Failed to read package version, using fallback version 14');
+		return 14;
 	}
 }
 
