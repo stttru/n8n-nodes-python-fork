@@ -6,6 +6,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.5] - 2025-01-06
+
+### Fixed
+- **CRITICAL FIX**: Credentials not being injected when "Inject Variables" is disabled
+- Fixed issue where credential variables (like SFTPgo_HOST, SFTPgo_PORT, etc.) were not available in Python code when injectVariables=false
+- Credentials are now automatically injected regardless of "Inject Variables" setting to ensure they are always available
+- This ensures backward compatibility with existing workflows that rely on credential variables
+
+### Technical Details
+- Modified both `executeOnce` and `executePerItem` functions to inject credentials even when `injectVariables=false`
+- When credentials are present, uses `getTemporaryScriptPath` with minimal auto-generation (credentials only, no input items)
+- When no credentials are available, falls back to pure `getTemporaryPureScriptPath` mode
+- Maintains the intended behavior: credential variables are always accessible, but input item variables are only injected when explicitly enabled
+
 ## [1.14.3] - 2025-01-06
 
 ### Fixed

@@ -1893,9 +1893,15 @@ async function executeOnce(
 		if (injectVariables) {
 			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
 		} else {
-			// For pure Python mode, always use the pure script path without any parsing/validation
-			// Output directory and other settings will be passed via environment variables if needed
-			scriptPath = await getTemporaryPureScriptPath(functionCode);
+			// For pure Python mode, we still need to inject credential variables even when injectVariables=false
+			// This ensures that credentials are always available regardless of inject setting
+			if (Object.keys(pythonEnvVars).length > 0) {
+				// Use injection with minimal auto-generation - only credentials, no input items
+				scriptPath = await getTemporaryScriptPath(functionCode, [], pythonEnvVars, false, false, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
+			} else {
+				// No credentials to inject, use pure mode
+				scriptPath = await getTemporaryPureScriptPath(functionCode);
+			}
 			
 			// Add output_dir to environment variables if Output File Processing is enabled
 			if (outputDir) {
@@ -2242,20 +2248,26 @@ async function executePerItem(
 			if (injectVariables) {
 				// For per-item execution, pass only current item
 				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
-					} else {
-			// For pure Python mode, always use the pure script path without any parsing/validation
-			// Output directory and other settings will be passed via environment variables if needed
-			scriptPath = await getTemporaryPureScriptPath(functionCode);
-			
-			// Add output_dir to environment variables if Output File Processing is enabled
-			if (outputDir) {
-				pythonEnvVars.output_dir = outputDir;
-				if (outputFileProcessingOptions?.expectedFileName) {
-					pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
+			} else {
+				// For pure Python mode, we still need to inject credential variables even when injectVariables=false
+				// This ensures that credentials are always available regardless of inject setting
+				if (Object.keys(pythonEnvVars).length > 0) {
+					// Use injection with minimal auto-generation - only credentials, no input items
+					scriptPath = await getTemporaryScriptPath(functionCode, [], pythonEnvVars, false, false, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
+				} else {
+					// No credentials to inject, use pure mode
+					scriptPath = await getTemporaryPureScriptPath(functionCode);
 				}
-				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
+				
+				// Add output_dir to environment variables if Output File Processing is enabled
+				if (outputDir) {
+					pythonEnvVars.output_dir = outputDir;
+					if (outputFileProcessingOptions?.expectedFileName) {
+						pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
+					}
+					pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
+				}
 			}
-		}
 
 			// Create debug information for this item
 			if (debugMode !== 'off') {
