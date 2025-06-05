@@ -292,10 +292,54 @@ Choose export format for generated scripts in "Export Script" debug mode to comp
 - **Basic Debug**: Add script content and basic execution info
 - **Full Debug**: Complete debugging with timing and environment info
 - **Test Only**: Safe validation without execution
-- **Export Script**: Full debug plus downloadable script files
+- **Export Script**: Full debug plus downloadable script files and execution results (v1.14.5+)
 
 ### Script Generation Options (v1.7.0+)
 - **Hide Variable Values** (default: disabled): Replace sensitive values with asterisks
+
+### Export Script Mode (v1.14.5+)
+When Debug Mode is set to "Export Script", the node generates two downloadable files:
+
+#### 📄 Python Script File
+- **Format**: `.py` or `.txt` (configurable via Script Export Format)
+- **Content**: Complete executable Python script with all injected variables
+- **Filename**: `python_script_TIMESTAMP.py` (or `python_script_error_TIMESTAMP.py` for errors)
+- **Use Case**: Share scripts, debug issues, run scripts outside n8n
+
+#### 📄 Output Results File (NEW)
+- **Format**: `output_TIMESTAMP.json`
+- **Content**: Complete execution results in structured JSON format
+- **Structure**:
+  ```json
+  {
+    "timestamp": "2025-06-05T12:00:00.000Z",
+    "execution_results": {
+      "exitCode": 0,
+      "success": true,
+      "stdout": "script output",
+      "stderr": "",
+      "parsed_stdout": {...},
+      "parsing_success": true,
+      "executedAt": "2025-06-05T12:00:00.000Z",
+      "inputItemsCount": 1,
+      "executionMode": "once"
+    },
+    "export_info": {
+      "description": "Результаты выполнения Python скрипта из n8n",
+      "format_version": "1.0",
+      "exported_at": "2025-06-05T12:00:00.000Z",
+      "node_type": "n8n-nodes-python.pythonFunction"
+    }
+  }
+  ```
+
+#### Benefits of Export Mode
+- **Complete Debugging Package**: Both script and results in one export
+- **Offline Analysis**: Analyze execution results without n8n interface
+- **Documentation**: Perfect for bug reports and support requests
+- **Audit Trail**: Structured record of script execution with metadata
+- **Error Investigation**: Detailed error information preserved in JSON format
+- **Sharing**: Easy to share both script and results with team members
 
 ### Execution Control (v1.4.0+)
 - **Execution Mode**: Choose script execution approach:

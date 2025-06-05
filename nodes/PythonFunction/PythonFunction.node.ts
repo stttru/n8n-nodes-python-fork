@@ -2070,12 +2070,17 @@ async function executeOnce(
 			const filename = `python_script_${timestamp}.py`;
 			const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 			
+			// Create output.json with execution results
+			const outputJsonFilename = `output_${timestamp}.json`;
+			const outputJsonBinary = createOutputJsonBinary(baseResult, outputJsonFilename);
+			
 			// Add binary data to each result item
 			for (const resultItem of resultWithPassThrough) {
 				if (!resultItem.binary) {
 					resultItem.binary = {};
 				}
 				Object.assign(resultItem.binary, scriptBinary);
+				Object.assign(resultItem.binary, outputJsonBinary);
 			}
 		}
 
@@ -2136,11 +2141,16 @@ async function executeOnce(
 			const filename = `python_script_error_${timestamp}.py`;
 			const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 			
+			// Create output.json with error results
+			const outputJsonFilename = `output_error_${timestamp}.json`;
+			const outputJsonBinary = createOutputJsonBinary(baseResult, outputJsonFilename);
+			
 			for (const resultItem of errorResultWithPassThrough) {
 				if (!resultItem.binary) {
 					resultItem.binary = {};
 				}
 				Object.assign(resultItem.binary, scriptBinary);
+				Object.assign(resultItem.binary, outputJsonBinary);
 			}
 		}
 
@@ -2189,11 +2199,16 @@ async function executeOnce(
 				const filename = `python_script_system_error_${timestamp}.py`;
 				const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 				
+				// Create output.json with system error results
+				const outputJsonFilename = `output_system_error_${timestamp}.json`;
+				const outputJsonBinary = createOutputJsonBinary(errorItem, outputJsonFilename);
+				
 				for (const resultItem of errorResultWithPassThrough) {
 					if (!resultItem.binary) {
 						resultItem.binary = {};
 					}
 					Object.assign(resultItem.binary, scriptBinary);
+					Object.assign(resultItem.binary, outputJsonBinary);
 				}
 			}
 
@@ -2316,11 +2331,16 @@ async function executePerItem(
 					const filename = `python_script_item_${i}_gen_error_${timestamp}.py`;
 					const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 					
+					// Create output.json with generation error results
+					const outputJsonFilename = `output_item_${i}_gen_error_${timestamp}.json`;
+					const outputJsonBinary = createOutputJsonBinary(errorResult, outputJsonFilename);
+					
 					for (const resultItem of errorWithPassThrough) {
 						if (!resultItem.binary) {
 							resultItem.binary = {};
 						}
 						Object.assign(resultItem.binary, scriptBinary);
+						Object.assign(resultItem.binary, outputJsonBinary);
 					}
 				}
 
@@ -2482,11 +2502,16 @@ async function executePerItem(
 				const filename = `python_script_item_${i}_${timestamp}.py`;
 				const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 				
+				// Create output.json with execution results for this item
+				const outputJsonFilename = `output_item_${i}_${timestamp}.json`;
+				const outputJsonBinary = createOutputJsonBinary(itemResult, outputJsonFilename);
+				
 				for (const resultItem of resultWithPassThrough) {
 					if (!resultItem.binary) {
 						resultItem.binary = {};
 					}
 					Object.assign(resultItem.binary, scriptBinary);
+					Object.assign(resultItem.binary, outputJsonBinary);
 				}
 			}
 
@@ -2527,11 +2552,16 @@ async function executePerItem(
 					const filename = `python_script_item_${i}_error_${timestamp}.py`;
 					const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
 					
+					// Create output.json with system error results for this item
+					const outputJsonFilename = `output_item_${i}_error_${timestamp}.json`;
+					const outputJsonBinary = createOutputJsonBinary(errorResult, outputJsonFilename);
+					
 					for (const resultItem of errorWithPassThrough) {
 						if (!resultItem.binary) {
 							resultItem.binary = {};
 						}
 						Object.assign(resultItem.binary, scriptBinary);
+						Object.assign(resultItem.binary, outputJsonBinary);
 					}
 				}
 
@@ -2608,11 +2638,49 @@ function parseEnvFile(envFileContent: string): Record<string, string> {
 }
 
 /**
- * Validates and sanitizes a variable name for Python
- * @param key Original key name
- * @param prefix Optional prefix to add if name starts with number
- * @returns Sanitized variable name or null if invalid
+ * Convert JavaScript/JSON values to Python-compatible string representation
+ * Handles boolean conversion (true/false -> True/False) and other Python-specific formatting
  */
+function convertToPythonValue(value: unknown): string {
+	if (value === null) {
+		return 'None';
+	}
+	
+	if (typeof value === 'boolean') {
+		return value ? 'True' : 'False';
+	}
+	
+	if (typeof value === 'undefined') {
+		return 'None';
+	}
+	
+	if (typeof value === 'string') {
+		return JSON.stringify(value);
+	}
+	
+	if (typeof value === 'number') {
+		return String(value);
+	}
+	
+	if (Array.isArray(value)) {
+		const pythonArray = value.map(item => convertToPythonValue(item));
+		return `[${pythonArray.join(', ')}]`;
+	}
+	
+	if (typeof value === 'object' && value !== null) {
+		const entries = Object.entries(value as Record<string, unknown>);
+		const pythonDict = entries.map(([key, val]) => {
+			const pythonKey = JSON.stringify(key);
+			const pythonVal = convertToPythonValue(val);
+			return `${pythonKey}: ${pythonVal}`;
+		});
+		return `{${pythonDict.join(', ')}}`;
+	}
+	
+	// Fallback to JSON.stringify for other types
+	return JSON.stringify(value);
+}
+
 function sanitizeVariableName(key: string, prefix = 'var'): string | null {
 	// Skip empty keys or invalid Python identifiers
 	if (!key || key.trim() === '') {
@@ -2687,7 +2755,7 @@ function getScriptCode(
 				continue;
 			}
 			
-			const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
+			const displayValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(value);
 			variableAssignments.push(`${safeVarName} = ${displayValue}`);
 		}
 		
@@ -2715,7 +2783,7 @@ ${variableAssignments.join('\n')}
 				continue;
 			}
 			
-			const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
+			const displayValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(value);
 			const assignment = `${safeVarName} = ${displayValue}`;
 			
 			// Get source information
@@ -2747,7 +2815,7 @@ ${variableAssignments.join('\n')}
 					continue;
 				}
 				
-				const displayValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(value);
+				const displayValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(value);
 				envVariableAssignments.push(`${safeVarName} = ${displayValue}`);
 			}
 		}
@@ -2763,7 +2831,7 @@ ${envVariableAssignments.join('\n')}
 	// Prepare legacy data (only if enabled)
 	let legacyDataSection = '';
 	if (includeEnvVarsDict) {
-		const envVarsValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(envVars);
+		const envVarsValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(envVars);
 		legacyDataSection = `
 # Legacy compatibility objects
 env_vars = ${envVarsValue}`;
@@ -2793,7 +2861,7 @@ env_vars = ${envVarsValue}`;
 			return fileInfo;
 		});
 		
-		const filesValue = hideVariableValues ? '"***hidden***"' : JSON.stringify(filesArray, null, 2);
+		const filesValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(filesArray);
 		inputFilesSection = `
 # Binary files from previous nodes
 input_files = ${filesValue}`;
@@ -3452,6 +3520,32 @@ function createScriptBinary(scriptContent: string, filename = 'script.py', forma
 			mimeType,
 			fileExtension,
 			fileName: finalFilename,
+		},
+	};
+}
+
+function createOutputJsonBinary(outputData: IDataObject, filename = 'output.json'): { [key: string]: unknown } {
+	// Create output.json file with the execution results
+	const outputJsonContent = {
+		timestamp: new Date().toISOString(),
+		execution_results: outputData,
+		export_info: {
+			description: "Результаты выполнения Python скрипта из n8n",
+			format_version: "1.0",
+			exported_at: new Date().toISOString(),
+			node_type: "n8n-nodes-python.pythonFunction"
+		}
+	};
+	
+	const jsonString = JSON.stringify(outputJsonContent, null, 2);
+	const buffer = Buffer.from(jsonString, 'utf8');
+	
+	return {
+		[filename]: {
+			data: buffer.toString('base64'),
+			mimeType: 'application/json',
+			fileExtension: 'json',
+			fileName: filename,
 		},
 	};
 }
