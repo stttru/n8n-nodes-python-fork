@@ -2734,7 +2734,7 @@ function getScriptCode(
 	let cleanedCodeSnippet = codeSnippet;
 	
 	while (match !== null) {
-		futureImports.push(match[1].trim());
+		futureImports.push(match[0].trim());
 		match = futureImportRegex.exec(codeSnippet);
 	}
 	

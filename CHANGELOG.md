@@ -6,6 +6,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.8] - 2025-01-06
+
+### Fixed
+- **CRITICAL REGRESSION FIX**: Fixed "Cannot read properties of undefined (reading 'trim')" error with `__future__` imports
+- Fixed bug in `getScriptCode` function where `match[1].trim()` was called instead of `match[0].trim()`
+- This issue prevented Python code with `from __future__ import annotations` statements from executing
+- Regression was introduced during previous code modifications to the future imports handling logic
+
+### Enhanced
+- **NEW REGRESSION PREVENTION**: Added comprehensive test suite for `__future__` imports handling
+- Added `tests/unit/test_future_imports_handling.py` - Python unit tests for future imports logic
+- Added `tests/unit/test_future_imports_handling.js` - JavaScript integration tests for compiled code
+- Tests cover single imports, multiple imports, complex user code, and edge cases
+- Tests specifically validate against the "trim() on undefined" regression to prevent future occurrences
+
+### Technical Details
+- Fixed line 2737 in `PythonFunction.node.ts`: changed `futureImports.push(match[1].trim())` to `futureImports.push(match[0].trim())`
+- Regex `/^from __future__ import .+$/gm` does not contain capturing groups, so `match[1]` was undefined
+- The correct usage is `match[0]` which contains the entire matched string
+- All existing functionality for `__future__` imports extraction and placement remains intact
+- New tests integrated into the existing test suite and run automatically with `npm test`
+
+### User Impact
+- Python code with `from __future__ import annotations` and other future imports now works correctly
+- No more cryptic error messages when using modern Python type annotations
+- Resolves user-reported issue where complex YouTube API integration code failed to execute
+
 ## [1.14.5] - 2025-01-06
 
 ### Fixed
