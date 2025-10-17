@@ -32,6 +32,26 @@ import * as path from 'path';
 import * as tempy from 'tempy';
 
 // Преобразуем версию npm в числовую версию для n8n (например, "1.14.1" -> 14)
+function getPackageVersion(): string {
+	try {
+		let packageJson: any;
+		try {
+			// Для compiled версии (dist/nodes/PythonFunction/ -> корень пакета)
+			packageJson = require('../../../package.json');
+		} catch (e1) {
+			try {
+				// Для dev версии (nodes/PythonFunction/ -> корень проекта)
+				packageJson = require('../../package.json');
+			} catch (e2) {
+				return 'unknown';
+			}
+		}
+		return packageJson.version || 'unknown';
+	} catch (error) {
+		return 'unknown';
+	}
+}
+
 function getNodeVersionFromPackage(): number {
 	try {
 		// Пробуем несколько путей для совместимости dev/compiled окружений
@@ -1953,27 +1973,28 @@ async function executeOnce(
 		// Create execution directory first
 		executionDir = createExecutionDirectory();
 		
-		if (injectVariables) {
-			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
-		} else {
-			// For pure Python mode, we still need to inject credential variables even when injectVariables=false
-			// This ensures that credentials are always available regardless of inject setting
-			if (Object.keys(pythonEnvVars).length > 0) {
-				// Use injection with minimal auto-generation - only credentials, no input items
-				scriptPath = await getTemporaryScriptPath(functionCode, [], pythonEnvVars, false, false, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
-			} else {
-				// No credentials to inject, use pure mode
-				scriptPath = await getTemporaryPureScriptPath(functionCode);
+		// Always call getTemporaryScriptPath to ensure reserved variables are defined
+		// Pass empty arrays/objects when injectVariables is false
+		scriptPath = await getTemporaryScriptPath(
+			functionCode, 
+			injectVariables ? unwrapJsonField(items) : [], 
+			injectVariables ? pythonEnvVars : {}, 
+			includeInputItems, 
+			includeEnvVarsDict, 
+			hideVariableValues, 
+			credentialSources, 
+			inputFiles, 
+			outputDir, 
+			outputFileProcessingOptions
+		);
+		
+		// Add output_dir to environment variables if Output File Processing is enabled
+		if (outputDir) {
+			pythonEnvVars.output_dir = outputDir;
+			if (outputFileProcessingOptions?.expectedFileName) {
+				pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
 			}
-			
-			// Add output_dir to environment variables if Output File Processing is enabled
-			if (outputDir) {
-				pythonEnvVars.output_dir = outputDir;
-				if (outputFileProcessingOptions?.expectedFileName) {
-					pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
-				}
-				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
-			}
+			pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
 		}
 		
 		// Move script to execution directory
@@ -1999,14 +2020,27 @@ async function executeOnce(
 			
 			if (debugMode === 'export') {
 				// For export mode, use special function without env_vars
-				scriptContent = injectVariables 
-					? getScriptCodeForExport(functionCode, unwrapJsonField(items), inputFiles, outputDir, outputFileProcessingOptions)
-					: functionCode;
+				scriptContent = getScriptCodeForExport(
+					functionCode, 
+					injectVariables ? unwrapJsonField(items) : [], 
+					inputFiles, 
+					outputDir, 
+					outputFileProcessingOptions
+				);
 			} else {
 				// For other debug modes, use full function with env_vars
-				scriptContent = injectVariables 
-					? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
-					: functionCode;
+				scriptContent = getScriptCode(
+					functionCode, 
+					injectVariables ? unwrapJsonField(items) : [], 
+					injectVariables ? pythonEnvVars : {}, 
+					includeInputItems, 
+					includeEnvVarsDict, 
+					hideVariableValues, 
+					credentialSources, 
+					inputFiles || [], 
+					outputDir || '', 
+					outputFileProcessingOptions
+				);
 			}
 			
 			debugInfo = await createDebugInfo(
@@ -2356,28 +2390,28 @@ async function executePerItem(
 			// Create execution directory for this item
 			executionDir = createExecutionDirectory();
 			
-			if (injectVariables) {
-				// For per-item execution, pass only current item
-				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
-			} else {
-				// For pure Python mode, we still need to inject credential variables even when injectVariables=false
-				// This ensures that credentials are always available regardless of inject setting
-				if (Object.keys(pythonEnvVars).length > 0) {
-					// Use injection with minimal auto-generation - only credentials, no input items
-					scriptPath = await getTemporaryScriptPath(functionCode, [], pythonEnvVars, false, false, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
-				} else {
-					// No credentials to inject, use pure mode
-					scriptPath = await getTemporaryPureScriptPath(functionCode);
+			// Always call getTemporaryScriptPath to ensure reserved variables are defined
+			// Pass empty arrays/objects when injectVariables is false
+			scriptPath = await getTemporaryScriptPath(
+				functionCode, 
+				injectVariables ? [unwrapJsonField([item])[0]] : [], 
+				injectVariables ? pythonEnvVars : {}, 
+				includeInputItems, 
+				includeEnvVarsDict, 
+				hideVariableValues, 
+				credentialSources, 
+				inputFiles, 
+				outputDir, 
+				outputFileProcessingOptions
+			);
+			
+			// Add output_dir to environment variables if Output File Processing is enabled
+			if (outputDir) {
+				pythonEnvVars.output_dir = outputDir;
+				if (outputFileProcessingOptions?.expectedFileName) {
+					pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
 				}
-				
-				// Add output_dir to environment variables if Output File Processing is enabled
-				if (outputDir) {
-					pythonEnvVars.output_dir = outputDir;
-					if (outputFileProcessingOptions?.expectedFileName) {
-						pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
-					}
-					pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
-				}
+				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
 			}
 			
 			// Move script to execution directory
@@ -2395,14 +2429,27 @@ async function executePerItem(
 				
 				if (debugMode === 'export') {
 					// For export mode, use special function without env_vars
-					scriptContent = injectVariables 
-						? getScriptCodeForExport(functionCode, [unwrapJsonField([item])[0]], inputFiles, outputDir, outputFileProcessingOptions)
-						: functionCode;
+					scriptContent = getScriptCodeForExport(
+						functionCode, 
+						injectVariables ? [unwrapJsonField([item])[0]] : [], 
+						inputFiles, 
+						outputDir, 
+						outputFileProcessingOptions
+					);
 				} else {
 					// For other debug modes, use full function with env_vars
-					scriptContent = injectVariables 
-						? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
-						: functionCode;
+					scriptContent = getScriptCode(
+						functionCode, 
+						injectVariables ? [unwrapJsonField([item])[0]] : [], 
+						injectVariables ? pythonEnvVars : {}, 
+						includeInputItems, 
+						includeEnvVarsDict, 
+						hideVariableValues, 
+						credentialSources, 
+						inputFiles || [], 
+						outputDir || '', 
+						outputFileProcessingOptions
+					);
 				}
 				
 				debugInfo = await createDebugInfo(
@@ -3898,6 +3945,7 @@ function addDebugInfoToResult(
 
 	if (['full', 'test', 'export'].includes(debugMode)) {
 		debugData.debug_info = {
+			package_version: getPackageVersion(),
 			script_path: debugInfo.script_path,
 				timing: debugInfo.timing,
 				environment_check: debugInfo.environment_check,

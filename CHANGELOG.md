@@ -6,6 +6,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.6] - 2025-10-17
+
+### Fixed
+- **CRITICAL**: Fixed reserved variables not being defined when "Inject Input Variables" is disabled
+- Reserved variables (input_items, env_vars, input_files, output_dir) are now ALWAYS defined
+- Fixed bug where getTemporaryPureScriptPath was used instead of getTemporaryScriptPath when no credentials
+
+### Added
+- Package version now shown in debug_info for full debug mode
+
 ## [1.17.5] - 2025-10-17
 
 ### Fixed
