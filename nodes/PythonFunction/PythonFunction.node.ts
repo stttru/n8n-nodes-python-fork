@@ -444,6 +444,19 @@ interface SystemDiagnostics {
 		version_output: string;
 		path_resolved: string;
 		is_found: boolean;
+		version_details: {
+			full_version: string;
+			major: number;
+			minor: number;
+			micro: number;
+		} | null;
+		installed_packages: {
+			package_count: number;
+			packages_list: string[];  // Top 50 packages for preview
+			pip_freeze_command: string;
+			pip_freeze_successful: boolean;
+			pip_freeze_error: string | null;
+		} | null;
 	};
 }
 
@@ -653,6 +666,8 @@ function createFullDebugPlusDiagnostics(): FullDebugPlusDiagnostics {
 				version_output: '',
 				path_resolved: '',
 				is_found: false,
+				version_details: null,
+				installed_packages: null,
 			},
 		},
 		
@@ -1640,13 +1655,23 @@ if output_dir:
 				outputs_count: 2,
 			};
 			// Update Python info
-			fullDebugPlusDiagnostics.system.python = {
-				executable: pythonPath,
-				version_command: `${pythonPath} --version`,
-				version_output: '',
-				path_resolved: pythonPath,
-				is_found: true, // Will be updated during execution
-			};
+			if (fullDebugPlusDiagnostics) {
+				const pythonDiag = await getPythonDiagnostics(pythonPath);
+				fullDebugPlusDiagnostics.system.python = {
+					executable: pythonPath,
+					version_command: `${pythonPath} --version`,
+					version_output: pythonDiag.version_output,
+					path_resolved: pythonPath,
+					is_found: !!pythonDiag.version_output && !pythonDiag.version_output.startsWith('Error'),
+					version_details: pythonDiag.version_details,
+					installed_packages: pythonDiag.installed_packages,
+				};
+				
+				console.log('🐍 Python:', pythonDiag.version_output);
+				if (pythonDiag.installed_packages) {
+					console.log(`📦 Python packages: ${pythonDiag.installed_packages.package_count} installed`);
+				}
+			}
 			// Update n8n info
 			fullDebugPlusDiagnostics.system.n8n.workflow_id = String(this.getWorkflow().id || 'unknown');
 			fullDebugPlusDiagnostics.system.n8n.execution_id = 'unknown'; // getExecutionId() not available in IExecuteFunctions
@@ -2172,6 +2197,116 @@ async function loadCredentialsFromJsonConfig(
 	}
 	
 	return { envVars, credentialSources };
+}
+
+async function getPythonDiagnostics(pythonPath: string): Promise<{
+	version_output: string;
+	version_details: { full_version: string; major: number; minor: number; micro: number } | null;
+	installed_packages: {
+		package_count: number;
+		packages_list: string[];
+		pip_freeze_command: string;
+		pip_freeze_successful: boolean;
+		pip_freeze_error: string | null;
+	} | null;
+}> {
+	const result = {
+		version_output: '',
+		version_details: null as { full_version: string; major: number; minor: number; micro: number } | null,
+		installed_packages: null as {
+			package_count: number;
+			packages_list: string[];
+			pip_freeze_command: string;
+			pip_freeze_successful: boolean;
+			pip_freeze_error: string | null;
+		} | null,
+	};
+	
+	// Get Python version
+	try {
+		const { spawn } = require('child_process');
+		const versionProcess = spawn(pythonPath, ['--version']);
+		
+		let stdout = '';
+		let stderr = '';
+		
+		versionProcess.stdout?.on('data', (data: Buffer) => {
+			stdout += data.toString();
+		});
+		
+		versionProcess.stderr?.on('data', (data: Buffer) => {
+			stderr += data.toString();
+		});
+		
+		await new Promise((resolve) => {
+			versionProcess.on('close', resolve);
+		});
+		
+		result.version_output = (stdout + stderr).trim();
+		
+		// Parse version (e.g., "Python 3.12.11")
+		const versionMatch = result.version_output.match(/Python (\d+)\.(\d+)\.(\d+)/);
+		if (versionMatch) {
+			result.version_details = {
+				full_version: versionMatch[0],
+				major: parseInt(versionMatch[1]),
+				minor: parseInt(versionMatch[2]),
+				micro: parseInt(versionMatch[3]),
+			};
+		}
+	} catch (error) {
+		result.version_output = `Error: ${(error as Error).message}`;
+	}
+	
+	// Get installed packages
+	try {
+		const { spawn } = require('child_process');
+		const pipProcess = spawn(pythonPath, ['-m', 'pip', 'freeze']);
+		
+		let stdout = '';
+		let stderr = '';
+		
+		pipProcess.stdout?.on('data', (data: Buffer) => {
+			stdout += data.toString();
+		});
+		
+		pipProcess.stderr?.on('data', (data: Buffer) => {
+			stderr += data.toString();
+		});
+		
+		await new Promise((resolve) => {
+			pipProcess.on('close', resolve);
+		});
+		
+		if (stdout) {
+			const packages = stdout.trim().split('\n').filter(line => line.trim());
+			result.installed_packages = {
+				package_count: packages.length,
+				packages_list: packages.slice(0, 50),  // First 50 for preview
+				pip_freeze_command: `${pythonPath} -m pip freeze`,
+				pip_freeze_successful: true,
+				pip_freeze_error: null,
+			};
+		} else {
+			result.installed_packages = {
+				package_count: 0,
+				packages_list: [],
+				pip_freeze_command: `${pythonPath} -m pip freeze`,
+				pip_freeze_successful: false,
+				pip_freeze_error: stderr || 'No output from pip freeze',
+			};
+		}
+	} catch (error) {
+		result.installed_packages = {
+			package_count: 0,
+			packages_list: [],
+			pip_freeze_command: `${pythonPath} -m pip freeze`,
+			pip_freeze_successful: false,
+			pip_freeze_error: (error as Error).message,
+		};
+	}
+	
+	return result;
 }
 
 

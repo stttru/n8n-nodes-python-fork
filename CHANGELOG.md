@@ -6,6 +6,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.2] - 2025-01-17
+
+### Enhanced
+- **Full Debug+ Python Diagnostics**: Enhanced Python environment information
+  - Now displays actual Python version output (was empty before)
+  - Shows installed Python packages (pip freeze)
+  - Detailed version parsing (major, minor, micro versions)
+  - Package count and first 50 packages for preview
+  - Troubleshooting info if pip freeze fails
+
+### Technical Details
+- Added `getPythonDiagnostics()` helper function
+- Expanded `SystemDiagnostics.python` interface with `version_details` and `installed_packages`
+- Async execution of `python --version` and `pip freeze` commands
+- Error handling for Python environment discovery failures
+- Console logging shows Python version and package count in Full Debug+ mode
+
 ## [1.19.1] - 2025-01-17
 
 ### Enhanced
