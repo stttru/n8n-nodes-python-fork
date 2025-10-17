@@ -997,57 +997,13 @@ if output_dir:
 						description: 'Normal execution without debug information (default)',
 					},
 					{
-						name: 'Basic Debug',
-						value: 'basic',
-						description: 'Add script content and basic execution info to output',
-					},
-					{
-						name: 'Full Debug',
-						value: 'full',
-						description: 'Add script content, metadata, timing, and detailed execution info',
-					},
-					{
 						name: '🔬 Full Debug+ (Developer Mode)',
 						value: 'full_plus',
-						description: 'MAXIMUM diagnostics: system info, node installation, environment, all data sources, execution details, file system - everything for troubleshooting',
-					},
-					{
-						name: 'Test Only',
-						value: 'test',
-						description: 'Validate script and show preview without executing (safe testing)',
-					},
-					{
-						name: 'Export Script',
-						value: 'export',
-						description: 'Full debug information plus script file as binary attachment',
+						description: 'MAXIMUM diagnostics with file export: system info, Python environment, execution details, script and diagnostics files',
 					},
 				],
 				default: 'off',
-				description: 'Choose debug and testing options for script development and troubleshooting',
-			},
-			{
-				displayName: 'Script Export Format',
-				name: 'scriptExportFormat',
-				type: 'options',
-				displayOptions: {
-					show: {
-						debugMode: ['export'],
-					},
-				},
-				options: [
-					{
-						name: 'Python File (.py)',
-						value: 'py',
-						description: 'Export as .py file (standard Python script format)',
-					},
-					{
-						name: 'Text File (.txt)',
-						value: 'txt',
-						description: 'Export as .txt file (useful when .py files are blocked by security policies)',
-					},
-				],
-				default: 'py',
-				description: 'Choose the file format for script export in debug mode',
+				description: 'Enable comprehensive diagnostics for troubleshooting',
 			},
 			{
 				displayName: 'Script Generation Options',
@@ -1617,7 +1573,6 @@ if output_dir:
 		const executionTimeout = this.getNodeParameter('executionTimeout', 0) as number;
 		const errorHandling = this.getNodeParameter('errorHandling', 0) as string;
 		const parseOutput = this.getNodeParameter('parseOutput', 0) as string;
-		const scriptExportFormat = this.getNodeParameter('scriptExportFormat', 0, 'py') as string;
 		const parseOptions = (['json', 'smart'].includes(parseOutput)) ? 
 			this.getNodeParameter('parseOptions', 0) as ParseOptions : 
 			{} as ParseOptions;
@@ -1994,7 +1949,6 @@ if output_dir:
 					outputDir,
 					outputFileProcessingOptions,
 					fileDebugOptions,
-					scriptExportFormat,
 				);
 			} else {
 				return await executeOnce(
@@ -2020,7 +1974,6 @@ if output_dir:
 					outputDir,
 					outputFileProcessingOptions,
 					fileDebugOptions,
-					scriptExportFormat,
 					fullDebugPlusDiagnostics,
 				);
 			}
@@ -2357,7 +2310,6 @@ async function executeOnce(
 	outputDir?: string,
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
 	fileDebugOptions?: FileDebugOptions,
-	scriptExportFormat?: string,
 	fullDebugPlusDiagnostics?: FullDebugPlusDiagnostics | null,
 ): Promise<INodeExecutionData[][]> {
 
@@ -2369,24 +2321,82 @@ async function executeOnce(
 		
 	let scriptPath = '';
 	let executionDir = '';
+	let scriptSource: string;  // Content (secure) or path (debug)
+	let credentialsForFD3: Record<string, any> | undefined;
+	let useStdin = true;
+	let useSecureMode = debugMode !== 'full_plus';
+	
 	try {
 		// Create execution directory first
 		executionDir = createExecutionDirectory();
 		
-		// Always call getTemporaryScriptPath to ensure reserved variables are defined
-		// Pass empty arrays/objects when injectInputVariables is false
-		scriptPath = await getTemporaryScriptPath(
-			functionCode, 
-			injectInputVariables ? unwrapJsonField(items) : [], 
-			pythonEnvVars, 
-			includeInputItems, 
-			includeEnvVarsDict, 
-			hideVariableValues, 
-			credentialSources, 
-			inputFiles, 
-			outputDir, 
-			outputFileProcessingOptions
-		);
+		// ============================================================
+		// SECURITY: Choose execution mode based on debug settings
+		// ============================================================
+
+		if (useSecureMode) {
+			// ========================================
+			// SECURE MODE (off): stdin + FD 3
+			// ========================================
+			console.log('🔒 SECURE MODE: Credentials via FD 3, script via stdin');
+			
+			// Extract credential names only (no values!)
+			const credentialNames = Object.keys(pythonEnvVars);
+			
+			// Generate script WITHOUT credential values
+			scriptSource = getScriptCodeSecure(
+				functionCode,
+				injectInputVariables ? unwrapJsonField(items) : [],
+				credentialNames,  // Names only - values via FD 3
+				includeInputItems,
+				inputFiles,
+				outputDir,
+				outputFileProcessingOptions
+			);
+			
+			// Credentials will be sent via FD 3
+			credentialsForFD3 = pythonEnvVars;
+			useStdin = true;
+			
+			console.log(`  • Credential names in script: ${credentialNames.length}`);
+			console.log(`  • Credential values: SENT VIA FD 3 (not in script text)`);
+			console.log(`  • Script delivery: STDIN (no files on disk)`);
+			
+		} else {
+			// ========================================
+			// DEBUG MODE (full_plus): Traditional file with embedded credentials
+			// ========================================
+			console.log('🔍 DEBUG MODE: Credentials embedded, script in file');
+			
+			// Generate script WITH credential values (for debugging)
+			scriptPath = await getTemporaryScriptPath(
+				functionCode,
+				injectInputVariables ? unwrapJsonField(items) : [],
+				pythonEnvVars,  // Full credentials embedded
+				includeInputItems,
+				includeEnvVarsDict,
+				hideVariableValues,
+				credentialSources,
+				inputFiles,
+				outputDir,
+				outputFileProcessingOptions
+			);
+			
+			// Move script to execution directory
+			const scriptFileName = path.basename(scriptPath);
+			const newScriptPath = path.join(executionDir, scriptFileName);
+			fs.copyFileSync(scriptPath, newScriptPath);
+			fs.unlinkSync(scriptPath);
+			scriptPath = newScriptPath;
+			
+			scriptSource = scriptPath;  // File path, not content
+			credentialsForFD3 = undefined;  // No FD needed
+			useStdin = false;
+			
+			console.log(`  • Script file: ${scriptPath}`);
+			console.log(`  • Credentials: EMBEDDED in file (for debugging)`);
+			console.log(`  • Script delivery: FILE (traditional)`);
+		}
 		
 		// Full Debug+: Diagnose script generation
 		if (fullDebugPlusDiagnostics) {
@@ -2473,69 +2483,31 @@ async function executeOnce(
 	}
 
 	try {
-		// Initialize debug information
-		if (debugMode !== 'off') {
-			let scriptContent: string;
-			
-			if (debugMode === 'export') {
-				// For export mode, use special function without env_vars
-				scriptContent = getScriptCodeForExport(
-					functionCode, 
-					injectInputVariables ? unwrapJsonField(items) : [], 
-					inputFiles, 
-					outputDir, 
-					outputFileProcessingOptions
-				);
-			} else {
-				// For other debug modes, use full function with env_vars
-				scriptContent = getScriptCode(
-					functionCode, 
-					injectInputVariables ? unwrapJsonField(items) : [], 
-					pythonEnvVars, 
-					includeInputItems, 
-					includeEnvVarsDict, 
-					hideVariableValues, 
-					credentialSources, 
-					inputFiles || [], 
-					outputDir || '', 
-					outputFileProcessingOptions
-				);
-			}
+		// Initialize debug information for full_plus mode
+		let debugInfo: DebugInfo | undefined;
+		if (debugMode === 'full_plus') {
+			const scriptContent = getScriptCode(
+				functionCode, 
+				injectInputVariables ? unwrapJsonField(items) : [], 
+				pythonEnvVars, 
+				includeInputItems, 
+				includeEnvVarsDict, 
+				hideVariableValues, 
+				credentialSources, 
+				inputFiles || [], 
+				outputDir || '', 
+				outputFileProcessingOptions
+			);
 			
 			debugInfo = await createDebugInfo(
 				scriptPath,
 				scriptContent,
-				 pythonPath,
+				pythonPath,
 				injectInputVariables ? unwrapJsonField(items) : undefined,
-				(injectInputVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
-				 debugTiming,
-				 credentialSources,
+				pythonEnvVars,
+				debugTiming,
+				credentialSources,
 			);
-		}
-
-		// For Test Only mode, return validation results without execution
-		if (debugMode === 'test') {
-			const testResult: IDataObject = {
-				exitCode: null,
-				stdout: '',
-				stderr: '',
-				success: null,
-				error: null,
-				inputItemsCount: items.length,
-				executedAt: new Date().toISOString(),
-				includeInputVariables: injectInputVariables,
-				parseOutput,
-				executionMode: 'once',
-				test_mode: true,
-				execution_skipped: true,
-			};
-
-			if (debugInfo) {
-				addDebugInfoToResult(testResult, debugInfo, debugMode);
-			}
-
-			const testResultWithPassThrough = handlePassThroughData(testResult, items, passThrough, passThroughMode);
-			return [testResultWithPassThrough, []];
 		}
 
 		// Execute the Python script
@@ -2569,7 +2541,21 @@ async function executeOnce(
 			});
 		}
 		
-		const execResults = await execPythonSpawn(scriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
+		// ============================================================
+		// Execute Python script
+		// ============================================================
+		debugTiming.execution_started_at = new Date().toISOString();
+
+		const execResults = await execPythonSpawn(
+			scriptSource,                    // Content (secure) or path (debug)
+			pythonPath,
+			executionDir,
+			executionTimeout,
+			credentialsForFD3,              // Credentials for FD 3 (or undefined)
+			executeFunctions.sendMessageToUI,
+			useStdin                        // true = stdin, false = file
+		);
+
 		debugTiming.execution_finished_at = new Date().toISOString();
 		debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 			new Date(debugTiming.execution_started_at).getTime();
@@ -2696,33 +2682,13 @@ async function executeOnce(
 			}
 		}
 
-		// Add binary script file for Export mode
-		if (debugMode === 'export' && debugInfo) {
-			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-			const filename = `python_script_${timestamp}.py`;
-			const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
-			
-			// Create output.json with execution results
-			const outputJsonFilename = `output_${timestamp}.json`;
-			const outputJsonBinary = createOutputJsonBinary(baseResult, outputJsonFilename);
-			
-			// Add binary data to each result item
-			for (const resultItem of resultWithPassThrough) {
-				if (!resultItem.binary) {
-					resultItem.binary = {};
-				}
-				Object.assign(resultItem.binary, scriptBinary);
-				Object.assign(resultItem.binary, outputJsonBinary);
-			}
-		}
-
 		// Add binary files for Full Debug+ mode
 		if (debugMode === 'full_plus' && debugInfo && fullDebugPlusDiagnostics) {
 			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 			
 			// Create Python script file
 			const scriptFilename = `full_debug_plus_script_${timestamp}.py`;
-			const scriptBinary = createScriptBinary(debugInfo.script_content, scriptFilename, scriptExportFormat || 'py');
+			const scriptBinary = createScriptBinary(debugInfo.script_content, scriptFilename, 'py');
 			
 			// Create full diagnostics JSON file (includes all Full Debug+ data)
 			const diagnosticsFilename = `full_debug_plus_diagnostics_${timestamp}.json`;
@@ -2833,25 +2799,6 @@ async function executeOnce(
 			}
 		}
 
-		// Add binary script file for Export mode (even for errors)
-		if (debugMode === 'export' && debugInfo) {
-			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-			const filename = `python_script_error_${timestamp}.py`;
-			const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
-			
-			// Create output.json with error results
-			const outputJsonFilename = `output_error_${timestamp}.json`;
-			const outputJsonBinary = createOutputJsonBinary(baseResult, outputJsonFilename);
-			
-			for (const resultItem of errorResultWithPassThrough) {
-				if (!resultItem.binary) {
-					resultItem.binary = {};
-				}
-				Object.assign(resultItem.binary, scriptBinary);
-				Object.assign(resultItem.binary, outputJsonBinary);
-			}
-		}
-
 		// Return error details or throw
 		if (errorHandling === 'details') {
 			console.log('Returning error details:', baseResult);
@@ -2884,65 +2831,38 @@ async function executeOnce(
 		};
 
 			// Add debug information if enabled
-			if (debugInfo && debugMode !== 'off') {
-				debugInfo.timing = debugTiming;
+			if (debugInfo && debugMode === 'full_plus') {
+				(debugInfo as DebugInfo).timing = debugTiming;
 				addDebugInfoToResult(errorItem, debugInfo, debugMode);
 			}
 
 			const errorResultWithPassThrough = handlePassThroughData(errorItem, items, passThrough, passThroughMode);
-
-			// Add binary script file for Export mode (even for system errors)
-			if (debugMode === 'export' && debugInfo) {
-				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-				const filename = `python_script_system_error_${timestamp}.py`;
-				const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
-				
-				// Create output.json with system error results
-				const outputJsonFilename = `output_system_error_${timestamp}.json`;
-				const outputJsonBinary = createOutputJsonBinary(errorItem, outputJsonFilename);
-				
-				for (const resultItem of errorResultWithPassThrough) {
-					if (!resultItem.binary) {
-						resultItem.binary = {};
-					}
-					Object.assign(resultItem.binary, scriptBinary);
-					Object.assign(resultItem.binary, outputJsonBinary);
-				}
-			}
 
 			return [[], errorResultWithPassThrough];
 		} else {
 				throw error;
 		}
 	} finally {
-		// Full Debug+: Update cleanup diagnostics
-		if (fullDebugPlusDiagnostics) {
-			fullDebugPlusDiagnostics.execution.cleanup.attempted = true;
-			fullDebugPlusDiagnostics.execution.cleanup.files_removed = [scriptPath];
-			if (executionDir) {
-				fullDebugPlusDiagnostics.execution.cleanup.files_removed.push(executionDir);
+		if (!useSecureMode) {
+			// Only cleanup if debug mode (secure mode has no files)
+			try {
+				if (scriptPath) {
+					await cleanupScript(scriptPath);
+				}
+				if (executionDir) {
+					await cleanupExecutionDirectory(executionDir);
+				}
+			} catch (cleanupError) {
+				console.warn('Cleanup failed:', cleanupError);
 			}
-		}
-		
-		try {
-		await cleanupScript(scriptPath);
-			// Cleanup execution directory completely
-			if (executionDir) {
-				await cleanupExecutionDirectory(executionDir);
-			}
-			
-			// Full Debug+: Update cleanup success
-			if (fullDebugPlusDiagnostics) {
-				fullDebugPlusDiagnostics.execution.cleanup.successful = true;
-				console.log('🧹 Cleanup successful');
-			}
-		} catch (cleanupError) {
-			// Full Debug+: Update cleanup error
-			if (fullDebugPlusDiagnostics) {
-				fullDebugPlusDiagnostics.execution.cleanup.successful = false;
-				fullDebugPlusDiagnostics.execution.cleanup.error = (cleanupError as Error).message;
-				fullDebugPlusDiagnostics.errors_and_warnings.warnings.push(`Cleanup failed: ${(cleanupError as Error).message}`);
-				console.log('⚠ Cleanup failed:', cleanupError);
+		} else {
+			// Secure mode: only cleanup execution directory (no script files)
+			try {
+				if (executionDir) {
+					await cleanupExecutionDirectory(executionDir);
+				}
+			} catch (cleanupError) {
+				console.warn('Cleanup failed:', cleanupError);
 			}
 		}
 	}
@@ -2972,7 +2892,6 @@ async function executePerItem(
 	outputDir?: string,
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
 	fileDebugOptions?: FileDebugOptions,
-	scriptExportFormat?: string,
 ): Promise<INodeExecutionData[][]> {
 	
 	const successResults: INodeExecutionData[] = [];
@@ -2982,6 +2901,10 @@ async function executePerItem(
 		const item = items[i];
 		let scriptPath = '';
 		let executionDir = '';
+		let scriptSource: string;
+		let credentialsForFD3: Record<string, any> | undefined;
+		let useStdin = true;
+		let useSecureMode = debugMode !== 'full_plus';
 		
 		// Create debug timing for each item
 		const debugTiming: DebugTiming = {
@@ -2993,20 +2916,37 @@ async function executePerItem(
 			// Create execution directory for this item
 			executionDir = createExecutionDirectory();
 			
-			// Always call getTemporaryScriptPath to ensure reserved variables are defined
-			// Pass empty arrays/objects when injectInputVariables is false
-			scriptPath = await getTemporaryScriptPath(
-				functionCode, 
-				injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
-				pythonEnvVars, 
-				includeInputItems, 
-				includeEnvVarsDict, 
-				hideVariableValues, 
-				credentialSources, 
-				inputFiles, 
-				outputDir, 
-				outputFileProcessingOptions
-			);
+			// Choose execution mode
+
+			if (useSecureMode) {
+				// SECURE MODE
+				const credentialNames = Object.keys(pythonEnvVars);
+				scriptSource = getScriptCodeSecure(
+					functionCode,
+					injectInputVariables ? [unwrapJsonField([item])[0]] : [],
+					credentialNames,
+					includeInputItems,
+					inputFiles,
+					outputDir,
+					outputFileProcessingOptions
+				);
+				credentialsForFD3 = pythonEnvVars;
+				useStdin = true;
+				
+			} else {
+				// DEBUG MODE
+				scriptPath = await getTemporaryScriptPath(
+					functionCode, 
+					injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
+					pythonEnvVars, 
+					includeInputItems, 
+					includeEnvVarsDict, 
+					hideVariableValues, 
+					credentialSources, 
+					inputFiles, 
+					outputDir, 
+					outputFileProcessingOptions
+				);
 				
 				// Add output_dir to environment variables if Output File Processing is enabled
 				if (outputDir) {
@@ -3015,52 +2955,44 @@ async function executePerItem(
 						pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
 					}
 					pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
-			}
-			
-			// Move script to execution directory
-			const scriptFileName = path.basename(scriptPath);
-			const newScriptPath = path.join(executionDir, scriptFileName);
-			fs.copyFileSync(scriptPath, newScriptPath);
-			fs.unlinkSync(scriptPath); // Remove original script
-			scriptPath = newScriptPath;
-			
-			console.log(`Moved script to execution directory: ${scriptPath}`);
-
-			// Create debug information for this item
-			if (debugMode !== 'off') {
-				let scriptContent: string;
-				
-				if (debugMode === 'export') {
-					// For export mode, use special function without env_vars
-					scriptContent = getScriptCodeForExport(
-						functionCode, 
-						injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
-						inputFiles, 
-						outputDir, 
-						outputFileProcessingOptions
-					);
-				} else {
-					// For other debug modes, use full function with env_vars
-					scriptContent = getScriptCode(
-						functionCode, 
-						injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
-						pythonEnvVars, 
-						includeInputItems, 
-						includeEnvVarsDict, 
-						hideVariableValues, 
-						credentialSources, 
-						inputFiles || [], 
-						outputDir || '', 
-						outputFileProcessingOptions
-					);
 				}
+				
+				// Move script to execution directory
+				const scriptFileName = path.basename(scriptPath);
+				const newScriptPath = path.join(executionDir, scriptFileName);
+				fs.copyFileSync(scriptPath, newScriptPath);
+				fs.unlinkSync(scriptPath); // Remove original script
+				scriptPath = newScriptPath;
+				
+				console.log(`Moved script to execution directory: ${scriptPath}`);
+				
+				scriptSource = scriptPath;
+				credentialsForFD3 = undefined;
+				useStdin = false;
+			}
+
+			// Create debug information for full_plus mode
+			let debugInfo: DebugInfo | undefined;
+			if (debugMode === 'full_plus') {
+				const scriptContent = getScriptCode(
+					functionCode, 
+					injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
+					pythonEnvVars, 
+					includeInputItems, 
+					includeEnvVarsDict, 
+					hideVariableValues, 
+					credentialSources, 
+					inputFiles || [], 
+					outputDir || '', 
+					outputFileProcessingOptions
+				);
 				
 				debugInfo = await createDebugInfo(
 					scriptPath,
 					scriptContent,
 					pythonPath,
 					injectInputVariables ? [unwrapJsonField([item])[0]] : undefined,
-					(injectInputVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
+					pythonEnvVars,
 					debugTiming,
 					credentialSources,
 				);
@@ -3088,31 +3020,12 @@ async function executePerItem(
 				};
 				
 				// Add debug information if enabled (for script generation errors)
-				if (debugInfo && debugMode !== 'off') {
-					debugInfo.timing = debugTiming;
+				if (debugInfo && debugMode === 'full_plus') {
+					(debugInfo as DebugInfo).timing = debugTiming;
 					addDebugInfoToResult(errorResult, debugInfo, debugMode);
 				}
 				
 				const errorWithPassThrough = handlePassThroughData(errorResult, [item], passThrough, passThroughMode);
-
-				// Add binary script file for Export mode (even for generation errors)
-				if (debugMode === 'export' && debugInfo) {
-					const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-					const filename = `python_script_item_${i}_gen_error_${timestamp}.py`;
-					const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
-					
-					// Create output.json with generation error results
-					const outputJsonFilename = `output_item_${i}_gen_error_${timestamp}.json`;
-					const outputJsonBinary = createOutputJsonBinary(errorResult, outputJsonFilename);
-					
-					for (const resultItem of errorWithPassThrough) {
-						if (!resultItem.binary) {
-							resultItem.binary = {};
-						}
-						Object.assign(resultItem.binary, scriptBinary);
-						Object.assign(resultItem.binary, outputJsonBinary);
-					}
-				}
 
 				errorResults.push(...errorWithPassThrough);
 				continue;
@@ -3121,37 +3034,18 @@ async function executePerItem(
 			}
 		}
 
-		// For Test Only mode, return validation results without execution
-		if (debugMode === 'test') {
-			const testResult: IDataObject = {
-				exitCode: null,
-				stdout: '',
-				stderr: '',
-				success: null,
-				error: null,
-				inputItemsCount: 1,
-				executedAt: new Date().toISOString(),
-				includeInputVariables: injectInputVariables,
-				parseOutput,
-				executionMode: 'perItem',
-				itemIndex: i,
-				test_mode: true,
-				execution_skipped: true,
-			};
-
-			if (debugInfo) {
-				addDebugInfoToResult(testResult, debugInfo, debugMode);
-			}
-
-			const testResultWithPassThrough = handlePassThroughData(testResult, [item], passThrough, passThroughMode);
-			successResults.push(...testResultWithPassThrough);
-			continue;
-		}
-
 		try {
 			// Execute the Python script for this item
 			debugTiming.execution_started_at = new Date().toISOString();
-			const execResults = await execPythonSpawn(scriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
+			const execResults = await execPythonSpawn(
+				scriptSource,
+				pythonPath,
+				executionDir,
+				executionTimeout,
+				credentialsForFD3,
+				executeFunctions.sendMessageToUI,
+				useStdin
+			);
 			debugTiming.execution_finished_at = new Date().toISOString();
 			debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 				new Date(debugTiming.execution_started_at).getTime();
@@ -3241,8 +3135,8 @@ async function executePerItem(
 			}
 
 			// Add debug information if enabled
-			if (debugInfo && debugMode !== 'off') {
-				debugInfo.timing = debugTiming;
+			if (debugInfo && debugMode === 'full_plus') {
+				(debugInfo as DebugInfo).timing = debugTiming;
 				addDebugInfoToResult(itemResult, debugInfo, debugMode);
 			}
 
@@ -3263,44 +3157,6 @@ async function executePerItem(
 							fileName: outputFile.filename,
 						};
 					}
-				}
-			}
-
-			// Add binary script file for Export mode
-			if (debugMode === 'export' && debugInfo) {
-				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-				const filename = `python_script_item_${i}_${timestamp}.py`;
-				const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
-				
-				// Create output.json with execution results for this item
-				const outputJsonFilename = `output_item_${i}_${timestamp}.json`;
-				const outputJsonBinary = createOutputJsonBinary(itemResult, outputJsonFilename);
-				
-				for (const resultItem of resultWithPassThrough) {
-					if (!resultItem.binary) {
-						resultItem.binary = {};
-					}
-					Object.assign(resultItem.binary, scriptBinary);
-					Object.assign(resultItem.binary, outputJsonBinary);
-				}
-			}
-
-			// Add binary script file for Full Debug+ mode (per-item mode)
-			if (debugMode === 'full_plus' && debugInfo) {
-				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-				const scriptFilename = `full_debug_plus_script_item_${i}_${timestamp}.py`;
-				const scriptBinary = createScriptBinary(debugInfo.script_content, scriptFilename, scriptExportFormat || 'py');
-				
-				// Create output.json with execution results for this item
-				const outputJsonFilename = `full_debug_plus_output_item_${i}_${timestamp}.json`;
-				const outputJsonBinary = createOutputJsonBinary(itemResult, outputJsonFilename);
-				
-				for (const resultItem of resultWithPassThrough) {
-					if (!resultItem.binary) {
-						resultItem.binary = {};
-					}
-					Object.assign(resultItem.binary, scriptBinary);
-					Object.assign(resultItem.binary, outputJsonBinary);
 				}
 			}
 
@@ -3338,41 +3194,39 @@ async function executePerItem(
 				};
 
 				// Add debug information if enabled
-				if (debugInfo && debugMode !== 'off') {
-					debugInfo.timing = debugTiming;
+				if (debugInfo && debugMode === 'full_plus') {
+					(debugInfo as DebugInfo).timing = debugTiming;
 					addDebugInfoToResult(errorResult, debugInfo, debugMode);
 				}
 
 				const errorWithPassThrough = handlePassThroughData(errorResult, [item], passThrough, passThroughMode);
-
-				// Add binary script file for Export mode (even for system errors)
-				if (debugMode === 'export' && debugInfo) {
-					const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-					const filename = `python_script_item_${i}_error_${timestamp}.py`;
-					const scriptBinary = createScriptBinary(debugInfo.script_content, filename, scriptExportFormat || 'py');
-					
-					// Create output.json with system error results for this item
-					const outputJsonFilename = `output_item_${i}_error_${timestamp}.json`;
-					const outputJsonBinary = createOutputJsonBinary(errorResult, outputJsonFilename);
-					
-					for (const resultItem of errorWithPassThrough) {
-						if (!resultItem.binary) {
-							resultItem.binary = {};
-						}
-						Object.assign(resultItem.binary, scriptBinary);
-						Object.assign(resultItem.binary, outputJsonBinary);
-					}
-				}
 
 				errorResults.push(...errorWithPassThrough);
 			} else {
 				throw error;
 			}
 		} finally {
-			await cleanupScript(scriptPath);
-			// Cleanup execution directory completely
-			if (executionDir) {
-				await cleanupExecutionDirectory(executionDir);
+			if (!useSecureMode) {
+				// Only cleanup if debug mode (secure mode has no files)
+				try {
+					if (scriptPath) {
+						await cleanupScript(scriptPath);
+					}
+					if (executionDir) {
+						await cleanupExecutionDirectory(executionDir);
+					}
+				} catch (cleanupError) {
+					console.warn('Cleanup failed:', cleanupError);
+				}
+			} else {
+				// Secure mode: only cleanup execution directory (no script files)
+				try {
+					if (executionDir) {
+						await cleanupExecutionDirectory(executionDir);
+					}
+				} catch (cleanupError) {
+					console.warn('Cleanup failed:', cleanupError);
+				}
 			}
 		}
 	}
@@ -3381,56 +3235,145 @@ async function executePerItem(
 }
 
 
-function execPythonSpawn(scriptPath: string, pythonPath: string, executionDir: string, timeoutMinutes: number, stdoutListener?: CallableFunction): Promise<IExecReturnData> {
-	const returnData: IExecReturnData = {
-		error: undefined,
-		exitCode: 0,
-		stderr: '',
-		stdout: '',
-	};
-	
-	return new Promise((resolve, reject) => {
-		const child = spawn(pythonPath, [scriptPath], {
-			cwd: executionDir,
-		});
-
-		// Set up timeout
-		const timeoutMs = timeoutMinutes * 60 * 1000; // Convert minutes to milliseconds
-		const timeoutId = setTimeout(() => {
-			console.log(`Script execution timeout after ${timeoutMinutes} minutes, killing process`);
-			child.kill('SIGKILL'); // Force kill the process
-			returnData.exitCode = -2;
-			returnData.error = new Error(`Script execution timeout after ${timeoutMinutes} minutes`);
-			returnData.stderr += `\n[Timeout] Process killed after ${timeoutMinutes} minutes`;
-			resolve(returnData);
-		}, timeoutMs);
-
-		child.stdout.on('data', data => {
-			returnData.stdout += data.toString();
-			if (stdoutListener) {
-				stdoutListener(data.toString());
-			}
-		});
-
-		child.stderr.on('data', data => {
-			returnData.stderr += data.toString();
-		});
-
-		child.on('error', (error) => {
-			clearTimeout(timeoutId);
-			returnData.error = error;
-			resolve(returnData);
-		});
-
-		child.on('close', code => {
-			clearTimeout(timeoutId);
-			returnData.exitCode = code || 0;
-			if (code !== 0) {
-				returnData.error = new Error(`Process exited with code ${code}`);
-			}
-			resolve(returnData);
-		});
-	});
+/**
+ * Execute Python script via stdin (secure) or file (debug)
+ * @param scriptSource - Script content (string) OR file path (for debug mode)
+ * @param pythonPath - Path to Python executable
+ * @param executionDir - Working directory for script execution
+ * @param timeoutMinutes - Execution timeout in minutes
+ * @param credentialsData - Credentials to pass via FD 3 (secure mode only)
+ * @param stdoutListener - Optional listener for real-time stdout
+ * @param useStdin - If true, pass script via stdin; if false, use file path
+ * @returns Execution results (exitCode, stdout, stderr)
+ */
+function execPythonSpawn(
+  scriptSource: string,
+  pythonPath: string,
+  executionDir: string,
+  timeoutMinutes: number,
+  credentialsData?: Record<string, any>,
+  stdoutListener?: CallableFunction,
+  useStdin = true  // Default: secure mode
+): Promise<IExecReturnData> {
+  
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    
+    // Determine Python arguments
+    let pythonArgs: string[];
+    if (useStdin) {
+      // Secure mode: Execute script from stdin
+      pythonArgs = ['-c', 'import sys; exec(sys.stdin.read())'];
+    } else {
+      // Debug mode: Execute script from file
+      pythonArgs = [scriptSource];
+    }
+    
+    // Configure stdio pipes
+    // FD 0: stdin (for script in secure mode)
+    // FD 1: stdout
+    // FD 2: stderr
+    // FD 3: credentials channel (secure mode only)
+    const stdio = credentialsData 
+      ? ['pipe', 'pipe', 'pipe', 'pipe']  // With FD 3
+      : ['pipe', 'pipe', 'pipe'];         // Standard
+    
+    console.log(`🐍 Python execution mode: ${useStdin ? 'stdin (secure)' : 'file (debug)'}`);
+    console.log(`📁 Working directory: ${executionDir}`);
+    
+    // Spawn Python process
+    const child = spawn(pythonPath, pythonArgs, {
+      cwd: executionDir,
+      stdio: stdio as any,
+    });
+    
+    // === Step 1: Send credentials via FD 3 (if provided) ===
+    if (credentialsData && child.stdio[3]) {
+      try {
+        const credentialsJson = JSON.stringify(credentialsData);
+        const fd3Stream = child.stdio[3] as any;
+        
+        fd3Stream.write(credentialsJson);
+        fd3Stream.end();  // Close FD 3 immediately
+        
+        console.log(`✅ Credentials sent via FD 3: ${Object.keys(credentialsData).length} variables`);
+      } catch (error) {
+        console.warn(`⚠️  Failed to send credentials via FD 3: ${(error as Error).message}`);
+        console.warn('    Fallback: Python will try to read from environment variables');
+        // Don't fail execution - Python code has fallback to ENV
+      }
+    }
+    
+    // === Step 2: Send script via stdin (if secure mode) ===
+    if (useStdin && child.stdin) {
+      try {
+        child.stdin.write(scriptSource);
+        child.stdin.end();  // Close stdin
+        
+        console.log(`✅ Script sent via stdin: ${scriptSource.length} bytes (ZERO FILES ON DISK)`);
+      } catch (error) {
+        const errorMsg = `Failed to write script to stdin: ${(error as Error).message}`;
+        reject(new Error(errorMsg));
+        return;
+      }
+    }
+    
+    // === Step 3: Capture stdout ===
+    if (child.stdout) {
+      child.stdout.on('data', (data: Buffer) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        
+        // Real-time streaming to n8n UI
+        if (stdoutListener) {
+          stdoutListener(chunk);
+        }
+      });
+    }
+    
+    // === Step 4: Capture stderr ===
+    if (child.stderr) {
+      child.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+    }
+    
+    // === Step 5: Setup timeout ===
+    const timeoutMs = timeoutMinutes * 60 * 1000;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+      console.warn(`⏱️  Script execution timed out after ${timeoutMinutes} minutes`);
+    }, timeoutMs);
+    
+    // === Step 6: Handle process completion ===
+    child.on('close', (code: number | null) => {
+      clearTimeout(timeoutId);
+      
+      const returnData: IExecReturnData = {
+        exitCode: code ?? -1,
+        stdout,
+        stderr,
+      };
+      
+      if (timedOut) {
+        returnData.error = new Error(`Script execution timed out after ${timeoutMinutes} minutes`);
+      }
+      
+      console.log(`🏁 Python process exited: code=${code}, stdout=${stdout.length}B, stderr=${stderr.length}B`);
+      
+      resolve(returnData);
+    });
+    
+    // === Step 7: Handle process errors ===
+    child.on('error', (error: Error) => {
+      clearTimeout(timeoutId);
+      console.error(`❌ Python process error: ${error.message}`);
+      reject(error);
+    });
+  });
 }
 
 
@@ -3526,173 +3469,6 @@ function formatCodeSnippet(code: string): string {
 		.replace(/\r/g, '\n\t')
 		.replace(/\r\n\t/g, '\n\t')
 		.replace(/\r\n/g, '\n\t');
-}
-
-function getScriptCodeForExport(
-	codeSnippet: string, 
-	data: IDataObject[], 
-	inputFiles?: FileMapping[],
-	outputDir?: string,
-	outputFileOptions?: { expectedFileName?: string; fileDetectionMode?: string },
-): string {
-	const path = require('path');
-	const fs = require('fs');
-	
-	// Extract __future__ imports from the beginning of the code
-	const futureImportRegex = /^from __future__ import .+$/gm;
-	const futureImports: string[] = [];
-	let match = futureImportRegex.exec(codeSnippet);
-	let cleanedCodeSnippet = codeSnippet;
-	
-	while (match !== null) {
-		futureImports.push(match[0].trim());
-		match = futureImportRegex.exec(codeSnippet);
-	}
-	
-	// Remove __future__ imports from the original code
-	cleanedCodeSnippet = codeSnippet.replace(futureImportRegex, '').trim();
-	
-	// Extract individual variables from the first item if available
-	let individualVariables = '';
-	if (data.length > 0) {
-		const firstItem = data[0];
-		const variableAssignments: string[] = [];
-		
-		for (const [key, value] of Object.entries(firstItem)) {
-			const safeVarName = sanitizeVariableName(key, 'var');
-			
-			// Skip if sanitization failed
-			if (!safeVarName) {
-				continue;
-			}
-			
-			const displayValue = convertToPythonValue(value);
-			variableAssignments.push(`${safeVarName} = ${displayValue}`);
-		}
-		
-		if (variableAssignments.length > 0) {
-			individualVariables = `
-# Individual variables from first input item
-${variableAssignments.join('\n')}
-`;
-		}
-	}
-
-	// Add input files array if files are provided
-	let inputFilesSection = '';
-	if (inputFiles && inputFiles.length > 0) {
-		const filesArray = inputFiles.map(file => {
-			const fileInfo: Record<string, unknown> = {
-				filename: file.filename,
-				mimetype: file.mimetype,
-				size: file.size,
-				extension: file.extension,
-				binary_key: file.binaryKey,
-				item_index: file.itemIndex,
-			};
-			
-			if (file.tempPath) {
-				fileInfo.temp_path = file.tempPath;
-			}
-			
-			if (file.base64Data) {
-				fileInfo.base64_data = file.base64Data;
-			}
-			
-			return fileInfo;
-		});
-		
-		const filesValue = convertToPythonValue(filesArray);
-		inputFilesSection = `
-# Binary files from previous nodes
-input_files = ${filesValue}`;
-	}
-
-	// Add output directory section if provided
-	let outputDirSection = '';
-	if (outputDir) {
-		// Output file variables should never be hidden as they are essential for functionality
-		const outputDirValue = outputDir;
-		let outputFileInstructions = '';
-		let outputFilePathVariable = '';
-		let expectedFileNameVariable = '';
-		
-		// Add expected filename variable if configured
-		if (outputFileOptions?.expectedFileName) {
-			const expectedFileNameValue = outputFileOptions.expectedFileName;
-			expectedFileNameVariable = `expected_filename = "${expectedFileNameValue}"`;
-		}
-		
-		// Add expected file path variable if configured
-		if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'variable_path') {
-			const expectedFilePath = path.join(outputDir, outputFileOptions.expectedFileName);
-			const outputFilePathValue = expectedFilePath;
-			outputFilePathVariable = `output_file_path = r"${outputFilePathValue}"`;
-			
-			outputFileInstructions = `# 📁 Ready Variable Path Mode:
-# Two ways to create your output file:
-# 
-# Method 1 (Recommended): Use ready-made full path
-# with open(output_file_path, 'w') as f:
-#     f.write("your content")
-#
-# Method 2: Build path manually using expected filename
-# import os
-# file_path = os.path.join(output_dir, expected_filename)
-# with open(file_path, 'w') as f:
-#     f.write("your content")
-#
-# Expected filename: ${outputFileOptions.expectedFileName}
-# n8n will automatically detect and process this file after script execution
-`;
-		} else if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'auto_search') {
-			outputFileInstructions = `# 🔍 Auto Search Mode:
-# Create a file with the exact filename specified in expected_filename variable
-# You can save it anywhere (current directory, subdirectories, etc.)
-# n8n will automatically search and find this file after script execution
-#
-# Recommended usage:
-# with open(expected_filename, 'w') as f:
-#     f.write("your content")
-#
-# Alternative with full path:
-# import os
-# file_path = os.path.join(output_dir, expected_filename)  
-# with open(file_path, 'w') as f:
-#     f.write("your content")
-#
-# Expected filename: ${outputFileOptions.expectedFileName}
-`;
-		} else {
-			outputFileInstructions = `# 📁 Manual Output File Processing:
-# Save your files in the output_dir directory
-# Example: 
-#   import os
-#   file_path = os.path.join(output_dir, "my_file.txt")
-#   with open(file_path, 'w') as f: f.write("your content")
-`;
-		}
-		
-		outputDirSection = `
-# Output directory for generated files (Output File Processing enabled)
-output_dir = r"${outputDirValue}"
-${expectedFileNameVariable}
-${outputFilePathVariable}
-
-${outputFileInstructions}`;
-	}
-
-	const script = `#!/usr/bin/env python3
-# Auto-generated script for n8n Python Function (Raw)
-${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
-import json
-import sys
-${individualVariables}${inputFilesSection}${outputDirSection}
-# User code starts here
-${cleanedCodeSnippet}
-`;
-
-	return script;
 }
 
 function getScriptCode(
@@ -3942,6 +3718,144 @@ ${envVariablesSection}${individualVariables}${reservedVariablesSection}${inputFi
 ${cleanedCodeSnippet}
 `;
 	return script;
+}
+
+/**
+ * Generate secure Python script - credentials loaded from FD 3, not hardcoded
+ * @param codeSnippet - User's Python code
+ * @param data - Input items (CAN be hardcoded - not sensitive)
+ * @param credentialNames - Credential variable NAMES only (no values!)
+ * @param includeInputItems - Whether to include input_items array
+ * @param inputFiles - File mappings (paths, not sensitive)
+ * @param outputDir - Output directory path
+ * @param outputFileOptions - Output file options
+ * @returns Python script with FD3 bootstrap loader
+ */
+function getScriptCodeSecure(
+  codeSnippet: string,
+  data: IDataObject[],
+  credentialNames: string[],
+  includeInputItems: boolean,
+  inputFiles?: FileMapping[],
+  outputDir?: string,
+  outputFileOptions?: { expectedFileName?: string; fileDetectionMode?: string },
+): string {
+  const path = require('path');
+  
+  // Extract __future__ imports from user code
+  const futureImportRegex = /^from __future__ import .+$/gm;
+  const futureImports: string[] = [];
+  let match = futureImportRegex.exec(codeSnippet);
+  let cleanedCodeSnippet = codeSnippet;
+  
+  while (match !== null) {
+    futureImports.push(match[0].trim());
+    match = futureImportRegex.exec(codeSnippet);
+  }
+  
+  cleanedCodeSnippet = codeSnippet.replace(futureImportRegex, '').trim();
+  
+  // Bootstrap: Load credentials from FD 3 at runtime
+  const bootstrapCode = `
+# ============================================================
+# n8n Bootstrap: Dynamic Credential Loading (Secure Mode)
+# ============================================================
+import os, json, builtins
+
+# Variable names declared (values loaded from FD 3 at runtime)
+__N8N_CREDENTIAL_NAMES__ = ${JSON.stringify(credentialNames)}
+
+def __n8n_load_credentials():
+    """Load credentials from FD 3 (secure channel from n8n)"""
+    credentials = {}
+    
+    # Try to read from FD 3 first (primary secure channel)
+    try:
+        with os.fdopen(3, 'r', closefd=True) as fd3:
+            credentials.update(json.load(fd3))
+    except Exception as e:
+        # FD 3 not available, try environment variables as fallback
+        pass
+    
+    # Fallback: check environment variables for missing credentials
+    for var_name in __N8N_CREDENTIAL_NAMES__:
+        if var_name not in credentials:
+            env_value = os.environ.get(var_name)
+            if env_value is not None:
+                credentials[var_name] = env_value
+    
+    return credentials
+
+# Load credentials at module initialization
+__n8n_credentials__ = __n8n_load_credentials()
+
+# Inject credential variables into global namespace
+# (User code sees them as regular variables - same DX as before)
+for var_name in __N8N_CREDENTIAL_NAMES__:
+    builtins.__dict__[var_name] = __n8n_credentials__.get(var_name)
+
+# Create env_vars dictionary (for backwards compatibility)
+env_vars = __n8n_credentials__.copy()
+`;
+
+  // Input items section (can be hardcoded - not sensitive)
+  let inputItemsSection = '';
+  if (includeInputItems && data.length > 0) {
+    inputItemsSection = `\n# Input items from previous n8n node\ninput_items = ${JSON.stringify(data)}\n`;
+  } else {
+    inputItemsSection = `\n# Input items (empty)\ninput_items = []\n`;
+  }
+  
+  // Input files section
+  let inputFilesSection = '';
+  if (inputFiles && inputFiles.length > 0) {
+    const filesArray = inputFiles.map(file => ({
+      filename: file.filename,
+      mimetype: file.mimetype,
+      size: file.size,
+      extension: file.extension,
+      binary_key: file.binaryKey,
+      item_index: file.itemIndex,
+      temp_path: file.tempPath,
+      base64_data: file.base64Data,
+    }));
+    inputFilesSection = `\n# Binary files from previous nodes\ninput_files = ${JSON.stringify(filesArray)}\n`;
+  } else {
+    inputFilesSection = `\n# Input files (empty)\ninput_files = []\n`;
+  }
+  
+  // Output directory section
+  let outputDirSection = '';
+  if (outputDir) {
+    outputDirSection = `\n# Output directory for generated files\noutput_dir = r"${outputDir}"\n`;
+    
+    if (outputFileOptions?.expectedFileName) {
+      outputDirSection += `expected_filename = "${outputFileOptions.expectedFileName}"\n`;
+      
+      // Add output_file_path if in variable_path mode
+      if (outputFileOptions?.fileDetectionMode === 'variable_path') {
+        const outputFilePath = path.join(outputDir, outputFileOptions.expectedFileName);
+        outputDirSection += `output_file_path = r"${outputFilePath}"\n`;
+      }
+    }
+  } else {
+    outputDirSection = `\n# Output directory (not configured)\noutput_dir = ""\n`;
+  }
+  
+  // Assemble final script
+  const script = `#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw) - Secure Mode
+# Credentials loaded dynamically from FD 3 - NOT hardcoded in this file
+${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
+${bootstrapCode}
+${inputItemsSection}${inputFilesSection}${outputDirSection}
+# ============================================================
+# User Code Starts Here
+# ============================================================
+${cleanedCodeSnippet}
+`;
+
+  return script;
 }
 
 
@@ -4588,41 +4502,11 @@ function addDebugInfoToResult(
 	debugMode: string,
 	scriptContent?: string,
 ): void {
-	if (debugMode === 'off') return;
-
-	const debugData: IDataObject = {};
-
-	if (['basic', 'full', 'test'].includes(debugMode)) {
-		debugData.script_content = debugInfo.script_content;
-		debugData.execution_command = debugInfo.execution_command.join(' ');
-	}
-
-	if (['export'].includes(debugMode)) {
-		// В режиме экспорта не добавляем script_content, только execution_command
-		debugData.execution_command = debugInfo.execution_command.join(' ');
-	}
-
-	if (['full', 'test', 'export'].includes(debugMode)) {
-		debugData.debug_info = {
-			package_version: getPackageVersion(),
-			script_path: debugInfo.script_path,
-				timing: debugInfo.timing,
-				environment_check: debugInfo.environment_check,
-				syntax_validation: debugInfo.syntax_validation,
-		};
-
-		if (debugInfo.injected_data) {
-			(debugData.debug_info as IDataObject).injected_data = debugInfo.injected_data;
-		}
-	}
-
-	if (['test'].includes(debugMode)) {
-		debugData.test_mode = true;
-		debugData.execution_skipped = true;
-		debugData.validation_only = true;
-	}
-
-	Object.assign(result, debugData);
+	// Only add debug info for full_plus mode
+	if (debugMode !== 'full_plus') return;
+	
+	// Note: Debug info is already added to full_debug_plus_diagnostics in executeOnce
+	// This function is kept for compatibility but does nothing in simplified architecture
 }
 
 function handlePassThroughData(result: IDataObject, items: INodeExecutionData[], passThrough: boolean, passThroughMode: string): INodeExecutionData[] {

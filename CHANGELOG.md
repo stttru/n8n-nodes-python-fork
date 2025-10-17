@@ -6,6 +6,159 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.0] - 2024-12-19
+
+### 🔒 Security Enhancement: Maximum Security Mode with stdin + FD3
+
+**BREAKING CHANGE**: This version introduces a revolutionary security enhancement that fundamentally changes how Python scripts are executed.
+
+#### What Changed
+
+**New Secure Execution Mode (Default)**:
+- **Scripts are NO LONGER written to disk** - they are executed via `stdin`
+- **Credentials are NEVER hardcoded** - they are passed via File Descriptor 3 (FD3)
+- **Zero cleanup needed** - no temporary script files to clean up
+- **Same Developer Experience** - variables work exactly as before
+
+**Debug Mode (Full Debug+)**:
+- Traditional file-based execution with embedded credentials
+- Full transparency for debugging and script export
+- Complete diagnostic information
+
+#### Security Benefits
+
+1. **Credentials NEVER written to disk**:
+   - No plaintext passwords in temporary files
+   - No risk of credential leaks if cleanup fails
+   - No race conditions with file access
+
+2. **Scripts in memory only**:
+   - No temporary `.py` files on disk
+   - No file I/O overhead
+   - Faster execution
+
+3. **Ephemeral credential channel**:
+   - FD3 closes immediately after credential transfer
+   - No persistent credential storage
+   - Fallback to environment variables if FD3 fails
+
+#### Technical Implementation
+
+**Secure Mode (Debug Mode = 'off')**:
+```python
+# Script sent via stdin - NEVER touches disk
+# Credentials sent via FD 3 - separate secure channel
+__N8N_CREDENTIAL_NAMES__ = ["SFTPgo_HOST", "SFTPgo_Youtube_pass"]  # ✅ Names only
+# Values loaded from FD 3 at runtime
+```
+
+**Debug Mode (Debug Mode = 'full_plus')**:
+```python
+# Traditional file with embedded credentials for debugging
+SFTPgo_HOST = "192.168.1.100"           # ✅ Visible for debugging
+SFTPgo_Youtube_pass = "SuperSecret123!" # ✅ Visible for debugging
+```
+
+#### Migration Guide
+
+**NO USER ACTION REQUIRED**:
+- Existing workflows continue to work unchanged
+- No UI changes needed
+- Automatic security upgrade in production mode
+- Switch to Full Debug+ only when debugging needed
+
+#### Files Modified
+
+- `nodes/PythonFunction/PythonFunction.node.ts`:
+  - Added `getScriptCodeSecure()` function for FD3-based credential loading
+  - Refactored `execPythonSpawn()` to support stdin + FD3 execution
+  - Updated `executeOnce()` and `executePerItem()` with mode selection logic
+  - Simplified cleanup logic (no script files in secure mode)
+
+#### Performance Improvements
+
+- **Faster execution**: No file I/O for script delivery
+- **Less disk usage**: No temporary script files
+- **Simpler cleanup**: Only execution directory cleanup needed
+- **Better resource management**: No race conditions with file cleanup
+
+#### Security Comparison
+
+**Before (v1.20.0 and earlier)**:
+```
+┌─────────────────────────────┐
+│ /tmp/n8n_script_abc.py      │
+│                             │
+│ PASSWORD="secret123"  ❌    │
+│ API_KEY="key456"      ❌    │
+│ # user code...              │
+└─────────────────────────────┘
+   ↓ (if cleanup fails)
+   Credentials leaked forever
+```
+
+**After (v1.21.0)**:
+```
+Process Memory Only (stdin):
+┌─────────────────────────────┐
+│ __N8N_NAMES__ = ["PASSWORD"]│  ✅ Names only
+│ # bootstrap FD 3 loader...  │
+│ # user code...              │
+└─────────────────────────────┘
+         +
+FD 3 (ephemeral channel):
+{"PASSWORD": "secret123"} ✅
+   ↓ (read once, closed immediately)
+   Zero traces on disk
+```
+
+#### Testing
+
+- ✅ Secure mode: Script NOT found in temp directory
+- ✅ Credentials work in Python code
+- ✅ `env_vars` dict populated correctly
+- ✅ Variables accessible as before (`SFTPgo_HOST` etc.)
+- ✅ Large scripts (>1MB) work via stdin
+- ✅ Empty credentials handled gracefully
+- ✅ FD 3 failure → ENV fallback works
+- ✅ Debug mode: Script file created with embedded credentials
+- ✅ "Hide Values" works in debug mode
+- ✅ Export functionality preserved
+- ✅ Existing workflows unaffected
+
+#### Version
+
+**1.21.0** (Minor version - feature addition, no breaking changes for users)
+
+---
+
+## [1.20.0] - 2025-01-17
+
+### Breaking Changes
+- **Simplified Debug Modes**: Removed all debug modes except 'off' and 'full_plus'
+  - Removed: Basic Debug, Full Debug, Test Only, Export Script modes
+  - Kept: Off (normal execution) and Full Debug+ (comprehensive diagnostics with file export)
+  - Full Debug+ now includes all functionality from removed modes (script export, validation, timing)
+
+### Rationale
+- Simplified architecture reduces complexity and maintenance burden
+- Full Debug+ provides all necessary diagnostics and file export functionality
+- Removes redundant features that overlapped with Full Debug+
+
+### Migration Guide
+- **Basic/Full Debug users**: Switch to 'full_plus' for comprehensive diagnostics
+- **Test Only users**: Use 'full_plus' mode - script validation is included
+- **Export Script users**: Use 'full_plus' mode - script and diagnostics files are exported
+
+### Technical Changes
+- Removed `getScriptCodeForExport()` function
+- Simplified `addDebugInfoToResult()` to only handle 'full_plus' mode
+- Removed test mode logic from executeOnce
+- Removed export mode file creation from both executeOnce and executePerItem
+- Cleaned up conditional checks for removed debug modes
+- Removed `scriptExportFormat` parameter (no longer needed)
+- Full Debug+ file export works only in executeOnce mode (not per-item)
+
 ## [1.19.4] - 2025-01-17
 
 ### Fixed
