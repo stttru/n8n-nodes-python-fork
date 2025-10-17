@@ -47,6 +47,57 @@ print("This might not execute if timeout is < 5 minutes")
 | Machine learning | 60-240 minutes | Training models |
 | Long-running tasks | 240-1440 minutes | Extended processing |
 
+## Resource Limits Integration (v1.24.0+)
+
+### Memory and CPU Limits
+Starting with v1.24.0, the node includes comprehensive resource limits that work alongside timeout protection:
+
+- **Memory Limit**: 64 MB - 100 GB (default: 512 MB)
+- **CPU Limit**: 1-100% of all cores (default: 50%)
+- **Wrapper Script**: Auto-generated Python wrapper enforces limits
+- **Platform Support**: Full support on Linux/macOS, graceful fallback on Windows
+
+### Resource Limit Cleanup
+Resource-limited wrapper scripts are automatically cleaned up:
+
+```python
+# Auto-generated wrapper script (cleaned up automatically)
+#!/usr/bin/env python3
+# n8n Resource-Limited Wrapper Script
+
+import resource
+import sys
+
+# Set memory limit
+resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+
+# Set CPU time limit  
+resource.setrlimit(resource.RLIMIT_CPU, (cpu_time_seconds, cpu_time_seconds))
+
+# Execute user script
+exec(user_code)
+```
+
+**Cleanup Process:**
+1. Wrapper script is created in temporary directory
+2. User script is executed with resource limits
+3. Wrapper script is automatically deleted after execution
+4. Temporary directory is cleaned up completely
+
+### Resource Limit Exit Codes
+| Exit Code | Meaning | Description |
+|-----------|---------|-------------|
+| 0 | Success | Script completed within limits |
+| 137 | Memory Limit | Script exceeded memory limit |
+| -2 | Timeout | Script exceeded execution timeout |
+| 1 | Error | Script failed with error |
+
+### Combined Protection
+The node now provides triple protection:
+1. **Execution Timeout**: Prevents infinite loops
+2. **Memory Limits**: Prevents memory exhaustion
+3. **CPU Limits**: Prevents CPU overload
+
 ## Execution Isolation Architecture
 
 ### Complete Isolation System

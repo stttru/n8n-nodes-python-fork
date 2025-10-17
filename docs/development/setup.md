@@ -1,5 +1,62 @@
 # Development Environment Setup for n8n-nodes-python
 
+## Testing Resource Limits (v1.24.0+)
+
+### Memory Limit Testing
+```python
+# Test script for memory limits
+def test_memory_limit():
+    try:
+        # Try to allocate large amount of memory
+        size_gb = 5  # Adjust based on your limit
+        size_bytes = size_gb * 1024 * 1024 * 1024
+        
+        print(f"Attempting to allocate {size_gb} GB...")
+        big_data = bytearray(size_bytes)
+        
+        # Fill with data to ensure allocation
+        for i in range(0, len(big_data), 1024*1024):
+            big_data[i:i+1024] = b'A' * 1024
+        
+        print(f"✅ Successfully allocated {size_gb} GB!")
+        return True
+        
+    except MemoryError as e:
+        print(f"❌ MemoryError: {e}")
+        print("✅ Memory limit is working correctly!")
+        return False
+```
+
+### CPU Limit Testing
+```python
+# Test script for CPU limits
+def test_cpu_limit():
+    try:
+        print("Starting CPU-intensive task...")
+        start_time = time.time()
+        
+        # CPU-intensive loop
+        result = 0
+        for i in range(100000000):  # Adjust based on your limit
+            result += i * i
+            if i % 10000000 == 0:
+                elapsed = time.time() - start_time
+                print(f"Progress: {i/1000000:.1f}M iterations, {elapsed:.1f}s elapsed")
+        
+        print(f"✅ CPU test completed: {result}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ CPU test failed: {e}")
+        return False
+```
+
+### Full Debug+ Testing
+Enable Full Debug+ mode to verify resource limit information:
+- Check `execution.resource_limits` section
+- Verify memory and CPU limit settings
+- Monitor actual resource usage
+
 ## Requirements
 
 - Conda (installed in `I:\ALL_PROG\conda`)

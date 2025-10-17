@@ -34,7 +34,9 @@ tests/
 │   └── test_configuration_options.py # Configuration options
 │
 ├── performance/                 # Performance tests
-│   └── (future performance tests)
+│   ├── test_resource_limits.py  # Resource limits testing (v1.24.0+)
+│   ├── test_memory_limits.py   # Memory limit enforcement
+│   └── test_cpu_limits.py      # CPU limit enforcement
 │
 ├── typescript/                  # TypeScript/Jest tests
 │   └── node.test.ts            # Node implementation tests
@@ -83,6 +85,92 @@ npm run test:functional
 
 # Run TypeScript tests only
 npm run test:js
+```
+
+## 🧪 Resource Limits Testing (v1.24.0+)
+
+### Memory Limit Tests
+Test memory limit enforcement with various scenarios:
+
+```python
+# tests/performance/test_memory_limits.py
+def test_memory_limit_enforcement():
+    """Test that memory limits are properly enforced"""
+    # Test with different memory limits
+    limits = [64, 512, 1024, 8192]  # MB
+    
+    for limit in limits:
+        # Create script that tries to allocate more than limit
+        script = f"""
+import sys
+try:
+    # Try to allocate more than limit
+    size_bytes = {limit * 1024 * 1024 + 1024 * 1024}  # limit + 1MB
+    big_data = bytearray(size_bytes)
+    print("Memory allocation succeeded")
+    sys.exit(0)
+except MemoryError:
+    print("MemoryError caught - limit working")
+    sys.exit(137)
+"""
+        # Run test and verify exit code 137
+        result = run_python_script(script, memory_limit=limit)
+        assert result.exit_code == 137, f"Memory limit {limit}MB not enforced"
+```
+
+### CPU Limit Tests
+Test CPU limit enforcement:
+
+```python
+# tests/performance/test_cpu_limits.py
+def test_cpu_limit_enforcement():
+    """Test that CPU limits are properly enforced"""
+    # Test with different CPU limits
+    cpu_limits = [25, 50, 75, 100]  # percentage
+    
+    for limit in cpu_limits:
+        # Create CPU-intensive script
+        script = f"""
+import time
+start_time = time.time()
+result = 0
+for i in range(100000000):  # CPU-intensive loop
+    result += i * i
+    if i % 10000000 == 0:
+        elapsed = time.time() - start_time
+        print(f"Progress: {{i/1000000:.1f}}M iterations, {{elapsed:.1f}}s")
+print(f"Completed: {{result}}")
+"""
+        # Run test and verify completion within limits
+        result = run_python_script(script, cpu_limit=limit)
+        assert result.exit_code == 0, f"CPU limit {limit}% caused failure"
+```
+
+### Full Debug+ Resource Tests
+Test Full Debug+ diagnostics for resource limits:
+
+```python
+# tests/performance/test_resource_limits.py
+def test_full_debug_plus_resource_info():
+    """Test that Full Debug+ includes resource limit information"""
+    script = "print('Hello World')"
+    
+    result = run_python_script(
+        script, 
+        debug_mode='full_plus',
+        memory_limit=1024,
+        cpu_limit=50
+    )
+    
+    # Verify resource limit info in diagnostics
+    debug_info = result.full_debug_plus
+    assert 'execution' in debug_info
+    assert 'resource_limits' in debug_info['execution']
+    
+    resource_info = debug_info['execution']['resource_limits']
+    assert resource_info['memory_limit_mb'] == 1024
+    assert resource_info['cpu_limit_percent'] == 50
+    assert resource_info['wrapper_script_used'] == True
 ```
 
 ## 📋 Test Categories

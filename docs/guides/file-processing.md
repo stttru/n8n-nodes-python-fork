@@ -20,6 +20,41 @@ The Python Function (Raw) node now supports **automatic processing of binary fil
 - **Size validation**: Configurable file size limits (1-1000 MB)
 - **Metadata included**: File size, MIME type, extension, source information
 
+## 🛡️ Resource Limits Integration (v1.24.0+)
+
+### Memory Limits and File Processing
+When processing large files, consider memory limits:
+
+- **Memory Limit**: 64 MB - 100 GB (default: 512 MB)
+- **Large Files**: Files larger than memory limit may cause MemoryError
+- **Recommendation**: Process files in chunks or increase memory limit
+
+### CPU Limits and File Operations
+CPU-intensive file operations are controlled by CPU limits:
+
+- **CPU Limit**: 1-100% of all cores (default: 50%)
+- **File Processing**: Complex operations (video processing, image analysis) may require more CPU
+- **Recommendation**: Adjust CPU limit based on file processing complexity
+
+### Resource-Aware File Processing
+```python
+import os
+import sys
+
+# Process files with resource awareness
+if input_files:
+    for file_info in input_files:
+        try:
+            # Large file processing
+            process_large_file(file_info['path'])
+        except MemoryError:
+            print("Memory limit exceeded, processing in chunks")
+            process_file_in_chunks(file_info['path'])
+        except Exception as e:
+            print(f"Error processing {file_info['filename']}: {e}")
+            sys.exit(1)
+```
+
 ## 🔧 Configuration
 
 ### Enable File Processing

@@ -19,6 +19,8 @@ This fork includes significant enhancements for raw Python script execution, str
 ## ✨ Key Features
 
 - **Raw Python Script Execution**: Execute pure Python scripts without modifications
+- **Resource Limits Protection**: Memory (64MB-100GB) and CPU (1-100% of all cores) limits to protect n8n server (v1.24.0+)
+- **Full Debug+ Developer Mode**: Comprehensive diagnostics with system info, Python environment, and file export (v1.19.0+)
 - **Auto-Variable Extraction**: Fields from input data automatically available as individual Python variables
 - **Output File Processing**: Generate files in Python scripts and automatically include them in n8n output (v1.11.0+)
 - **Smart File Detection**: Automatic file detection with dual modes - Ready Variable Path and Auto Search (v1.12.2+)
@@ -30,7 +32,7 @@ This fork includes significant enhancements for raw Python script execution, str
 - **Pass Through Data**: Preserve and combine input data with Python results
 - **Variable Injection**: Optional injection of input items and environment variables with enhanced sanitization (v1.12.8+)
 - **Comprehensive Error Handling**: Detailed error reporting with Python traceback analysis
-- **Debug/Test System**: 5 debug modes including safe testing and script export
+- **Debug/Test System**: 2 debug modes - Off (Production) and Full Debug+ (Developer) (v1.20.0+)
 - **Multiple Output Formats**: Support for single/multiple JSON objects, CSV data, and text lines
 - **Smart Parsing**: Automatic detection and parsing of JSON, CSV, and structured data
 - **Production Stability**: 100% test coverage for unit, functional, and TypeScript tests (v1.13.1+)
@@ -56,23 +58,57 @@ n8n-nodes-python-raw
 [{"title": "My Video", "duration": 120, "author": "John"}]
 ```
 
-**Your Python code:**
+**Your Python code (default template v1.24.1):**
 ```python
-# Variables automatically extracted from input:
-print(f"Processing: {title}")        # "My Video"
-print(f"Duration: {duration} sec")   # 120 sec  
-print(f"Author: {author}")           # "John"
+# Example: Working with n8n Python Raw Node
+# This script demonstrates all available data sources and features
 
-# Generate a report file:
-import os
-report_content = f"Video: {title}\nDuration: {duration}s\nAuthor: {author}"
-with open(os.path.join(output_dir, expected_filename), 'w') as f:
-    f.write(report_content)
+import json
+import sys
 
-print("Report generated successfully!")
+# === INPUT DATA ===
+# When "Include Input Variables" is enabled, you get:
+# - Individual variables from first input item (title, author, etc.)
+# - input_items array with all input data
+
+if input_items:
+    print(f"📥 Received {len(input_items)} input item(s)")
+    print(f"First item keys: {list(input_items[0].keys())}")
+else:
+    print("No input items (option disabled or no data)")
+
+# === ENVIRONMENT VARIABLES ===
+# When "Include Credential Variables" is enabled, you get:
+# - Individual variables from credentials (API_KEY, DB_HOST, TOKEN, etc.)
+# - env_vars dictionary with all credential variables
+
+if env_vars:
+    print(f"🔐 Available environment variables: {len(env_vars)}")
+    # Hide sensitive values in output
+    safe_vars = {k: "***" if "key" in k.lower() or "token" in k.lower() or "password" in k.lower() else v for k, v in env_vars.items()}
+    print(json.dumps(safe_vars, indent=2))
+else:
+    print("No environment variables (no credentials connected)")
+
+# === YOUR CODE HERE ===
+# Add your custom Python logic below
+
+# Example: Process input data
+if input_items:
+    for i, item in enumerate(input_items):
+        print(f"\nProcessing item {i+1}:")
+        for key, value in item.items():
+            print(f"  {key}: {value}")
+
+# Example: Use environment variable
+if env_vars and 'API_KEY' in env_vars:
+    api_key = env_vars['API_KEY']
+    print(f"Using API key: {api_key[:5]}...")
+
+print("\n✅ Script completed successfully!")
 ```
 
-**Result:** Direct access to your data AND automatic file processing!
+**Result:** Direct access to your data with comprehensive examples and security-conscious credential handling!
 
 ## 🎯 Dual Outputs Architecture (v1.16.0+)
 
@@ -89,6 +125,85 @@ Python Function → Output 1 (Success) → Continue Processing
 ```
 
 This eliminates the need to check `exitCode` in subsequent nodes - the routing is automatic!
+
+## 🛡️ Resource Limits (v1.24.0+)
+
+Protect your n8n server from Python script overload with comprehensive memory and CPU limits.
+
+### Memory Limit
+- **Range**: 64 MB - 100 GB
+- **Default**: 512 MB
+- **Purpose**: Prevent scripts from consuming excessive RAM
+- **Exit Code**: 137 (MemoryError)
+
+### CPU Limit
+- **Range**: 1-100% of ALL available cores
+- **Default**: 50%
+- **Purpose**: Control CPU usage across all cores
+- **Calculation**: `cpuTimeSeconds = timeoutMinutes × 60 × (cpuCores × cpuLimitPercent / 100)`
+
+### How It Works
+- **Python Resource Module**: Uses `resource.RLIMIT_AS` and `resource.RLIMIT_CPU`
+- **Wrapper Script**: Auto-generated Python wrapper enforces limits before executing user script
+- **Platform Support**: Full support on Linux/macOS, graceful fallback on Windows
+- **Automatic Cleanup**: Wrapper scripts are cleaned up after execution
+
+### Examples
+- **Server: 8 cores, Limit: 50%** → Equivalent to 4 cores available
+- **Server: 16 cores, Limit: 25%** → Equivalent to 4 cores available  
+- **Server: 4 cores, Limit: 100%** → All 4 cores available
+- **Memory: 1024 MB** → Script can use up to 1 GB RAM
+- **Memory: 102400 MB** → Script can use up to 100 GB RAM (maximum)
+
+### Best Practices
+- **Light workloads**: 512 MB - 2 GB memory, 25-50% CPU
+- **Data processing**: 2-8 GB memory, 50-75% CPU
+- **ML/AI workloads**: 8-32 GB memory, 75-100% CPU
+- **Heavy processing**: Up to 100 GB memory, 100% CPU
+
+## 🔬 Full Debug+ Mode (v1.19.0+)
+
+Comprehensive developer diagnostics mode for troubleshooting and development.
+
+### What is Full Debug+
+- **Developer Mode**: Maximum diagnostic information for entire node
+- **System Information**: OS, Node.js, n8n, Python environment details
+- **Execution Details**: Complete execution timeline, resource usage, cleanup status
+- **File Export**: Exports Python script and diagnostics JSON as binary attachments
+
+### When to Use
+- **Troubleshooting**: When scripts fail unexpectedly
+- **Development**: Testing new Python code
+- **Issue Reporting**: Providing complete diagnostic information
+- **Performance Analysis**: Understanding resource usage
+
+### What Information Included
+- **System Diagnostics**: OS info, Node.js version, n8n version, Python environment
+- **Node Installation**: Package version, installation path, node configuration
+- **Data Sources**: Input variables status, credentials status, system environment
+- **Script Generation**: User code analysis, template info, full assembled script
+- **Execution Details**: Preparation, command, timing, results, cleanup, resource limits
+- **Error Information**: Complete error details with troubleshooting hints
+
+### Security Features
+- **Hide Variable Values**: Sensitive data replaced with `***hidden***` in exported files
+- **Secure Export**: Script and diagnostics files exported as binary attachments
+- **No Disk Storage**: Files are not permanently stored on server
+
+### Example Output Structure
+```json
+{
+  "full_debug_plus": {
+    "mode": "full_plus",
+    "system": { "os": {...}, "nodejs": {...}, "python": {...} },
+    "node_installation": { "package": {...}, "node": {...} },
+    "data_sources": { "input_variables": {...}, "credentials": {...} },
+    "script_generation": { "user_code": {...}, "final_script": {...} },
+    "execution": { "preparation": {...}, "command": {...}, "timing": {...} },
+    "resource_limits": { "memory_limit_mb": 512, "cpu_limit_percent": 50 }
+  }
+}
+```
 
 ## 📁 Output File Processing (v1.11.0+)
 
@@ -286,6 +401,17 @@ Choose export format for generated scripts in "Export Script" debug mode to comp
   - Complete cleanup after execution (success or failure)
   - Zero traces left on server
 
+### Resource Limits (v1.24.0+)
+- **Memory Limit (MB)**: Maximum memory usage (default: 512, range: 64-102400)
+  - Prevents scripts from consuming excessive RAM
+  - Returns exitCode 137 on MemoryError
+  - Range: 64 MB to 100 GB
+  
+- **CPU Limit (%)**: Maximum CPU usage across all cores (default: 50, range: 1-100)
+  - Controls CPU consumption as percentage of all available cores
+  - 100% = no CPU limit, 50% = half of all cores
+  - Automatically calculated based on server's core count
+
 ### Output File Processing (v1.11.0+)
 - **Enable Output File Processing**: Toggle file generation detection (default: disabled)
 - **Expected Output Filename**: Filename the script will create (e.g., "report.pdf")
@@ -317,12 +443,11 @@ Choose export format for generated scripts in "Export Script" debug mode to comp
 - **Throw Error on Non-Zero Exit**: Stop workflow on script failure
 - **Ignore Exit Code**: Continue regardless of exit code
 
-### Debug/Test Mode (v1.6.0+)
-- **Off** (default): Normal execution without debug overhead
-- **Basic Debug**: Add script content and basic execution info
-- **Full Debug**: Complete debugging with timing and environment info
-- **Test Only**: Safe validation without execution
-- **Export Script**: Full debug plus downloadable script files and execution results (v1.14.5+)
+### Debug/Test Mode (v1.20.0+)
+- **Off** (default): Production mode - normal execution without debug overhead
+- **🔬 Full Debug+**: Developer mode - comprehensive diagnostics with system info, Python environment, and file export
+
+**Note**: Debug modes were simplified from 5 modes to 2 modes in v1.20.0 for better clarity and reduced complexity.
 
 ### Script Generation Options (v1.7.0+)
 - **Hide Variable Values** (default: disabled): Replace sensitive values with asterisks
@@ -701,48 +826,60 @@ from shutil import which
 
 ## 📄 Version History
 
-- **v1.17.0**: Execution timeout and enhanced cleanup architecture with complete isolation
-- **v1.16.0**: Dual outputs implementation - success/error routing based on exit code
-- **v1.15.0**: Major architecture refactor with data sources configuration
-- **v1.14.5**: Export mode enhancements with output results file
-- **v1.14.1**: Credential handling improvements
-- **v1.14.0**: Enhanced script generation options
-- **v1.13.2**: Complete internationalization - all Russian text translated to English for global accessibility
-- **v1.13.1**: Test infrastructure reorganization and comprehensive test fixes (unit/functional/TypeScript tests at 100%)
-- **v1.12.8**: Variable validation fixes - enhanced sanitization of Python variable names from input data
+- **v1.24.1**: 🐛 Bugfix: Fixed IndentationError in default code template - proper indentation and comprehensive examples
 - **v1.24.0**: 🚀 Major Feature: Resource Limits for Python Scripts - Memory (64MB-100GB) and CPU (1-100% of ALL cores) limits with auto-generated wrapper scripts
-- **v1.12.7**: Improved backward compatibility and credential handling in recent n8n versions
-- **v1.12.6**: Enhanced variable injection and output file processing stability
-- **v1.12.5**: Removed legacy variables and fixed file variables hiding issue
-- **v1.12.4**: Added `expected_filename` variable and enhanced output file processing instructions
-- **v1.12.3**: Fixed Expected Output Filename field UI issue and added default example
-- **v1.12.2**: Smart Output File Detection System with dual modes and enhanced file search
-- **v1.12.1**: Script Export Format selection (.py/.txt) for security compliance
-- **v1.12.0**: Advanced File Debugging System for troubleshooting file processing
-- **v1.11.0**: Output File Processing - generate files in Python and auto-include in n8n output
-- **v1.9.0**: Multiple credentials support with merge strategies and backward compatibility
-- **v1.8.0**: Enhanced script generation and credential source tracking
-- **v1.7.0**: Script Generation Options with legacy support toggle and value hiding
-- **v1.6.1**: Auto-Variable Extraction feature for direct field access
-- **v1.6.0**: Comprehensive Debug/Test system with script export and syntax validation
-- **v1.5.0**: Enhanced error handling and comprehensive variable documentation
-- **v1.4.0**: Execution modes and data pass-through capabilities
-- **v1.3.0**: Comprehensive output parsing (JSON/CSV/Lines/Smart modes)
-- **v1.2.0**: Enhanced error handling and user experience
-- **v1.1.0**: Variable injection control and improved error parsing
-- **v1.0.0**: Initial fork with raw execution functionality
+- **v1.23.1**: 🔧 Fix: Full Debug+ mode for error cases - complete diagnostics and file export for both success and error executions
+- **v1.23.0**: 🔄 Rollback: Reverted to stable v1.19.4 after stdin experiments - restored file-based execution
+- **v1.20.0**: 🧹 Debug Mode Simplification: Reduced from 5 modes to 2 modes (Off and Full Debug+) for better clarity
+- **v1.19.4**: 🔒 Security Fix: Fixed credential value leak in Full Debug+ diagnostics
+- **v1.19.0**: 🔬 Full Debug+ Implementation: Comprehensive developer diagnostics with system info and file export
+- **v1.17.0**: ⏱️ Execution timeout and enhanced cleanup architecture with complete isolation
+- **v1.16.0**: 🎯 Dual outputs implementation - success/error routing based on exit code
+- **v1.15.0**: 🏗️ Major architecture refactor with data sources configuration
+- **v1.14.5**: 📄 Export mode enhancements with output results file
+- **v1.14.1**: 🔐 Credential handling improvements
+- **v1.14.0**: ⚙️ Enhanced script generation options
+- **v1.13.2**: 🌍 Complete internationalization - all Russian text translated to English for global accessibility
+- **v1.13.1**: 🧪 Test infrastructure reorganization and comprehensive test fixes (unit/functional/TypeScript tests at 100%)
+- **v1.12.8**: ✅ Variable validation fixes - enhanced sanitization of Python variable names from input data
+- **v1.12.7**: 🔄 Improved backward compatibility and credential handling in recent n8n versions
+- **v1.12.6**: 🔧 Enhanced variable injection and output file processing stability
+- **v1.12.5**: 🗑️ Removed legacy variables and fixed file variables hiding issue
+- **v1.12.4**: 📁 Added `expected_filename` variable and enhanced output file processing instructions
+- **v1.12.3**: 🔧 Fixed Expected Output Filename field UI issue and added default example
+- **v1.12.2**: 🔍 Smart Output File Detection System with dual modes and enhanced file search
+- **v1.12.1**: 📄 Script Export Format selection (.py/.txt) for security compliance
+- **v1.12.0**: 🔍 Advanced File Debugging System for troubleshooting file processing
+- **v1.11.0**: 📁 Output File Processing - generate files in Python and auto-include in n8n output
+- **v1.9.0**: 🔐 Multiple credentials support with merge strategies and backward compatibility
+- **v1.8.0**: ⚙️ Enhanced script generation and credential source tracking
+- **v1.7.0**: 🔧 Script Generation Options with legacy support toggle and value hiding
+- **v1.6.1**: 🎯 Auto-Variable Extraction feature for direct field access
+- **v1.6.0**: 🧪 Comprehensive Debug/Test system with script export and syntax validation
+- **v1.5.0**: ⚠️ Enhanced error handling and comprehensive variable documentation
+- **v1.4.0**: 🔄 Execution modes and data pass-through capabilities
+- **v1.3.0**: 📊 Comprehensive output parsing (JSON/CSV/Lines/Smart modes)
+- **v1.2.0**: 🔧 Enhanced error handling and user experience
+- **v1.1.0**: 🎛️ Variable injection control and improved error parsing
+- **v1.0.0**: 🚀 Initial fork with raw execution functionality
 
 ## 📚 Documentation
 
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 ### User Guides
+- **[Resource Limits Guide](docs/guides/resource-limits.md)** - Memory and CPU limits configuration (v1.24.0+)
+- **[Full Debug+ Guide](docs/guides/full-debug-plus.md)** - Comprehensive developer diagnostics (v1.19.0+)
 - **[Dual Outputs Guide](docs/guides/dual-outputs.md)** - Understanding the dual output architecture (v1.16.0+)
 - **[Timeout and Cleanup Guide](docs/guides/timeout-and-cleanup.md)** - Execution timeout and isolation (v1.17.0+)
 - **[Output Files Guide](docs/guides/output-files.md)** - Generating and processing files in Python scripts
 - **[File Processing Guide](docs/guides/file-processing.md)** - Processing input files from previous nodes
 - **[Multiple Credentials Guide](docs/guides/multiple-credentials.md)** - Using multiple Python environment credentials
 - **[Debugging Guide](docs/guides/debugging.md)** - Comprehensive debugging and troubleshooting
+- **[Migration Guide](docs/guides/migration.md)** - Upgrading between versions
+
+### Quick Reference
+- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Fast lookup for parameters, exit codes, and common patterns
 
 ### Development Documentation
 - **[Development Setup](docs/development/setup.md)** - Setting up the development environment

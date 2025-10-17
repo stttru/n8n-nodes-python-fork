@@ -4,31 +4,34 @@
 
 The Python Function node provides comprehensive debugging capabilities to help troubleshoot script execution, file processing, and workflow issues. This guide covers all debugging features and best practices.
 
-## Debug Modes
+## Debug Modes (v1.20.0+)
 
 ### Available Debug Modes
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
-| **Off** | Normal execution without debug overhead | Production workflows |
-| **Basic Debug** | Add script content and basic execution info | General debugging |
-| **Full Debug** | Complete debugging with timing and environment info | Detailed troubleshooting |
-| **Test Only** | Safe validation without execution | Script validation |
-| **Export Script** | Full debug plus downloadable script files | Advanced debugging |
+| **Off** | Production mode - normal execution without debug overhead | Production workflows |
+| **🔬 Full Debug+** | Developer mode - comprehensive diagnostics with system info, Python environment, and file export | Advanced troubleshooting, development, issue reporting |
+
+**Note**: Debug modes were simplified from 5 modes to 2 modes in v1.20.0 for better clarity and reduced complexity.
 
 ### Debug Mode Configuration
 
 1. Open the **Debug/Test Mode** section in node configuration
-2. Select your preferred debug mode
-3. Configure additional debug options as needed
+2. Select your preferred debug mode:
+   - **Off**: For production use
+   - **🔬 Full Debug+**: For development and troubleshooting
+3. Configure additional options:
+   - **Hide Variable Values**: Protect sensitive data in exported files
 
-## Basic Debug Mode
+## Off Mode (Production)
 
 ### What It Includes
 
-- Script content that was executed
-- Basic execution information
-- Input/output data structure
+- Normal script execution
+- Basic success/error routing
+- No debug overhead
+- Minimal output information
 
 ### Example Output
 
@@ -38,31 +41,29 @@ The Python Function node provides comprehensive debugging capabilities to help t
   "stdout": "Script executed successfully",
   "stderr": "",
   "success": true,
-  "debug": {
-    "scriptContent": "print('Hello World')",
-    "executionMode": "once",
-    "inputItemsCount": 1,
-    "executedAt": "2025-01-17T12:00:00.000Z"
-  }
+  "inputItemsCount": 1,
+  "executedAt": "2025-01-17T12:00:00.000Z"
 }
 ```
 
 ### When to Use
 
-- General script debugging
-- Verifying script content
-- Basic execution monitoring
+- Production workflows
+- Performance-critical applications
+- When debug information is not needed
 
-## Full Debug Mode
+## 🔬 Full Debug+ Mode (v1.19.0+)
 
 ### What It Includes
 
-- All Basic Debug information
-- Detailed timing information
-- Environment variables
-- Python executable path
-- Execution directory information
-- Variable injection details
+- **System Diagnostics**: OS, Node.js, n8n, Python environment details
+- **Node Installation**: Package version, installation path, configuration
+- **Data Sources**: Input variables, credentials, system environment status
+- **Script Generation**: User code analysis, template info, assembled script
+- **Execution Details**: Preparation, command, timing, results, cleanup
+- **Resource Limits**: Memory and CPU limit information
+- **Error Information**: Complete error details with troubleshooting hints
+- **File Export**: Python script and diagnostics JSON as binary attachments
 
 ### Example Output
 
@@ -72,32 +73,362 @@ The Python Function node provides comprehensive debugging capabilities to help t
   "stdout": "Script executed successfully",
   "stderr": "",
   "success": true,
-  "debug": {
-    "scriptContent": "print('Hello World')",
-    "executionMode": "once",
-    "inputItemsCount": 1,
-    "executedAt": "2025-01-17T12:00:00.000Z",
-    "executionTimeMs": 150,
-    "pythonExecutable": "/usr/bin/python3",
-    "executionDirectory": "/tmp/n8n_python_exec_1697123456789_abc123",
-    "environmentVariables": {
-      "PATH": "/usr/bin:/bin",
-      "PYTHONPATH": ""
+  "full_debug_plus": {
+    "mode": "full_plus",
+    "timestamp_start": "2025-10-17T17:00:31.481Z",
+    "timestamp_end": "2025-10-17T17:00:43.700Z",
+    "total_duration_ms": 12219,
+    "system": {
+      "os": {
+        "platform": "linux",
+        "release": "6.8.0-85-generic",
+        "arch": "x64",
+        "cpus_count": 30,
+        "total_memory_mb": 29362
+      },
+      "python": {
+        "version": "Python 3.12.11",
+        "installed_packages": ["numpy==2.3.2", "pandas==2.3.2", "..."]
+      }
     },
-    "injectedVariables": {
-      "input_data": "sample data",
-      "user_id": 123
+    "execution": {
+      "resource_limits": {
+        "memory_limit_mb": 512,
+        "cpu_limit_percent": 50,
+        "cpu_cores_total": 30
+      },
+      "timing": {
+        "execution_duration_ms": 17590
+      }
     },
-    "timeoutMinutes": 10
+    "troubleshooting_hints": [
+      "✓ Script executed successfully",
+      "✓ All temporary files cleaned up",
+      "✓ Resource limits applied correctly"
+    ]
   }
 }
 ```
 
 ### When to Use
 
-- Detailed troubleshooting
-- Performance analysis
-- Environment issues
+- **Troubleshooting**: When scripts fail unexpectedly
+- **Development**: Testing new Python code
+- **Issue Reporting**: Providing complete diagnostic information
+- **Performance Analysis**: Understanding resource usage
+- **System Analysis**: Understanding environment setup
+
+### File Export
+
+Full Debug+ automatically exports files as binary attachments:
+
+- **Script File**: `full_debug_plus_script_TIMESTAMP.py` - Complete executable Python script
+- **Diagnostics File**: `full_debug_plus_diagnostics_TIMESTAMP.json` - Complete diagnostic information
+
+## Resource Limits Diagnostics (v1.24.0+)
+
+### Memory Limit Information
+
+```json
+{
+  "execution": {
+    "resource_limits": {
+      "memory_limit_mb": 512,
+      "wrapper_script_used": true,
+      "platform": "linux"
+    },
+    "result": {
+      "exit_code": 137,
+      "timed_out": false,
+      "killed": false
+    }
+  }
+}
+```
+
+**Exit Code 137**: Indicates script exceeded memory limit (MemoryError)
+
+### CPU Limit Information
+
+```json
+{
+  "execution": {
+    "resource_limits": {
+      "cpu_limit_percent": 50,
+      "cpu_cores_total": 30,
+      "cpu_time_multiplier": 15,
+      "cpu_time_seconds": 9000
+    }
+  }
+}
+```
+
+**CPU Calculation**: `cpuTimeSeconds = timeoutMinutes × 60 × (cpuCores × cpuLimitPercent / 100)`
+
+## Exit Codes
+
+| Exit Code | Meaning | Description |
+|-----------|---------|-------------|
+| 0 | Success | Script completed successfully |
+| 1 | Error | Script failed with error |
+| 137 | Memory Limit | Script exceeded memory limit (v1.24.0+) |
+| -2 | Timeout | Script exceeded execution timeout |
+
+## Troubleshooting Common Issues
+
+### Script Execution Failures
+
+#### NameError: name 'variable' is not defined
+```python
+# Problem: Variable not available
+print(f"Value: {undefined_variable}")
+
+# Solution: Check if variable exists
+if 'undefined_variable' in globals():
+    print(f"Value: {undefined_variable}")
+else:
+    print("Variable not defined")
+```
+
+#### ImportError: No module named 'module'
+```python
+# Problem: Module not installed
+import non_existent_module
+
+# Solution: Check module availability
+try:
+    import non_existent_module
+except ImportError:
+    print("Module not available, using alternative")
+    # Alternative implementation
+```
+
+#### MemoryError
+```python
+# Problem: Script exceeds memory limit
+big_data = bytearray(5 * 1024 * 1024 * 1024)  # 5 GB
+
+# Solution: Process data in chunks
+def process_large_data(data, chunk_size=1000):
+    for i in range(0, len(data), chunk_size):
+        chunk = data[i:i+chunk_size]
+        # Process chunk
+        yield process_chunk(chunk)
+```
+
+### Data Source Issues
+
+#### Input Variables Not Available
+```python
+# Problem: input_items is empty
+if not input_items:
+    print("No input data received")
+    print("Check 'Include Input Variables' setting")
+```
+
+#### Credentials Not Injected
+```python
+# Problem: env_vars is empty
+if not env_vars:
+    print("No credentials available")
+    print("Check 'Include Credential Variables' setting")
+    print("Verify credential is connected and filled")
+```
+
+#### System Environment Not Available
+```python
+# Problem: System environment variables not accessible
+import os
+if 'CUSTOM_ENV_VAR' not in os.environ:
+    print("System environment variable not found")
+    print("Check 'Include System Environment' setting")
+```
+
+### File Processing Issues
+
+#### Output Files Not Detected
+```python
+# Problem: Files not included in output
+import os
+
+# Solution: Use correct path
+if output_dir:
+    file_path = os.path.join(output_dir, "output.txt")
+    with open(file_path, 'w') as f:
+        f.write("Content")
+    print(f"File created: {file_path}")
+else:
+    print("Output directory not available")
+    print("Enable 'Output File Processing'")
+```
+
+#### Input Files Not Accessible
+```python
+# Problem: input_files is empty
+if not input_files:
+    print("No input files available")
+    print("Check 'File Processing' settings")
+    print("Verify files are passed from previous node")
+```
+
+## Best Practices
+
+### Security Considerations
+
+#### Hide Sensitive Data
+```python
+# Safe way to log credentials
+if env_vars:
+    safe_vars = {k: "***" if "key" in k.lower() or "password" in k.lower() else v 
+                 for k, v in env_vars.items()}
+    print(f"Available variables: {safe_vars}")
+```
+
+#### Enable Hide Variable Values
+- Always enable "Hide Variable Values" in production
+- Prevents sensitive data from appearing in exported files
+- Replaces sensitive values with `***hidden***`
+
+### Performance Optimization
+
+#### Use Appropriate Debug Mode
+- **Off**: For production (no overhead)
+- **Full Debug+**: For development (comprehensive info)
+
+#### Monitor Resource Usage
+```python
+import sys
+import resource
+
+# Check memory usage
+memory_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+print(f"Memory usage: {memory_usage} KB")
+
+# Check available memory
+available_memory = psutil.virtual_memory().available
+print(f"Available memory: {available_memory / 1024 / 1024:.1f} MB")
+```
+
+### Error Handling
+
+#### Comprehensive Error Handling
+```python
+import sys
+import traceback
+
+try:
+    # Your code here
+    result = process_data()
+    print(f"Result: {result}")
+    
+except MemoryError as e:
+    print(f"Memory error: {e}")
+    print("Consider increasing memory limit or optimizing code")
+    sys.exit(137)
+    
+except Exception as e:
+    print(f"Error: {e}")
+    traceback.print_exc()
+    sys.exit(1)
+```
+
+#### Graceful Degradation
+```python
+# Try multiple approaches
+def safe_process_data():
+    try:
+        # Primary approach
+        return process_with_pandas()
+    except ImportError:
+        try:
+            # Fallback approach
+            return process_with_builtin()
+        except Exception as e:
+            print(f"All approaches failed: {e}")
+            return None
+```
+
+## Debugging Workflow
+
+### Step-by-Step Debugging Process
+
+1. **Enable Full Debug+**: Set debug mode to Full Debug+
+2. **Reproduce Issue**: Run the failing workflow
+3. **Analyze Output**: Review Full Debug+ diagnostics
+4. **Check Exit Code**: Understand the failure type
+5. **Review Script**: Examine the executed script
+6. **Verify Environment**: Check Python and system environment
+7. **Test Locally**: Run script outside n8n if needed
+8. **Fix and Retest**: Apply fixes and verify resolution
+
+### Common Debugging Scenarios
+
+#### Script Syntax Errors
+```python
+# Problem: Syntax error
+if condition:
+print("This will fail")  # Missing indentation
+
+# Solution: Check syntax
+if condition:
+    print("This will work")  # Proper indentation
+```
+
+#### Logic Errors
+```python
+# Problem: Logic error
+if input_items:
+    for item in input_items:
+        process_item(item)
+# Missing else clause
+
+# Solution: Add proper error handling
+if input_items:
+    for item in input_items:
+        process_item(item)
+else:
+    print("No input items to process")
+```
+
+#### Resource Issues
+```python
+# Problem: Resource exhaustion
+def process_large_dataset():
+    data = load_huge_dataset()  # May exceed memory limit
+    return process_all_at_once(data)
+
+# Solution: Process in chunks
+def process_large_dataset():
+    for chunk in load_dataset_chunks():
+        yield process_chunk(chunk)
+```
+
+## Getting Help
+
+### Information to Provide
+
+When seeking help, provide:
+
+1. **Full Debug+ Output**: Complete diagnostic information
+2. **Script Code**: The Python code that's failing
+3. **Input Data**: Sample input data (sanitized)
+4. **Error Details**: Complete error messages and stack traces
+5. **Environment**: n8n version, Python version, OS
+6. **Configuration**: Node settings and parameters
+
+### Resources
+
+- **[Full Debug+ Guide](full-debug-plus.md)** - Detailed Full Debug+ documentation
+- **[Resource Limits Guide](resource-limits.md)** - Memory and CPU limits
+- **[Timeout and Cleanup Guide](timeout-and-cleanup.md)** - Execution timeout
+- **[Migration Guide](migration.md)** - Upgrading between versions
+
+## Related Documentation
+
+- **[Full Debug+ Guide](full-debug-plus.md)** - Comprehensive developer diagnostics
+- **[Resource Limits Guide](resource-limits.md)** - Memory and CPU limits configuration
+- **[Timeout and Cleanup Guide](timeout-and-cleanup.md)** - Execution timeout and cleanup
+- **[Migration Guide](migration.md)** - Upgrading to v1.20.0+ with simplified debug modes
 - Variable injection problems
 
 ## Test Only Mode

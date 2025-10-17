@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-python-raw",
 	"version": "1.24.1",
-  "description": "🚨 WARNING: 100% AI-GENERATED EXPERIMENTAL CODE - HIGH RISK! Use at own risk, not for production. Python execution for n8n with file processing, multiple credentials, debug tools. Personal use only - Commons Clause license.",
+	"description": "🚨 WARNING: 100% AI-GENERATED EXPERIMENTAL CODE - HIGH RISK! Use at own risk, not for production. Python execution for n8n with resource limits (memory/CPU), Full Debug+ diagnostics, file processing, dual outputs. Personal use only - Commons Clause license.",
   "main": "dist/index.js",
   "license": "SEE LICENSE IN LICENSE.md",
   "homepage": "https://github.com/stttru/n8n-nodes-python-fork",

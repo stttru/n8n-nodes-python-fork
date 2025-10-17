@@ -12,6 +12,41 @@ The **Output File Processing** feature (v1.11.0+) allows Python scripts to gener
 4. **Binary Conversion**: Files are converted to base64 and added to workflow output
 5. **Auto-cleanup**: Temporary files and directories are automatically cleaned up
 
+## Resource Limits Integration (v1.24.0+)
+
+### Memory Limits and File Processing
+When processing large files, consider memory limits:
+
+- **Memory Limit**: 64 MB - 100 GB (default: 512 MB)
+- **File Processing**: Large files may exceed memory limits
+- **Recommendation**: Process files in chunks or increase memory limit
+
+### CPU Limits and File Generation
+CPU-intensive file operations are controlled by CPU limits:
+
+- **CPU Limit**: 1-100% of all cores (default: 50%)
+- **File Generation**: Complex file operations may require more CPU
+- **Recommendation**: Adjust CPU limit based on file processing complexity
+
+### Resource-Aware File Processing
+```python
+import os
+import sys
+
+# Check available resources
+if output_dir:
+    # Process files with resource awareness
+    try:
+        # Large file processing
+        process_large_file()
+    except MemoryError:
+        print("Memory limit exceeded, processing in chunks")
+        process_in_chunks()
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+```
+
 ## Configuration Options
 
 ### Enable Output File Processing

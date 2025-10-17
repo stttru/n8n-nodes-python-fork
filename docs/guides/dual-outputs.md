@@ -18,8 +18,47 @@ Starting with v1.16.0, the Python Function node features a **dual output archite
 | `0` | Success | Output 1 (Success) |
 | `1` | General error | Output 2 (Error) |
 | `2` | Syntax error | Output 2 (Error) |
+| `137` | Memory limit exceeded (v1.24.0+) | Output 2 (Error) |
 | `-2` | Timeout (v1.17.0+) | Output 2 (Error) |
 | Any non-zero | Error | Output 2 (Error) |
+
+## Resource Limits Integration (v1.24.0+)
+
+### Memory Limit Errors
+When a script exceeds the memory limit, it receives a `MemoryError` and exits with code 137:
+
+```python
+# This will trigger MemoryError if memory limit is too low
+big_data = bytearray(5 * 1024 * 1024 * 1024)  # 5 GB
+```
+
+**Exit Code 137** routes to Output 2 (Error) and indicates:
+- Script exceeded memory limit
+- Process was killed due to memory constraint
+- Increase memory limit or optimize script
+
+### CPU Limit Integration
+CPU limits work seamlessly with dual outputs:
+- **Success**: Script completes within CPU limits → Output 1
+- **Timeout**: Script exceeds CPU time limit → Output 2 (Error)
+
+### Resource Limit Workflow Patterns
+
+#### Pattern: Resource-Aware Processing
+```
+Python Function → Output 1 (Success) → Continue Processing
+                → Output 2 (Error)   → Check Exit Code
+                                    → 137: Increase Memory Limit
+                                    → -2: Increase Timeout
+                                    → 1: Fix Script Error
+```
+
+#### Pattern: Adaptive Resource Management
+```
+Python Function → Output 1 (Success) → Final Output
+                → Output 2 (Error)   → Adjust Resource Limits
+                                    → Retry with Higher Limits
+```
 
 ## Workflow Design Patterns
 
