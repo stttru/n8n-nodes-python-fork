@@ -683,13 +683,13 @@ else:
 # PATH, HOME, NODE_ENV, etc. (added to env_vars dictionary)
 
 # === BINARY FILES (if "File Processing" enabled) ===
-if 'input_files' in globals() and input_files:
+if input_files:
     print(f"Found {len(input_files)} input files")
     for file_info in input_files:
         print(f"File: {file_info['filename']} ({file_info['size']} bytes)")
 
 # === OUTPUT FILES (if "Output File Processing" enabled) ===
-if 'output_dir' in globals():
+if output_dir:
     print(f"Output directory: {output_dir}")
     # Create files in output_dir - they'll be automatically included in n8n output
 

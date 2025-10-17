@@ -6,6 +6,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.5] - 2025-10-17
+
+### Fixed
+- Fixed inconsistent variable checks in default code example
+- Removed unnecessary `globals()` checks for `input_files` and `output_dir`
+- All reserved variables now use consistent direct checks since they're always defined
+
 ## [1.17.4] - 2025-10-17
 
 ### Fixed
