@@ -6,6 +6,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.2] - 2025-01-17
+
+### 🎨 ICON UPDATE
+
+**VISUAL IMPROVEMENT**: Replaced custom SVG logo with standard Python icon.
+
+#### Changes
+- **New Icon**: Changed from `file:python-logo.svg` to `fa:python` (Font Awesome Python icon)
+- **Better Recognition**: Now uses the official Python logo that users recognize
+- **Consistency**: Standard Font Awesome icon ensures compatibility across all n8n versions
+- **No File Dependencies**: Removed dependency on custom SVG file
+
+#### Technical Details
+- Updated node definition to use Font Awesome Python icon
+- Icon displays as recognizable blue Python logo
+- Maintains all existing functionality
+- Improves visual consistency in n8n interface
+
 ## [1.17.1] - 2025-01-17
 
 ### 🔧 BACKWARD COMPATIBILITY FIX

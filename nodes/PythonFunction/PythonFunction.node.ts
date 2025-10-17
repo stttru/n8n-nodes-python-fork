@@ -382,7 +382,7 @@ export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Python Function (Raw)',
 		name: 'pythonFunctionRaw',
-		icon: 'file:python-logo.svg',
+		icon: 'fa:python',
 		group: ['transform'],
 		version: getNodeVersionFromPackage(),
 		description: 'Run custom Python script once and return raw output (exitCode, stdout, stderr)',
@@ -661,16 +661,22 @@ import sys
 # Individual variables from first input item:
 # title, duration, author, etc.
 
-# input_items array (if "Include input_items Array" enabled):
-print("Input items count:", len(input_items))
+# input_items array (always available, empty if disabled):
+if input_items:
+    print("Input items count:", len(input_items))
+else:
+    print("No input items (option disabled or no data)")
 
 # === ENVIRONMENT VARIABLES (if "Include Credential Variables" enabled) ===
 # Individual variables from credentials:
 # API_KEY, DB_HOST, TOKEN, etc.
 
-# env_vars dictionary (always created when credentials present):
-print("Available environment variables:")
-print(json.dumps(env_vars, indent=2))
+# env_vars dictionary (always available, empty if no credentials):
+if env_vars:
+    print("Available environment variables:")
+    print(json.dumps(env_vars, indent=2))
+else:
+    print("No environment variables (no credentials)")
 
 # === SYSTEM ENVIRONMENT (if "Include System Environment Variables" enabled) ===
 # PATH, HOME, NODE_ENV, etc. (added to env_vars dictionary)
@@ -687,16 +693,19 @@ if 'output_dir' in globals():
     # Create files in output_dir - they'll be automatically included in n8n output
 
 # Example: Access specific environment variable
-# api_key = API_KEY  # Individual variable
-# api_key = env_vars.get('API_KEY')  # Dictionary access
+# if env_vars:
+#     api_key = env_vars.get('API_KEY')
 
 # Example: Process input data
-# for item in input_items:
-#     print(f"Processing: {item.get('title', 'No title')}")
+# if input_items:
+#     for item in input_items:
+#         print(f"Processing: {item.get('title', 'No title')}")
 
 # Example: Generate output file
-# with open(os.path.join(output_dir, 'result.txt'), 'w') as f:
-#     f.write("Processing completed!")`,
+# if output_dir:
+#     import os
+#     with open(os.path.join(output_dir, 'result.txt'), 'w') as f:
+#         f.write("Processing completed!")`,
 				description: 'Python script to execute. Configure data sources in "Data Sources Configuration" section above.',
 				noDataExpression: true,
 			},
@@ -3227,17 +3236,26 @@ ${envVariableAssignments.join('\n')}
 		}
 	}
 
-	// Prepare legacy data (only if enabled)
-	let legacyDataSection = '';
-	if (includeEnvVarsDict) {
-		const envVarsValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(envVars);
-		legacyDataSection = `
-# Legacy compatibility objects
+	// Reserved variables - always defined (empty if disabled)
+	let reservedVariablesSection = '';
+	
+	// Always define input_items (empty list if not included)
+	const inputItemsValue = includeInputItems && data.length > 0 
+		? (hideVariableValues ? '"***hidden***"' : convertToPythonValue(data))
+		: '[]';
+	
+	// Always define env_vars (empty dict if not included)
+	const envVarsValue = includeEnvVarsDict && Object.keys(envVars).length > 0
+		? (hideVariableValues ? '"***hidden***"' : convertToPythonValue(envVars))
+		: '{}';
+	
+	reservedVariablesSection = `
+# Reserved variables (always defined)
+input_items = ${inputItemsValue}
 env_vars = ${envVarsValue}`;
-	}
 
-	// Add input files array if files are provided
-	let inputFilesSection = '';
+	// Always define input_files (empty list if not provided)
+	let inputFilesValue = '[]';
 	if (inputFiles && inputFiles.length > 0) {
 		const filesArray = inputFiles.map(file => {
 			const fileInfo: Record<string, unknown> = {
@@ -3260,20 +3278,21 @@ env_vars = ${envVarsValue}`;
 			return fileInfo;
 		});
 		
-		const filesValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(filesArray);
-		inputFilesSection = `
-# Binary files from previous nodes
-input_files = ${filesValue}`;
+		inputFilesValue = hideVariableValues ? '"***hidden***"' : convertToPythonValue(filesArray);
 	}
+	
+	const inputFilesSection = `
+input_files = ${inputFilesValue}`;
 
-	// Add output directory section if provided
-	let outputDirSection = '';
+	// Always define output_dir (empty string if not provided)
+	let outputDirValue = '""';
+	let expectedFileNameVariable = '';
+	let outputFilePathVariable = '';
+	let outputFileInstructions = '';
+	
 	if (outputDir) {
 		// Output file variables should never be hidden as they are essential for functionality
-		const outputDirValue = outputDir;
-		let outputFileInstructions = '';
-		let outputFilePathVariable = '';
-		let expectedFileNameVariable = '';
+		outputDirValue = `r"${outputDir}"`;
 		
 		// Add expected filename variable if configured
 		if (outputFileOptions?.expectedFileName) {
@@ -3330,22 +3349,20 @@ input_files = ${filesValue}`;
 #   with open(file_path, 'w') as f: f.write("your content")
 `;
 		}
-		
-		outputDirSection = `
-# Output directory for generated files (Output File Processing enabled)
-output_dir = r"${outputDirValue}"
+	}
+	
+	const outputDirSection = `
+output_dir = ${outputDirValue}
 ${expectedFileNameVariable}
 ${outputFilePathVariable}
-
 ${outputFileInstructions}`;
-	}
 
 	const script = `#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw)
 ${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
 import json
 import sys
-${envVariablesSection}${individualVariables}${legacyDataSection}${inputFilesSection}${outputDirSection}
+${envVariablesSection}${individualVariables}${reservedVariablesSection}${inputFilesSection}${outputDirSection}
 # User code starts here
 ${cleanedCodeSnippet}
 `;
