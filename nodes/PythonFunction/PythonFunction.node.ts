@@ -2790,6 +2790,29 @@ async function executeOnce(
 		// Parse Python error
 		const pythonError = parsePythonError(stderr);
 
+		// Full Debug+: Finalize diagnostics for error case
+		if (fullDebugPlusDiagnostics) {
+			fullDebugPlusDiagnostics.timestamp_end = new Date().toISOString();
+			fullDebugPlusDiagnostics.total_duration_ms = 
+				new Date(fullDebugPlusDiagnostics.timestamp_end).getTime() - 
+				new Date(fullDebugPlusDiagnostics.timestamp_start).getTime();
+			
+			fullDebugPlusDiagnostics.final_summary = {
+				data_sources_loaded: fullDebugPlusDiagnostics.final_summary.data_sources_loaded,
+				total_variables_injected: fullDebugPlusDiagnostics.final_summary.total_variables_injected,
+				script_executed: true,
+				execution_successful: false,
+				output_branch: 'error',
+			};
+			
+			fullDebugPlusDiagnostics.troubleshooting_hints = [
+				`Script failed with exit code ${exitCode}`,
+				`Check Python error traceback in stderr`,
+				`Review script_generation.assembled_script for syntax issues`,
+				`Verify all required Python modules are installed`,
+			];
+		}
+
 		// Add error details to result
 		baseResult.pythonError = pythonError;
 		baseResult.detailedError = `Script failed with exit code ${exitCode}. ${pythonError.errorType || 'Error'}: ${pythonError.errorMessage || stderr}`;
@@ -2811,6 +2834,12 @@ async function executeOnce(
 		if (debugInfo && debugMode !== 'off') {
 			debugInfo.timing = debugTiming;
 			addDebugInfoToResult(baseResult, debugInfo, debugMode);
+		}
+
+		// Add Full Debug+ diagnostics for error case
+		if (debugMode === 'full_plus' && fullDebugPlusDiagnostics) {
+			baseResult.full_debug_plus = fullDebugPlusDiagnostics;
+			console.log('✅ Full Debug+ diagnostics added to ERROR result');
 		}
 
 		// Handle pass through data
@@ -2850,6 +2879,30 @@ async function executeOnce(
 				Object.assign(resultItem.binary, scriptBinary);
 				Object.assign(resultItem.binary, outputJsonBinary);
 			}
+		}
+
+		// Add binary files for Full Debug+ mode (even for errors)
+		if (debugMode === 'full_plus' && debugInfo && fullDebugPlusDiagnostics) {
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+			
+			// Create Python script file
+			const scriptFilename = `full_debug_plus_script_error_${timestamp}.py`;
+			const scriptBinary = createScriptBinary(debugInfo.script_content, scriptFilename, scriptExportFormat || 'py');
+			
+			// Create full diagnostics JSON file (includes all Full Debug+ data + error info)
+			const diagnosticsFilename = `full_debug_plus_diagnostics_error_${timestamp}.json`;
+			const diagnosticsBinary = createFullDebugPlusDiagnosticsBinary(fullDebugPlusDiagnostics, baseResult, diagnosticsFilename);
+			
+			// Add binary data to each result item
+			for (const resultItem of errorResultWithPassThrough) {
+				if (!resultItem.binary) {
+					resultItem.binary = {};
+				}
+				Object.assign(resultItem.binary, scriptBinary);
+				Object.assign(resultItem.binary, diagnosticsBinary);
+			}
+			
+			console.log('✅ Full Debug+ files exported for ERROR result');
 		}
 
 		// Return error details or throw
@@ -3233,6 +3286,17 @@ async function executePerItem(
 				const pythonError = parsePythonError(stderr);
 				itemResult.pythonError = pythonError;
 				itemResult.detailedError = `Script failed with exit code ${exitCode}. ${pythonError.errorType || 'Error'}: ${pythonError.errorMessage || stderr}`;
+				
+				// Full Debug+: Finalize diagnostics for error case
+				if (debugMode === 'full_plus' && debugInfo) {
+					// Note: fullDebugPlusDiagnostics is not available in executePerItem
+					// We'll add basic error info to debugInfo instead
+					debugInfo.error_info = {
+						exit_code: exitCode,
+						python_error: pythonError,
+						error_timestamp: new Date().toISOString(),
+					};
+				}
 				
 				if (errorHandling === 'throw') {
 					throw new NodeOperationError(executeFunctions.getNode(), itemResult.detailedError as string);
@@ -4116,6 +4180,11 @@ interface DebugInfo {
 		is_valid: boolean;
 		syntax_error?: string;
 		line_number?: number;
+	};
+	error_info?: {
+		exit_code: number;
+		python_error: any;
+		error_timestamp: string;
 	};
 }
 

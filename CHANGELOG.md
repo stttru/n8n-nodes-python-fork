@@ -6,6 +6,69 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.23.1] - 2025-10-17
+
+### 🔧 Fix: Full Debug+ Mode for Error Cases
+
+Fixed Full Debug+ mode to provide complete diagnostics and file export for both successful and error executions.
+
+#### What Changed
+
+- **Fixed Full Debug+ diagnostics for errors**: Now `full_debug_plus` object is included in error results
+- **Fixed Full Debug+ file export for errors**: Now exports script.py + diagnostics.json files for error cases
+- **Added error-specific diagnostics**: Error cases now include proper error information in diagnostics
+- **Consistent behavior**: Both success and error cases now have identical Full Debug+ functionality
+
+#### Problem Solved
+
+Previously in Full Debug+ mode:
+- ❌ Error executions only showed basic error fields
+- ❌ No `full_debug_plus` diagnostics object in error results
+- ❌ No file export (script.py + diagnostics.json) for errors
+- ❌ Inconsistent behavior between success and error cases
+
+Now in Full Debug+ mode:
+- ✅ Error executions show complete `full_debug_plus` diagnostics
+- ✅ Error executions export files: `full_debug_plus_script_error_*.py` + `full_debug_plus_diagnostics_error_*.json`
+- ✅ Error diagnostics include proper error information and troubleshooting hints
+- ✅ Identical functionality for both success and error cases
+
+#### Technical Changes
+
+**executeOnce() function**:
+- Added Full Debug+ diagnostics finalization for error cases
+- Added `baseResult.full_debug_plus = fullDebugPlusDiagnostics` for errors
+- Added file export for Full Debug+ mode in error cases
+- Updated `final_summary` with error status
+
+**executePerItem() function**:
+- Added error info to `debugInfo.error_info` for Full Debug+ mode
+- Enhanced error handling to include debug information
+
+**Interface updates**:
+- Added `error_info` field to `DebugInfo` interface
+
+#### Files Changed
+
+- `nodes/PythonFunction/PythonFunction.node.ts`: Enhanced error handling for Full Debug+ mode
+- `package.json`: Version bump to 1.23.1
+- `CHANGELOG.md`: This entry
+
+#### Testing
+
+Test with Python code that causes errors:
+```python
+fgn  # NameError
+```
+
+Expected results in Full Debug+ mode:
+- ✅ Complete `full_debug_plus` object in output
+- ✅ 2 files in binary output: script + diagnostics
+- ✅ Error-specific troubleshooting hints
+- ✅ Proper error information in diagnostics
+
+---
+
 ## [1.23.0] - 2025-10-17
 
 ### 🔄 Rollback to Stable Version v1.19.4
