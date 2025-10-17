@@ -382,7 +382,7 @@ export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Python Function (Raw)',
 		name: 'pythonFunctionRaw',
-		icon: 'file:python-logo.svg',
+		icon: 'fa:python',
 		group: ['transform'],
 		version: getNodeVersionFromPackage(),
 		description: 'Run custom Python script once and return raw output (exitCode, stdout, stderr)',
