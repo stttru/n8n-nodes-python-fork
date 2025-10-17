@@ -710,6 +710,7 @@ from shutil import which
 - **v1.13.2**: Complete internationalization - all Russian text translated to English for global accessibility
 - **v1.13.1**: Test infrastructure reorganization and comprehensive test fixes (unit/functional/TypeScript tests at 100%)
 - **v1.12.8**: Variable validation fixes - enhanced sanitization of Python variable names from input data
+- **v1.24.0**: 🚀 Major Feature: Resource Limits for Python Scripts - Memory (64MB-100GB) and CPU (1-100% of ALL cores) limits with auto-generated wrapper scripts
 - **v1.12.7**: Improved backward compatibility and credential handling in recent n8n versions
 - **v1.12.6**: Enhanced variable injection and output file processing stability
 - **v1.12.5**: Removed legacy variables and fixed file variables hiding issue
