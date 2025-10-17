@@ -6,6 +6,74 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.21.1] - 2024-12-19
+
+### 🐛 Critical Bug Fix: Secure Mode Crash
+
+**BREAKING CHANGE**: Renamed debug mode 'off' to 'secure' for clarity.
+
+#### What Fixed
+
+**Critical Bug**:
+- Fixed `ENOENT: no such file or directory` crash in secure mode
+- `fs.statSync(scriptPath)` was called when no script file exists (stdin execution)
+- Full Debug+ diagnostics now properly handle both execution modes
+
+**UI Improvements**:
+- Renamed 'Off' → '🔒 Secure Mode (Production)' for clarity
+- Updated descriptions to emphasize security benefits
+- Default mode is now explicitly 'secure' (was 'off')
+
+#### Technical Changes
+
+**Fixed Full Debug+ Diagnostics**:
+```typescript
+// Before (crashed in secure mode):
+fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = fs.statSync(scriptPath).size;
+
+// After (secure mode aware):
+if (useSecureMode) {
+    fullDebugPlusDiagnostics.execution.preparation.script_file_path = '(stdin - no file)';
+    fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = scriptSource.length;
+} else {
+    fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = fs.statSync(scriptPath).size;
+}
+```
+
+**Mode Selection Logic**:
+- Changed `debugMode !== 'full_plus'` to `debugMode === 'secure'`
+- More explicit and clear mode detection
+
+#### Migration
+
+**NO BACKWARD COMPATIBILITY**: Existing workflows with `debugMode: 'off'` will need to be updated to `debugMode: 'secure'`.
+
+**Manual Update Required**:
+1. Open existing workflows
+2. Change Debug/Test Mode from 'Off' to '🔒 Secure Mode (Production)'
+3. Save workflow
+
+#### Files Modified
+
+- `nodes/PythonFunction/PythonFunction.node.ts`:
+  - Fixed Full Debug+ diagnostics crash
+  - Updated UI parameter names and descriptions
+  - Changed mode selection logic
+  - Removed backward compatibility code
+
+#### Testing
+
+- ✅ Secure mode: No crash, scripts execute correctly
+- ✅ Full Debug+ mode: File diagnostics work properly
+- ✅ Both modes: Credentials accessible, proper execution
+- ✅ UI: Clear naming and descriptions
+
+#### Version
+
+**1.21.1** (Patch version - critical bug fix + UI improvement)
+
+---
+
 ## [1.21.0] - 2024-12-19
 
 ### 🔒 Security Enhancement: Maximum Security Mode with stdin + FD3

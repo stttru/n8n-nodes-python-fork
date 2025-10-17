@@ -992,17 +992,17 @@ if output_dir:
 				type: 'options',
 				options: [
 					{
-						name: 'Off',
-						value: 'off',
-						description: 'Normal execution without debug information (default)',
+						name: '🔒 Secure Mode (Production)',
+						value: 'secure',
+						description: 'SECURE: Scripts via stdin, credentials via FD3, zero files on disk (RECOMMENDED)',
 					},
 					{
 						name: '🔬 Full Debug+ (Developer Mode)',
 						value: 'full_plus',
-						description: 'MAXIMUM diagnostics with file export: system info, Python environment, execution details, script and diagnostics files',
+						description: 'DEBUG: Scripts in files with embedded credentials for troubleshooting',
 					},
 				],
-				default: 'off',
+				default: 'secure',
 				description: 'Enable comprehensive diagnostics for troubleshooting',
 			},
 			{
@@ -2324,7 +2324,7 @@ async function executeOnce(
 	let scriptSource: string;  // Content (secure) or path (debug)
 	let credentialsForFD3: Record<string, any> | undefined;
 	let useStdin = true;
-	let useSecureMode = debugMode !== 'full_plus';
+	let useSecureMode = debugMode === 'secure';
 	
 	try {
 		// Create execution directory first
@@ -2515,27 +2515,45 @@ async function executeOnce(
 		
 		// Full Debug+: Update execution diagnostics
 		if (fullDebugPlusDiagnostics) {
-			fullDebugPlusDiagnostics.execution.preparation.temp_dir_created = executionDir;
-			fullDebugPlusDiagnostics.execution.preparation.script_file_path = scriptPath;
-			fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = fs.statSync(scriptPath).size;
-			fullDebugPlusDiagnostics.execution.preparation.script_written_successfully = true;
-			
-			fullDebugPlusDiagnostics.execution.command = {
-				executable: pythonPath,
-				full_command: `${pythonPath} ${scriptPath}`,
-				arguments: [scriptPath],
-				working_directory: executionDir,
-				timeout_minutes: executionTimeout,
-			};
+			if (useSecureMode) {
+				// Secure mode: no script file
+				fullDebugPlusDiagnostics.execution.preparation.temp_dir_created = executionDir;
+				fullDebugPlusDiagnostics.execution.preparation.script_file_path = '(stdin - no file)';
+				fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = scriptSource.length;
+				fullDebugPlusDiagnostics.execution.preparation.script_written_successfully = false;
+				
+				fullDebugPlusDiagnostics.execution.command = {
+					executable: pythonPath,
+					full_command: `${pythonPath} -c "import sys; exec(sys.stdin.read())"`,
+					arguments: ['-c', 'import sys; exec(sys.stdin.read())'],
+					working_directory: executionDir,
+					timeout_minutes: executionTimeout,
+				};
+			} else {
+				// Debug mode: traditional file
+				fullDebugPlusDiagnostics.execution.preparation.temp_dir_created = executionDir;
+				fullDebugPlusDiagnostics.execution.preparation.script_file_path = scriptPath;
+				fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = fs.statSync(scriptPath).size;
+				fullDebugPlusDiagnostics.execution.preparation.script_written_successfully = true;
+				
+				fullDebugPlusDiagnostics.execution.command = {
+					executable: pythonPath,
+					full_command: `${pythonPath} ${scriptPath}`,
+					arguments: [scriptPath],
+					working_directory: executionDir,
+					timeout_minutes: executionTimeout,
+				};
+			}
 			
 			fullDebugPlusDiagnostics.execution.timing.preparation_started = debugTiming.script_created_at;
 			fullDebugPlusDiagnostics.execution.timing.script_created = debugTiming.script_created_at;
 			fullDebugPlusDiagnostics.execution.timing.execution_started = debugTiming.execution_started_at;
 			
 			console.log('🚀 Execution Diagnostics:', {
-				script_path: scriptPath,
+				execution_mode: useSecureMode ? 'secure_stdin_fd3' : 'debug_file',
+				script_path: useSecureMode ? '(stdin)' : scriptPath,
 				execution_dir: executionDir,
-				script_size_bytes: fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes,
+				script_size_bytes: useSecureMode ? scriptSource.length : fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes,
 				python_executable: pythonPath,
 				timeout_minutes: executionTimeout,
 			});
@@ -2904,7 +2922,7 @@ async function executePerItem(
 		let scriptSource: string;
 		let credentialsForFD3: Record<string, any> | undefined;
 		let useStdin = true;
-		let useSecureMode = debugMode !== 'full_plus';
+		let useSecureMode = debugMode === 'secure';
 		
 		// Create debug timing for each item
 		const debugTiming: DebugTiming = {
