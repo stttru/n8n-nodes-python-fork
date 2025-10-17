@@ -530,6 +530,7 @@ interface ScriptGenerationDiagnostics {
 		user_code_length: number;
 		estimated_size_kb: number;
 	};
+	full_assembled_script: string;  // Complete script with all data substitutions
 }
 
 interface ExecutionDiagnostics {
@@ -738,6 +739,7 @@ function createFullDebugPlusDiagnostics(): FullDebugPlusDiagnostics {
 				user_code_length: 0,
 				estimated_size_kb: 0,
 			},
+			full_assembled_script: '',  // Will be populated during execution
 		},
 		
 		execution: {
@@ -2272,6 +2274,9 @@ async function executeOnce(
 				user_code_length: functionCode.length,
 				estimated_size_kb: Math.round(scriptContent.length / 1024),
 			};
+			
+			// Store the complete assembled script for Full Debug+ display
+			fullDebugPlusDiagnostics.script_generation.full_assembled_script = scriptContent;
 			
 			console.log('📝 Script Generation Diagnostics:', {
 				user_code_provided: fullDebugPlusDiagnostics.script_generation.user_code.provided,

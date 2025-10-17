@@ -6,6 +6,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.1] - 2025-01-17
+
+### Enhanced
+- **Full Debug+ Mode**: Now displays complete assembled Python script in diagnostics
+  - Shows full script with all data substitutions (input variables, credentials, system env)
+  - Respects "Hide Variable Values" setting - when enabled, sensitive data replaced with asterisks in Full Debug+ output
+  - New field: `full_debug_plus_diagnostics.script_generation.full_assembled_script`
+
+### Changed
+- "Hide Variable Values" option now affects both:
+  - Exported scripts (when using Export Script debug mode)
+  - Full Debug+ diagnostics output (when enabled)
+
+### Technical Details
+- Added `full_assembled_script` field to `ScriptGenerationDiagnostics` interface
+- Enhanced Full Debug+ diagnostics to include complete script content
+- Script generation respects `hideVariableValues` parameter for sensitive data protection
+- Full Debug+ now provides complete visibility into what Python script is actually executed
+
 ## [1.19.0] - 2025-01-17
 
 ### Breaking Changes
