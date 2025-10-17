@@ -649,7 +649,6 @@ export class PythonFunction implements INodeType {
 				typeOptions: {
 					alwaysOpenEditWindow: true,
 					rows: 20,
-					editor: 'code',
 					editorLanguage: 'python',
 				},
 				type: 'string',

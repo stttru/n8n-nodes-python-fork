@@ -6,6 +6,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.4] - 2025-10-17
+
+### Fixed
+- Fixed Python Code editor - removed read-only mode, now editable with syntax highlighting
+
 ## [1.17.3] - 2025-10-17
 
 ### Changed
