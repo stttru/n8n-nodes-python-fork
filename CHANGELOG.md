@@ -6,6 +6,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.1] - 2025-10-17
+
+### 🐛 Bugfix: Fixed IndentationError in Default Code Template
+
+Fixed critical IndentationError in the default Python code template that prevented users from running the node without modifications.
+
+#### What Changed
+
+- **Fixed IndentationError**: Added proper indentation (4 spaces) to all `if` blocks in default code
+- **Improved Default Template**: Enhanced example code with better documentation and emojis
+- **Better UX**: Users can now run the node immediately without syntax errors
+- **Comprehensive Examples**: Default code now demonstrates all node features:
+  - Input Variables processing
+  - Environment Variables handling
+  - Binary Files processing
+  - Output Files creation
+  - Security-conscious credential display (hides sensitive values)
+
+#### Technical Details
+
+- **Root Cause**: Missing indentation after `if input_items:` and `if env_vars:` statements
+- **Fix**: Added proper 4-space indentation to all code blocks
+- **Enhancement**: Improved default template with:
+  - Clear section headers with emojis
+  - Better error handling
+  - Security-conscious credential display
+  - Comprehensive examples for all features
+  - Working file creation example
+
+#### Before (Broken)
+```python
+if input_items:
+print("Input items count:", len(input_items))  # ❌ IndentationError
+```
+
+#### After (Fixed)
+```python
+if input_items:
+    print(f"📥 Received {len(input_items)} input item(s)")  # ✅ Proper indentation
+    print(f"First item keys: {list(input_items[0].keys())}")
+```
+
+#### Benefits
+
+- 🐛 **Critical Bug Fixed**: Default code now works immediately
+- 📚 **Better Documentation**: Improved examples show all node capabilities
+- 🎓 **Better Learning**: Users see how to use all features
+- 🔒 **Security**: Sensitive values are hidden in output
+- ✅ **Production Ready**: Code works out of the box
+
 ## [1.24.0] - 2025-10-17
 
 ### 🚀 Major Feature: Resource Limits for Python Scripts

@@ -1009,61 +1009,91 @@ export class PythonFunction implements INodeType {
 					editorLanguage: 'python',
 				},
 				type: 'string',
-				default: `# Example: Configure data sources in "Data Sources Configuration" section above
-# This example shows what's available when all sources are enabled
+				default: `# Example: Working with n8n Python Raw Node
+# This script demonstrates all available data sources and features
 
 import json
 import sys
 
-# === INPUT DATA (if "Inject Input Variables" enabled) ===
-# Individual variables from first input item:
-# title, duration, author, etc.
+# === INPUT DATA ===
+# When "Include Input Variables" is enabled, you get:
+# - Individual variables from first input item (title, author, etc.)
+# - input_items array with all input data
 
-# input_items array (always available, empty if disabled):
 if input_items:
-print("Input items count:", len(input_items))
+    print(f"📥 Received {len(input_items)} input item(s)")
+    print(f"First item keys: {list(input_items[0].keys())}")
 else:
     print("No input items (option disabled or no data)")
 
-# === ENVIRONMENT VARIABLES (if "Include Credential Variables" enabled) ===
-# Individual variables from credentials:
-# API_KEY, DB_HOST, TOKEN, etc.
+# === ENVIRONMENT VARIABLES ===
+# When "Include Credential Variables" is enabled, you get:
+# - Individual variables from credentials (API_KEY, DB_HOST, TOKEN, etc.)
+# - env_vars dictionary with all credential variables
 
-# env_vars dictionary (always available, empty if no credentials):
 if env_vars:
-print("Available environment variables:")
-print(json.dumps(env_vars, indent=2))
+    print(f"🔐 Available environment variables: {len(env_vars)}")
+    # Hide sensitive values in output
+    safe_vars = {k: "***" if "key" in k.lower() or "token" in k.lower() or "password" in k.lower() else v for k, v in env_vars.items()}
+    print(json.dumps(safe_vars, indent=2))
 else:
-    print("No environment variables (no credentials)")
+    print("No environment variables (no credentials connected)")
 
-# === SYSTEM ENVIRONMENT (if "Include System Environment Variables" enabled) ===
-# PATH, HOME, NODE_ENV, etc. (added to env_vars dictionary)
+# === SYSTEM ENVIRONMENT ===
+# When "Include System Environment Variables" is enabled,
+# they are added to env_vars dictionary (PATH, HOME, NODE_ENV, etc.)
 
-# === BINARY FILES (if "File Processing" enabled) ===
+# === BINARY FILES ===
+# When "File Processing" is enabled, you can access input files
+
 if input_files:
-    print(f"Found {len(input_files)} input files")
+    print(f"📎 Found {len(input_files)} input file(s)")
     for file_info in input_files:
-        print(f"File: {file_info['filename']} ({file_info['size']} bytes)")
+        print(f"  - {file_info['filename']} ({file_info['size']} bytes)")
+else:
+    print("No input files")
 
-# === OUTPUT FILES (if "Output File Processing" enabled) ===
+# === OUTPUT FILES ===
+# When "Output File Processing" is enabled, you can create files
+# Files created in output_dir are automatically included in n8n output
+
 if output_dir:
-    print(f"Output directory: {output_dir}")
-    # Create files in output_dir - they'll be automatically included in n8n output
+    import os
+    print(f"📁 Output directory: {output_dir}")
+    
+    # Example: Create a result file
+    result_file = os.path.join(output_dir, 'result.txt')
+    with open(result_file, 'w', encoding='utf-8') as f:
+        f.write(f"Processing completed!\\n")
+        f.write(f"Input items: {len(input_items)}\\n")
+        f.write(f"Environment vars: {len(env_vars)}\\n")
+    print(f"✅ Created: result.txt")
+else:
+    print("Output file processing disabled")
 
-# Example: Access specific environment variable
-# if env_vars:
-#     api_key = env_vars.get('API_KEY')
+# === YOUR CODE HERE ===
+# Add your custom Python logic below
 
 # Example: Process input data
-# if input_items:
-#     for item in input_items:
-#         print(f"Processing: {item.get('title', 'No title')}")
+if input_items:
+    for i, item in enumerate(input_items):
+        print(f"\\nProcessing item {i+1}:")
+        for key, value in item.items():
+            print(f"  {key}: {value}")
 
-# Example: Generate output file
-# if output_dir:
-#     import os
-#     with open(os.path.join(output_dir, 'result.txt'), 'w') as f:
-#         f.write("Processing completed!")`,
+# Example: Use environment variable
+if env_vars and 'API_KEY' in env_vars:
+    api_key = env_vars['API_KEY']
+    print(f"Using API key: {api_key[:5]}...")
+
+# Example: Work with files
+if input_files:
+    for file_info in input_files:
+        file_path = file_info['path']
+        print(f"Processing file: {file_path}")
+        # Add your file processing logic here
+
+print("\\n✅ Script completed successfully!")`,
 				description: 'Python script to execute. Configure data sources in "Data Sources Configuration" section above.',
 				noDataExpression: true,
 			},
