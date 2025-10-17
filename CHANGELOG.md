@@ -6,6 +6,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.3] - 2025-10-17
+
+### Changed
+- Enhanced Python Code editor with syntax highlighting and line numbers
+
+### Removed
+- Removed "Code Template Mode" UI section (functionality preserved for future use)
+
 ## [1.17.2] - 2025-01-17
 
 ### 🎨 ICON UPDATE
