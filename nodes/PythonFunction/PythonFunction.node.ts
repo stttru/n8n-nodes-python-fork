@@ -583,6 +583,15 @@ interface ExecutionDiagnostics {
 		files_removed: string[];
 		error: string | null;
 	};
+	resource_limits?: {
+		memory_limit_mb: number;
+		cpu_limit_percent: number;
+		cpu_cores_total: number;
+		cpu_time_multiplier: number;
+		cpu_time_seconds: number;
+		wrapper_script_used: boolean;
+		platform: string;
+	};
 }
 
 interface FullDebugPlusDiagnostics {
@@ -611,6 +620,128 @@ interface FullDebugPlusDiagnostics {
 		execution_successful: boolean;
 		output_branch: string;
 	};
+}
+
+// Resource Limits Interface
+interface ResourceLimits {
+	memoryLimitMB: number;      // Memory limit in megabytes (64 - 102400)
+	cpuLimitPercent: number;    // CPU limit as percentage (1-100) from ALL cores
+	cpuCores: number;           // Total CPU cores available
+	cpuTimeMultiplier: number;  // Calculated multiplier for CPU time
+}
+
+// Function to calculate CPU limits based on available cores
+function calculateCpuLimits(cpuLimitPercent: number, timeoutMinutes: number): {
+	cpuCores: number;
+	cpuTimeMultiplier: number;
+	cpuTimeSeconds: number;
+} {
+	const os = require('os');
+	const cpuCores = os.cpus().length;
+	
+	// Multiplier based on percentage of all cores
+	// 100% on 8 cores = 8.0, 50% on 8 cores = 4.0, 25% on 16 cores = 4.0
+	const cpuTimeMultiplier = cpuCores * (cpuLimitPercent / 100);
+	
+	// CPU time = timeout × multiplier
+	// Example: 10 min timeout, 8 cores, 50% limit:
+	// cpuTimeSeconds = 600 × (8 × 0.5) = 600 × 4 = 2400 seconds
+	// This allows using 4 cores for full 10 minutes
+	const cpuTimeSeconds = Math.floor(timeoutMinutes * 60 * cpuTimeMultiplier);
+	
+	return {
+		cpuCores,
+		cpuTimeMultiplier,
+		cpuTimeSeconds,
+	};
+}
+
+// Generate resource-limited wrapper script
+function createResourceLimitedScript(
+	userScriptPath: string,
+	resourceLimits: ResourceLimits,
+	cpuTimeSeconds: number,
+	platform: string
+): string {
+	const memoryBytes = resourceLimits.memoryLimitMB * 1024 * 1024;
+	
+	const wrapperScript = `#!/usr/bin/env python3
+# n8n Resource-Limited Wrapper Script
+# Auto-generated - enforces memory and CPU limits
+
+import sys
+import os
+
+# Platform: ${platform}
+# Memory Limit: ${resourceLimits.memoryLimitMB} MB
+# CPU Limit: ${resourceLimits.cpuLimitPercent}% of ${resourceLimits.cpuCores} cores (${resourceLimits.cpuTimeMultiplier.toFixed(2)}× multiplier)
+# CPU Time: ${cpuTimeSeconds}s
+
+try:
+	import resource
+	
+	# Set memory limit (RLIMIT_AS - address space)
+	try:
+		resource.setrlimit(resource.RLIMIT_AS, (${memoryBytes}, ${memoryBytes}))
+		print(f"[n8n] Memory limit set: ${resourceLimits.memoryLimitMB} MB", file=sys.stderr)
+	except ValueError as e:
+		print(f"[n8n] Warning: Could not set memory limit: {e}", file=sys.stderr)
+	
+	# Set CPU time limit (RLIMIT_CPU - CPU seconds)
+	# This is total CPU time across all cores
+	try:
+		resource.setrlimit(resource.RLIMIT_CPU, (${cpuTimeSeconds}, ${cpuTimeSeconds}))
+		print(f"[n8n] CPU time limit set: ${cpuTimeSeconds}s (${resourceLimits.cpuLimitPercent}% of ${resourceLimits.cpuCores} cores)", file=sys.stderr)
+	except ValueError as e:
+		print(f"[n8n] Warning: Could not set CPU limit: {e}", file=sys.stderr)
+		
+except ImportError:
+	# Windows or resource module not available
+	print("[n8n] Warning: resource module not available, limits not enforced", file=sys.stderr)
+	print("[n8n] Platform: ${platform}", file=sys.stderr)
+
+# Execute user script
+try:
+	with open("${userScriptPath}", 'r', encoding='utf-8') as f:
+		user_code = f.read()
+	exec(user_code, {'__name__': '__main__', '__file__': "${userScriptPath}"})
+except MemoryError:
+	print("[n8n] FATAL: Script exceeded memory limit (${resourceLimits.memoryLimitMB} MB)", file=sys.stderr)
+	sys.exit(137)  # 128 + 9 (SIGKILL)
+except Exception as e:
+	print(f"[n8n] Script error: {e}", file=sys.stderr)
+	import traceback
+	traceback.print_exc()
+	sys.exit(1)
+`;
+
+	return wrapperScript;
+}
+
+// Write resource-limited wrapper script to file
+async function writeResourceLimitedWrapper(
+	userScriptPath: string,
+	resourceLimits: ResourceLimits,
+	cpuTimeSeconds: number,
+	executionDir: string
+): Promise<string> {
+	const platform = require('os').platform();
+	const wrapperContent = createResourceLimitedScript(
+		userScriptPath, 
+		resourceLimits, 
+		cpuTimeSeconds,
+		platform
+	);
+	
+	const wrapperPath = path.join(executionDir, 'n8n_resource_wrapper.py');
+	fs.writeFileSync(wrapperPath, wrapperContent, { encoding: 'utf8' });
+	
+	console.log(`✅ Resource-limited wrapper created: ${wrapperPath}`);
+	console.log(`   Memory limit: ${resourceLimits.memoryLimitMB} MB`);
+	console.log(`   CPU limit: ${resourceLimits.cpuLimitPercent}% of ${resourceLimits.cpuCores} cores (${resourceLimits.cpuTimeMultiplier.toFixed(2)}× multiplier)`);
+	console.log(`   CPU time: ${cpuTimeSeconds}s`);
+	
+	return wrapperPath;
 }
 
 function createFullDebugPlusDiagnostics(): FullDebugPlusDiagnostics {
@@ -960,6 +1091,99 @@ if output_dir:
 				typeOptions: {
 					minValue: 1,
 					maxValue: 1440, // 24 hours max
+				},
+			},
+			{
+				displayName: 'Memory Limit (MB)',
+				name: 'memoryLimitMB',
+				type: 'number',
+				default: 512,
+				required: true,
+				description: `
+					<p><strong>Maximum memory the Python script can use</strong></p>
+					<ul>
+						<li><strong>Default: 512 MB</strong> - Suitable for most scripts</li>
+						<li><strong>Range:</strong> 64 MB to 102400 MB (100 GB)</li>
+						<li><strong>Behavior:</strong> If script exceeds this limit, it will be immediately terminated with a MemoryError</li>
+						<li><strong>Protection:</strong> Prevents scripts from consuming all server memory and crashing n8n</li>
+						<li><strong>Recommendation:</strong>
+							<ul>
+								<li>Simple data processing: 128-256 MB</li>
+								<li>Medium workloads (pandas, requests): 512-1024 MB</li>
+								<li>Heavy processing (ML, large datasets): 2048-4096 MB</li>
+								<li>Very large datasets: 8192-16384 MB</li>
+								<li>Extreme workloads: up to 102400 MB (100 GB)</li>
+							</ul>
+						</li>
+						<li><strong>Important:</strong> Set higher limits only for trusted scripts. High limits may consume all server RAM and affect n8n performance</li>
+						<li><strong>You decide:</strong> Choose the limit based on your server capacity and script requirements</li>
+					</ul>
+				`,
+				typeOptions: {
+					minValue: 64,
+					maxValue: 102400, // 100 GB max
+				},
+				displayOptions: {
+					show: {
+						// Always shown
+					},
+				},
+			},
+			{
+				displayName: 'CPU Limit (%)',
+				name: 'cpuLimitPercent',
+				type: 'number',
+				default: 50,
+				required: true,
+				description: `
+					<p><strong>Maximum CPU usage percentage from ALL available cores</strong></p>
+					<ul>
+						<li><strong>Default: 50%</strong> - Half of all available CPU cores</li>
+						<li><strong>Range:</strong> 1% to 100%</li>
+						<li><strong>100% = ALL CPU cores without restrictions</strong></li>
+						<li><strong>How it works:</strong> 
+							<ul>
+								<li>System detects total CPU cores (e.g., 8 cores)</li>
+								<li>Your limit is calculated: 8 cores × 50% = 4 cores equivalent</li>
+								<li>Script can use up to 4 cores worth of CPU time</li>
+							</ul>
+						</li>
+						<li><strong>Examples:</strong>
+							<ul>
+								<li>Server: 4 cores, Limit: 50% → ~2 cores available</li>
+								<li>Server: 8 cores, Limit: 25% → ~2 cores available</li>
+								<li>Server: 16 cores, Limit: 50% → ~8 cores available</li>
+								<li>Server: 8 cores, Limit: 100% → All 8 cores available</li>
+							</ul>
+						</li>
+						<li><strong>Protection:</strong> Prevents scripts from monopolizing ALL server CPUs and slowing down n8n</li>
+						<li><strong>Recommendation:</strong>
+							<ul>
+								<li>Light I/O tasks (API calls, file ops): 10-25%</li>
+								<li>Moderate processing: 25-50%</li>
+								<li>CPU-intensive single-threaded: 50-75%</li>
+								<li>Multi-threaded/parallel processing: 75-100%</li>
+								<li>Background/low-priority: 1-10%</li>
+							</ul>
+						</li>
+						<li><strong>Multi-threading:</strong> Multi-threaded Python scripts (using multiprocessing, threading) can utilize multiple cores up to the limit</li>
+						<li><strong>Platform support:</strong>
+							<ul>
+								<li>Linux/macOS: Full support via resource limits (CPU time based)</li>
+								<li>Windows: Limited support (timeout only, no CPU throttling)</li>
+							</ul>
+						</li>
+						<li><strong>Note:</strong> CPU limit is based on CPU time, not real-time. I/O-bound scripts may not reach the limit</li>
+					</ul>
+				`,
+				typeOptions: {
+					minValue: 1,
+					maxValue: 100,
+				},
+				displayOptions: {
+					show: {
+						// Always shown
+					},
 				},
 			},
 			{
@@ -1632,6 +1856,10 @@ if output_dir:
 		const systemEnvVarsString = includeSystemEnv ? (this.getNodeParameter('systemEnvVars', 0, '') as string) : '';
 		const systemEnvVars = systemEnvVarsString ? systemEnvVarsString.split(',').map(v => v.trim()).filter(v => v) : [];
 		
+		// Read Resource Limits Configuration
+		const memoryLimitMB = this.getNodeParameter('memoryLimitMB', 0) as number;
+		const cpuLimitPercent = this.getNodeParameter('cpuLimitPercent', 0) as number;
+		
 		// For backward compatibility with old script generation options
 		const includeInputItems = injectInputVariables; // Use same flag for both individual vars and array
 		const includeEnvVarsDict = includeCredentialVars; // Use credential flag for env_vars dict
@@ -1995,6 +2223,8 @@ if output_dir:
 					outputFileProcessingOptions,
 					fileDebugOptions,
 					scriptExportFormat,
+					memoryLimitMB,
+					cpuLimitPercent,
 				);
 			} else {
 				return await executeOnce(
@@ -2022,6 +2252,8 @@ if output_dir:
 					fileDebugOptions,
 					scriptExportFormat,
 					fullDebugPlusDiagnostics,
+					memoryLimitMB,
+					cpuLimitPercent,
 				);
 			}
 		} catch (error) {
@@ -2359,6 +2591,8 @@ async function executeOnce(
 	fileDebugOptions?: FileDebugOptions,
 	scriptExportFormat?: string,
 	fullDebugPlusDiagnostics?: FullDebugPlusDiagnostics | null,
+	memoryLimitMB?: number,
+	cpuLimitPercent?: number,
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
@@ -2369,6 +2603,7 @@ async function executeOnce(
 		
 	let scriptPath = '';
 	let executionDir = '';
+	let wrapperScriptPath = '';
 	try {
 		// Create execution directory first
 		executionDir = createExecutionDirectory();
@@ -2569,7 +2804,59 @@ async function executeOnce(
 			});
 		}
 		
-		const execResults = await execPythonSpawn(scriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
+		// Resource Limits Logic
+		let wrapperScriptPath = scriptPath;
+		let resourceLimits: ResourceLimits | null = null;
+		
+		if (memoryLimitMB !== undefined && cpuLimitPercent !== undefined) {
+			// Validate limits
+			if (memoryLimitMB < 64 || memoryLimitMB > 102400) {
+				throw new NodeOperationError(
+					executeFunctions.getNode(),
+					`Invalid memory limit: ${memoryLimitMB} MB. Must be between 64 and 102400 MB (100 GB)`
+				);
+			}
+
+			if (cpuLimitPercent < 1 || cpuLimitPercent > 100) {
+				throw new NodeOperationError(
+					executeFunctions.getNode(),
+					`Invalid CPU limit: ${cpuLimitPercent}%. Must be between 1 and 100%`
+				);
+			}
+
+			// Calculate CPU limits based on available cores
+			const cpuLimits = calculateCpuLimits(cpuLimitPercent, executionTimeout);
+
+			resourceLimits = {
+				memoryLimitMB,
+				cpuLimitPercent,
+				cpuCores: cpuLimits.cpuCores,
+				cpuTimeMultiplier: cpuLimits.cpuTimeMultiplier,
+			};
+
+			// Create wrapper script with resource limits
+			wrapperScriptPath = await writeResourceLimitedWrapper(
+				scriptPath,
+				resourceLimits,
+				cpuLimits.cpuTimeSeconds,
+				executionDir
+			);
+
+			// Full Debug+: Add resource limits info
+			if (fullDebugPlusDiagnostics) {
+				fullDebugPlusDiagnostics.execution.resource_limits = {
+					memory_limit_mb: memoryLimitMB,
+					cpu_limit_percent: cpuLimitPercent,
+					cpu_cores_total: cpuLimits.cpuCores,
+					cpu_time_multiplier: cpuLimits.cpuTimeMultiplier,
+					cpu_time_seconds: cpuLimits.cpuTimeSeconds,
+					wrapper_script_used: true,
+					platform: require('os').platform(),
+				};
+			}
+		}
+		
+		const execResults = await execPythonSpawn(wrapperScriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
 		debugTiming.execution_finished_at = new Date().toISOString();
 		debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 			new Date(debugTiming.execution_started_at).getTime();
@@ -2978,7 +3265,11 @@ async function executeOnce(
 		}
 		
 		try {
-		await cleanupScript(scriptPath);
+			await cleanupScript(scriptPath);
+			// Cleanup wrapper script if it was created
+			if (wrapperScriptPath !== scriptPath) {
+				await cleanupScript(wrapperScriptPath);
+			}
 			// Cleanup execution directory completely
 			if (executionDir) {
 				await cleanupExecutionDirectory(executionDir);
@@ -3026,6 +3317,8 @@ async function executePerItem(
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
 	fileDebugOptions?: FileDebugOptions,
 	scriptExportFormat?: string,
+	memoryLimitMB?: number,
+	cpuLimitPercent?: number,
 ): Promise<INodeExecutionData[][]> {
 	
 	const successResults: INodeExecutionData[] = [];
@@ -3035,6 +3328,7 @@ async function executePerItem(
 		const item = items[i];
 		let scriptPath = '';
 		let executionDir = '';
+		let wrapperScriptPath = '';
 		
 		// Create debug timing for each item
 		const debugTiming: DebugTiming = {
@@ -3204,7 +3498,46 @@ async function executePerItem(
 		try {
 			// Execute the Python script for this item
 			debugTiming.execution_started_at = new Date().toISOString();
-			const execResults = await execPythonSpawn(scriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
+			
+			// Resource Limits Logic
+			let wrapperScriptPath = scriptPath;
+			
+			if (memoryLimitMB !== undefined && cpuLimitPercent !== undefined) {
+				// Validate limits
+				if (memoryLimitMB < 64 || memoryLimitMB > 102400) {
+					throw new NodeOperationError(
+						executeFunctions.getNode(),
+						`Invalid memory limit: ${memoryLimitMB} MB. Must be between 64 and 102400 MB (100 GB)`
+					);
+				}
+
+				if (cpuLimitPercent < 1 || cpuLimitPercent > 100) {
+					throw new NodeOperationError(
+						executeFunctions.getNode(),
+						`Invalid CPU limit: ${cpuLimitPercent}%. Must be between 1 and 100%`
+					);
+				}
+
+				// Calculate CPU limits based on available cores
+				const cpuLimits = calculateCpuLimits(cpuLimitPercent, executionTimeout);
+
+				const resourceLimits: ResourceLimits = {
+					memoryLimitMB,
+					cpuLimitPercent,
+					cpuCores: cpuLimits.cpuCores,
+					cpuTimeMultiplier: cpuLimits.cpuTimeMultiplier,
+				};
+
+				// Create wrapper script with resource limits
+				wrapperScriptPath = await writeResourceLimitedWrapper(
+					scriptPath,
+					resourceLimits,
+					cpuLimits.cpuTimeSeconds,
+					executionDir
+				);
+			}
+			
+			const execResults = await execPythonSpawn(wrapperScriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
 			debugTiming.execution_finished_at = new Date().toISOString();
 			debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 				new Date(debugTiming.execution_started_at).getTime();
@@ -3434,6 +3767,10 @@ async function executePerItem(
 			}
 		} finally {
 			await cleanupScript(scriptPath);
+			// Cleanup wrapper script if it was created
+			if (wrapperScriptPath !== scriptPath) {
+				await cleanupScript(wrapperScriptPath);
+			}
 			// Cleanup execution directory completely
 			if (executionDir) {
 				await cleanupExecutionDirectory(executionDir);

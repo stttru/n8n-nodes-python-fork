@@ -6,6 +6,63 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.24.0] - 2025-10-17
+
+### 🚀 Major Feature: Resource Limits for Python Scripts
+
+Added comprehensive resource limits to protect n8n server from Python script overload with memory and CPU restrictions.
+
+#### What Changed
+
+- **Memory Limit**: Mandatory parameter (64 MB - 100 GB, default 512 MB)
+- **CPU Limit**: Mandatory parameter (1-100% of ALL available cores, default 50%)
+- **Resource-Limited Wrapper**: Auto-generated Python wrapper script enforces limits
+- **Multi-core CPU Support**: CPU limit applies to ALL available cores, not just one
+- **Platform Support**: Full support on Linux/macOS, graceful fallback on Windows
+- **Full Debug+ Integration**: Resource limits info displayed in diagnostics
+- **Automatic Cleanup**: Wrapper scripts are automatically cleaned up after execution
+
+#### Technical Details
+
+- **Memory Limit**: Uses Python `resource.RLIMIT_AS` to limit address space
+- **CPU Limit**: Uses Python `resource.RLIMIT_CPU` with calculated time based on core count
+- **CPU Calculation**: `cpuTimeSeconds = timeoutMinutes × 60 × (cpuCores × cpuLimitPercent / 100)`
+- **Wrapper Script**: Creates `n8n_resource_wrapper.py` that sets limits and executes user script
+- **Error Handling**: MemoryError → exit code 137, CPU timeout → SIGKILL
+- **Cross-platform**: Linux/macOS full support, Windows timeout-only fallback
+
+#### Examples
+
+- **Server: 8 cores, Limit: 50%** → Equivalent to 4 cores available
+- **Server: 16 cores, Limit: 25%** → Equivalent to 4 cores available  
+- **Server: 4 cores, Limit: 100%** → All 4 cores available
+- **Memory: 1024 MB** → Script can use up to 1 GB RAM
+- **Memory: 102400 MB** → Script can use up to 100 GB RAM (maximum)
+
+#### UI Parameters
+
+- **Memory Limit (MB)**: Range 64-102400, detailed recommendations for different workloads
+- **CPU Limit (%)**: Range 1-100, examples for different server configurations
+- **Detailed Descriptions**: Comprehensive help text with examples and recommendations
+
+#### Benefits
+
+- 🛡️ **Server Protection**: Prevents scripts from crashing n8n
+- ⚙️ **Maximum Flexibility**: Up to 100 GB RAM limit, user decides
+- 🚀 **Multi-core Support**: CPU limit applies to ALL available cores
+- 📊 **Monitoring**: Full Debug+ shows detailed resource limit info
+- 🔒 **Security**: Limits reduce attack surface
+- 📈 **Scalability**: Better resource allocation for multiple workflows
+- 💪 **Power Users**: High limits for heavy ML/data processing workloads
+
+#### Testing
+
+- Memory limit enforcement with MemoryError handling
+- CPU limit enforcement with multi-core calculations
+- Cross-platform compatibility testing
+- Full Debug+ diagnostics verification
+- Cleanup logic verification
+
 ## [1.23.1] - 2025-10-17
 
 ### 🔧 Fix: Full Debug+ Mode for Error Cases
