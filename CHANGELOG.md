@@ -6,6 +6,80 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.23.0] - 2025-10-17
+
+### 🔄 Rollback to Stable Version v1.19.4
+
+This release rolls back to the stable v1.19.4 codebase, removing all experimental 
+security features (stdin/FD3, environment variables) that were causing persistent file system errors.
+
+#### What Changed
+
+- **Rolled back to v1.19.4**: Restored last known stable version
+- **Removed v1.21.0**: stdin + FD3 execution approach
+- **Removed v1.22.0**: Environment variables approach
+- **Restored**: Traditional reliable file-based execution
+
+#### Why Rollback?
+
+The experimental security features introduced in v1.21.0 and v1.22.0 caused critical issues:
+- ❌ Persistent `ENOENT: no such file or directory` errors
+- ❌ File system race conditions
+- ❌ Scripts not being written to disk correctly
+- ❌ Unreliable cleanup procedures
+- ❌ Production workflows breaking
+
+#### What's Included (from v1.19.4)
+
+- ✅ Traditional file-based Python script execution
+- ✅ Full Debug+ mode with comprehensive diagnostics
+- ✅ Python environment information (version, pip freeze)
+- ✅ File export functionality (script + diagnostics JSON)
+- ✅ Secure credential hiding in exported scripts
+- ✅ Reliable cleanup procedures
+- ✅ All features from v1.17.x - v1.19.4
+
+#### Removed Features (from v1.21.0 - v1.22.0)
+
+- ❌ "Secure Mode" (stdin execution) - was causing errors
+- ❌ FD3 credential passing - caused file system issues
+- ❌ Environment variable credential loading - still had ENOENT errors
+
+#### Migration Guide
+
+**For users on v1.21.x or v1.22.x**:
+1. Update to v1.23.0
+2. Change "Debug/Test Mode" from "Secure Mode" to "Off" in your workflows
+3. All workflows will work as they did before v1.21.0
+
+**No other changes required** - this is a stable rollback.
+
+#### Technical Details
+
+v1.19.4 uses proven, reliable approach:
+- Scripts written to temporary files
+- Traditional `spawn(pythonPath, [scriptPath])` execution
+- Credentials embedded in script files (as before security experiments)
+- Reliable synchronous file operations
+- Predictable cleanup with `fs.unlinkSync()` and `fs.rmdirSync()`
+
+#### Next Steps
+
+Future security improvements will be:
+1. Developed in separate feature branches
+2. Thoroughly tested in staging environments
+3. Validated with comprehensive test suites
+4. Only merged after proven stability
+
+#### Files Restored
+
+All files rolled back to v1.19.4 state, key files:
+- `nodes/PythonFunction/PythonFunction.node.ts`
+- `package.json`
+- `CHANGELOG.md`
+
+---
+
 ## [1.19.4] - 2025-01-17
 
 ### Fixed
