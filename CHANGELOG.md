@@ -6,6 +6,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.1] - 2025-01-17
+
+### 🔧 BACKWARD COMPATIBILITY FIX
+
+**CRITICAL FIX**: Fixed backward compatibility for existing workflows and added output labels.
+
+#### Changes
+- **Fixed Output Structure**: Changed from `['main', 'error']` to `['main', 'main']` for proper n8n compatibility
+- **Added Output Names**: Added descriptive labels for both outputs:
+  - Output 1: "✓ Success (exitCode=0)" 
+  - Output 2: "✗ Error (exitCode≠0)"
+- **Backward Compatibility**: Existing workflows now work correctly with dual outputs
+- **Visual Clarity**: Users can now clearly see which output is for success vs error
+
+#### Technical Details
+- Updated node definition to use proper n8n output format
+- Added `outputNames` property for better UX
+- Maintained all existing functionality while fixing compatibility issues
+- Updated TypeScript tests to reflect new structure
+
 ## [1.17.0] - 2025-01-17
 
 ### ⏱️ EXECUTION TIMEOUT & ENHANCED CLEANUP

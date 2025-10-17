@@ -8,5 +8,8 @@ test('Node has two outputs', () => {
 	const node = new PythonFunction();
 	expect(node.description.outputs).toHaveLength(2);
 	expect(node.description.outputs[0]).toBe('main');
-	expect(node.description.outputs[1]).toBe('error');
+	expect(node.description.outputs[1]).toBe('main');
+	expect(node.description.outputNames).toHaveLength(2);
+	expect(node.description.outputNames![0]).toBe('✓ Success (exitCode=0)');
+	expect(node.description.outputNames![1]).toBe('✗ Error (exitCode≠0)');
 });

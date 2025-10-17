@@ -391,7 +391,8 @@ export class PythonFunction implements INodeType {
 			color: '#4B8BBE',
 		},
 		inputs: ['main'],
-		outputs: ['main', 'error'],
+		outputs: ['main', 'main'],
+		outputNames: ['✓ Success (exitCode=0)', '✗ Error (exitCode≠0)'],
 		credentials: [
 			{
 				name: 'pythonEnvVars',
