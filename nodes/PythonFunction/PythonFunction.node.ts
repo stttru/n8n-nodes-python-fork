@@ -400,14 +400,14 @@ async function cleanupTemporaryFiles(fileMappings: FileMapping[]): Promise<void>
 // Преобразуем версию npm в числовую версию для n8n (например, "1.14.1" -> 14)
 export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Python Function (Raw)',
+		displayName: 'Python Raw',
 		name: 'pythonFunctionRaw',
-		icon: 'fa:python',
+		icon: 'file:python-logo.png',
 		group: ['transform'],
 		version: getNodeVersionFromPackage(),
 		description: 'Run custom Python script once and return raw output (exitCode, stdout, stderr)',
 		defaults: {
-			name: 'PythonFunctionRaw',
+			name: 'Python Raw',
 			color: '#4B8BBE',
 		},
 		inputs: ['main'],

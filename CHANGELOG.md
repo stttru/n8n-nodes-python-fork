@@ -6,6 +6,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.9] - 2025-01-17
+
+### Changed
+- Updated node icon to use official Python logo PNG image
+- Replaced custom SVG logo with downloaded Python logo from Google Images
+
+## [1.17.8] - 2025-01-17
+
+### Changed
+- Changed node display name from "Python Function (Raw)" to "Python Raw"
+- Fixed icon to use custom SVG logo instead of Font Awesome icon
+- Updated default node name to "Python Raw"
+
 ## [1.17.7] - 2025-01-17
 
 ### Fixed
