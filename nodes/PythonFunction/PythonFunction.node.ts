@@ -398,6 +398,404 @@ async function cleanupTemporaryFiles(fileMappings: FileMapping[]): Promise<void>
 
 
 // Преобразуем версию npm в числовую версию для n8n (например, "1.14.1" -> 14)
+
+// Full Debug+ Diagnostics Interfaces
+interface SystemDiagnostics {
+	os: {
+		platform: string;
+		release: string;
+		arch: string;
+		type: string;
+		hostname: string;
+		uptime_seconds: number;
+		total_memory_mb: number;
+		free_memory_mb: number;
+		cpus_count: number;
+		cpus_model: string;
+	};
+	nodejs: {
+		version: string;
+		v8_version: string;
+		arch: string;
+		platform: string;
+		process_id: number;
+		parent_process_id: number;
+		executable_path: string;
+		cwd: string;
+		uptime_seconds: number;
+		memory_usage_mb: {
+			rss: number;
+			heap_total: number;
+			heap_used: number;
+			external: number;
+		};
+	};
+	n8n: {
+		version: string;
+		execution_mode: string;
+		workflow_id: string;
+		execution_id: string;
+		node_env: string;
+		config_dir: string;
+	};
+	python: {
+		executable: string;
+		version_command: string;
+		version_output: string;
+		path_resolved: string;
+		is_found: boolean;
+	};
+}
+
+interface NodeInstallationDiagnostics {
+	package: {
+		name: string;
+		version: string;
+		description: string;
+	};
+	node: {
+		type: string;
+		name: string;
+		version: number;
+		subtitle: string;
+		credentials_available: string[];
+		parameters_count: number;
+		outputs_count: number;
+	};
+	installation: {
+		loaded_from: string;
+		file_path: string;
+	};
+}
+
+interface DataSourcesDiagnostics {
+	input_variables: {
+		enabled: boolean;
+		items_received: number;
+		items_have_data: boolean;
+		first_item_keys: string[];
+		first_item_structure: Record<string, string>;
+		all_items_sizes: number[];
+		total_data_kb: number;
+	};
+	credentials: {
+		enabled: boolean;
+		credential_type: string;
+		credential_connected: boolean;
+		credential_id: string;
+		credential_name: string;
+		raw_credential_data_keys: string[];
+		envFileContent_exists: boolean;
+		envFileContent_length: number;
+		envFileContent_lines_count: number;
+		envFileContent_preview_first_3_lines: string[];
+		parsing_attempted: boolean;
+		parsing_successful: boolean;
+		parse_error: string | null;
+		variables_parsed: number;
+		variable_names: string[];
+		variable_types: Record<string, string>;
+	};
+	system_environment: {
+		enabled: boolean;
+		total_env_vars_available: number;
+		requested_vars: string[];
+		found_vars: string[];
+		missing_vars: string[];
+		found_values_preview: Record<string, string>;
+		all_process_env_keys: string[];
+	};
+}
+
+interface ScriptGenerationDiagnostics {
+	user_code: {
+		provided: boolean;
+		length_chars: number;
+		lines_count: number;
+		has_imports: boolean;
+		has_future_imports: boolean;
+	};
+	template: {
+		sections_generated: string[];
+		individual_vars_count: number;
+		env_vars_count: number;
+		reserved_vars_defined: string[];
+		input_files_count: number;
+		output_dir_provided: boolean;
+	};
+	final_script: {
+		total_length_chars: number;
+		total_lines_count: number;
+		header_length: number;
+		user_code_length: number;
+		estimated_size_kb: number;
+	};
+}
+
+interface ExecutionDiagnostics {
+	preparation: {
+		temp_dir_created: string;
+		script_file_path: string;
+		script_file_size_bytes: number;
+		script_written_successfully: boolean;
+	};
+	command: {
+		executable: string;
+		full_command: string;
+		arguments: string[];
+		working_directory: string;
+		timeout_minutes: number;
+	};
+	timing: {
+		preparation_started: string;
+		script_created: string;
+		execution_started: string;
+		execution_finished: string;
+		preparation_duration_ms: number;
+		execution_duration_ms: number;
+		total_duration_ms: number;
+	};
+	result: {
+		exit_code: number;
+		stdout_length: number;
+		stderr_length: number;
+		timed_out: boolean;
+		killed: boolean;
+		signal: string | null;
+	};
+	cleanup: {
+		attempted: boolean;
+		successful: boolean;
+		files_removed: string[];
+		error: string | null;
+	};
+}
+
+interface FullDebugPlusDiagnostics {
+	mode: string;
+	timestamp_start: string;
+	timestamp_end: string;
+	total_duration_ms: number;
+	
+	system: SystemDiagnostics;
+	node_installation: NodeInstallationDiagnostics;
+	data_sources: DataSourcesDiagnostics;
+	script_generation: ScriptGenerationDiagnostics;
+	execution: ExecutionDiagnostics;
+	
+	errors_and_warnings: {
+		errors: string[];
+		warnings: string[];
+	};
+	
+	troubleshooting_hints: string[];
+	
+	final_summary: {
+		data_sources_loaded: string[];
+		total_variables_injected: number;
+		script_executed: boolean;
+		execution_successful: boolean;
+		output_branch: string;
+	};
+}
+
+function createFullDebugPlusDiagnostics(): FullDebugPlusDiagnostics {
+	const os = require('os');
+	
+	return {
+		mode: 'full_plus',
+		timestamp_start: new Date().toISOString(),
+		timestamp_end: '',
+		total_duration_ms: 0,
+		
+		system: {
+			os: {
+				platform: os.platform(),
+				release: os.release(),
+				arch: os.arch(),
+				type: os.type(),
+				hostname: os.hostname(),
+				uptime_seconds: os.uptime(),
+				total_memory_mb: Math.round(os.totalmem() / 1024 / 1024),
+				free_memory_mb: Math.round(os.freemem() / 1024 / 1024),
+				cpus_count: os.cpus().length,
+				cpus_model: os.cpus()[0]?.model || 'unknown',
+			},
+			nodejs: {
+				version: process.version,
+				v8_version: process.versions.v8,
+				arch: process.arch,
+				platform: process.platform,
+				process_id: process.pid,
+				parent_process_id: process.ppid,
+				executable_path: process.execPath,
+				cwd: process.cwd(),
+				uptime_seconds: Math.round(process.uptime()),
+				memory_usage_mb: {
+					rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+					heap_total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+					heap_used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+					external: Math.round(process.memoryUsage().external / 1024 / 1024),
+				},
+			},
+			n8n: {
+				version: process.env.N8N_VERSION || 'unknown',
+				execution_mode: process.env.EXECUTIONS_MODE || 'regular',
+				workflow_id: '',
+				execution_id: '',
+				node_env: process.env.NODE_ENV || 'production',
+				config_dir: process.env.N8N_USER_FOLDER || 'default',
+			},
+			python: {
+				executable: '',
+				version_command: '',
+				version_output: '',
+				path_resolved: '',
+				is_found: false,
+			},
+		},
+		
+		node_installation: {
+			package: {
+				name: '',
+				version: '',
+				description: '',
+			},
+			node: {
+				type: '',
+				name: '',
+				version: 0,
+				subtitle: '',
+				credentials_available: [],
+				parameters_count: 0,
+				outputs_count: 0,
+			},
+			installation: {
+				loaded_from: '',
+				file_path: '',
+			},
+		},
+		
+		data_sources: {
+			input_variables: {
+				enabled: false,
+				items_received: 0,
+				items_have_data: false,
+				first_item_keys: [],
+				first_item_structure: {},
+				all_items_sizes: [],
+				total_data_kb: 0,
+			},
+			credentials: {
+				enabled: false,
+				credential_type: 'pythonEnvVars',
+				credential_connected: false,
+				credential_id: '',
+				credential_name: '',
+				raw_credential_data_keys: [],
+				envFileContent_exists: false,
+				envFileContent_length: 0,
+				envFileContent_lines_count: 0,
+				envFileContent_preview_first_3_lines: [],
+				parsing_attempted: false,
+				parsing_successful: false,
+				parse_error: null,
+				variables_parsed: 0,
+				variable_names: [],
+				variable_types: {},
+			},
+			system_environment: {
+				enabled: false,
+				total_env_vars_available: Object.keys(process.env).length,
+				requested_vars: [],
+				found_vars: [],
+				missing_vars: [],
+				found_values_preview: {},
+				all_process_env_keys: Object.keys(process.env).slice(0, 50), // First 50 for preview
+			},
+		},
+		
+		script_generation: {
+			user_code: {
+				provided: false,
+				length_chars: 0,
+				lines_count: 0,
+				has_imports: false,
+				has_future_imports: false,
+			},
+			template: {
+				sections_generated: [],
+				individual_vars_count: 0,
+				env_vars_count: 0,
+				reserved_vars_defined: [],
+				input_files_count: 0,
+				output_dir_provided: false,
+			},
+			final_script: {
+				total_length_chars: 0,
+				total_lines_count: 0,
+				header_length: 0,
+				user_code_length: 0,
+				estimated_size_kb: 0,
+			},
+		},
+		
+		execution: {
+			preparation: {
+				temp_dir_created: '',
+				script_file_path: '',
+				script_file_size_bytes: 0,
+				script_written_successfully: false,
+			},
+			command: {
+				executable: '',
+				full_command: '',
+				arguments: [],
+				working_directory: '',
+				timeout_minutes: 0,
+			},
+			timing: {
+				preparation_started: '',
+				script_created: '',
+				execution_started: '',
+				execution_finished: '',
+				preparation_duration_ms: 0,
+				execution_duration_ms: 0,
+				total_duration_ms: 0,
+			},
+			result: {
+				exit_code: -1,
+				stdout_length: 0,
+				stderr_length: 0,
+				timed_out: false,
+				killed: false,
+				signal: null,
+			},
+			cleanup: {
+				attempted: false,
+				successful: false,
+				files_removed: [],
+				error: null,
+			},
+		},
+		
+		errors_and_warnings: {
+			errors: [],
+			warnings: [],
+		},
+		
+		troubleshooting_hints: [],
+		
+		final_summary: {
+			data_sources_loaded: [],
+			total_variables_injected: 0,
+			script_executed: false,
+			execution_successful: false,
+			output_branch: 'unknown',
+		},
+	};
+}
+
 export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Python Raw',
@@ -421,52 +819,38 @@ export class PythonFunction implements INodeType {
 		],
 		properties: [
 			{
-				displayName: 'Data Sources Configuration',
-				name: 'dataSourcesConfig',
-				type: 'collection',
-				default: {
-					injectInputVariables: true,
-					includeInputItemsArray: true,
-					includeCredentialVars: true,
-					includeSystemEnv: false,
+				displayName: 'Include Input Variables',
+				name: 'includeInputVariables',
+				type: 'boolean',
+				default: true,
+				description: 'Include input data from previous nodes. Creates individual variables from first input item (title, duration, author, etc.) and input_items array with all items.',
+			},
+			{
+				displayName: 'Include Credential Variables',
+				name: 'includeCredentialVars',
+				type: 'boolean',
+				default: false,
+				description: 'Include variables from selected credential below. Creates env_vars dictionary and individual variables from credential data.',
+			},
+			{
+				displayName: 'Include System Environment',
+				name: 'includeSystemEnv',
+				type: 'boolean',
+				default: false,
+				description: 'Include n8n process environment variables (PATH, HOME, NODE_ENV, etc.). Variables are added to env_vars dictionary.',
+			},
+			{
+				displayName: 'System Environment Variables',
+				name: 'systemEnvVars',
+				type: 'string',
+				default: '',
+				placeholder: 'PATH,HOME,NODE_ENV',
+				description: 'Comma-separated list of environment variable names to include when "Include System Environment" is enabled',
+				displayOptions: {
+					show: {
+						includeSystemEnv: [true],
+					},
 				},
-				placeholder: 'Configure Data Sources',
-				description: 'Control which data sources are available in your Python script',
-				options: [
-					{
-						displayName: 'Inject Input Variables',
-						name: 'injectInputVariables',
-						type: 'boolean',
-						default: true,
-						description: 'Create individual variables from first input item (title, duration, author, etc.)',
-					},
-					{
-						displayName: 'Include input_items Array',
-						name: 'includeInputItemsArray',
-						type: 'boolean',
-						default: true,
-						description: 'Include array with all input items from previous node',
-						displayOptions: {
-							show: {
-								injectInputVariables: [true],
-							},
-						},
-					},
-					{
-						displayName: 'Include Credential Variables',
-						name: 'includeCredentialVars',
-						type: 'boolean',
-						default: true,
-						description: 'Include variables from selected credential (creates env_vars dictionary and individual variables)',
-					},
-					{
-						displayName: 'Include System Environment Variables',
-						name: 'includeSystemEnv',
-						type: 'boolean',
-						default: false,
-						description: 'Include n8n process environment variables (PATH, HOME, NODE_ENV, etc.)',
-					},
-				],
 			},
 			{
 				displayName: 'Python Code',
@@ -489,7 +873,7 @@ import sys
 
 # input_items array (always available, empty if disabled):
 if input_items:
-    print("Input items count:", len(input_items))
+print("Input items count:", len(input_items))
 else:
     print("No input items (option disabled or no data)")
 
@@ -499,8 +883,8 @@ else:
 
 # env_vars dictionary (always available, empty if no credentials):
 if env_vars:
-    print("Available environment variables:")
-    print(json.dumps(env_vars, indent=2))
+print("Available environment variables:")
+print(json.dumps(env_vars, indent=2))
 else:
     print("No environment variables (no credentials)")
 
@@ -604,6 +988,11 @@ if output_dir:
 						name: 'Full Debug',
 						value: 'full',
 						description: 'Add script content, metadata, timing, and detailed execution info',
+					},
+					{
+						name: '🔬 Full Debug+ (Developer Mode)',
+						value: 'full_plus',
+						description: 'MAXIMUM diagnostics: system info, node installation, environment, all data sources, execution details, file system - everything for troubleshooting',
 					},
 					{
 						name: 'Test Only',
@@ -1187,6 +1576,20 @@ if output_dir:
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 
+		// Initialize Full Debug+ diagnostics
+		let fullDebugPlusDiagnostics: FullDebugPlusDiagnostics | null = null;
+		const debugMode = this.getNodeParameter('debugMode', 0) as string;
+		
+		if (debugMode === 'full_plus') {
+			fullDebugPlusDiagnostics = createFullDebugPlusDiagnostics();
+			console.log('🔬 ============================================');
+			console.log('🔬 FULL DEBUG+ MODE (Developer Diagnostics)');
+			console.log('🔬 ============================================');
+			console.log('💻 System:', fullDebugPlusDiagnostics.system.os.platform, fullDebugPlusDiagnostics.system.os.release);
+			console.log('🟢 Node.js:', fullDebugPlusDiagnostics.system.nodejs.version);
+			console.log('📦 Package:', fullDebugPlusDiagnostics.node_installation.package.version);
+		}
+
 		let items = this.getInputData();
 		// Copy the items as they may get changed in the functions
 		items = JSON.parse(JSON.stringify(items));
@@ -1195,9 +1598,7 @@ if output_dir:
 		const functionCode = this.getNodeParameter('functionCode', 0) as string;
 		const pythonPath = this.getNodeParameter('pythonPath', 0) as string;
 		const executionTimeout = this.getNodeParameter('executionTimeout', 0) as number;
-		const injectVariables = this.getNodeParameter('injectVariables', 0) as boolean;
 		const errorHandling = this.getNodeParameter('errorHandling', 0) as string;
-		const debugMode = this.getNodeParameter('debugMode', 0) as string;
 		const parseOutput = this.getNodeParameter('parseOutput', 0) as string;
 		const scriptExportFormat = this.getNodeParameter('scriptExportFormat', 0, 'py') as string;
 		const parseOptions = (['json', 'smart'].includes(parseOutput)) ? 
@@ -1207,15 +1608,56 @@ if output_dir:
 		const passThrough = this.getNodeParameter('passThrough', 0) as boolean;
 		const passThroughMode = passThrough ? this.getNodeParameter('passThroughMode', 0) as string : 'separate';
 		
-		// Get script generation options
-		const scriptOptions = this.getNodeParameter('scriptOptions', 0) as {
-			includeInputItems?: boolean;
-			includeEnvVarsDict?: boolean;
-			systemEnvVars?: string[];
-		};
-		const includeInputItems = scriptOptions.includeInputItems !== false; // default true
-		const includeEnvVarsDict = scriptOptions.includeEnvVarsDict === true; // default false
-		const systemEnvVars = scriptOptions.systemEnvVars || [];
+		// Read Data Sources Configuration
+		const injectInputVariables = this.getNodeParameter('includeInputVariables', 0, true) as boolean;
+		const includeCredentialVars = this.getNodeParameter('includeCredentialVars', 0, false) as boolean;
+		const includeSystemEnv = this.getNodeParameter('includeSystemEnv', 0, false) as boolean;
+		const systemEnvVarsString = includeSystemEnv ? (this.getNodeParameter('systemEnvVars', 0, '') as string) : '';
+		const systemEnvVars = systemEnvVarsString ? systemEnvVarsString.split(',').map(v => v.trim()).filter(v => v) : [];
+		
+		// For backward compatibility with old script generation options
+		const includeInputItems = injectInputVariables; // Use same flag for both individual vars and array
+		const includeEnvVarsDict = includeCredentialVars; // Use credential flag for env_vars dict
+		
+		// Update Full Debug+ diagnostics with real data
+		if (fullDebugPlusDiagnostics) {
+			// Update package info
+			fullDebugPlusDiagnostics.node_installation.package = {
+				name: 'n8n-nodes-python-raw',
+				version: getPackageVersion(),
+				description: 'Python execution for n8n with comprehensive diagnostics',
+			};
+			// Update node info
+			fullDebugPlusDiagnostics.node_installation.node = {
+				type: 'n8n-nodes-python-raw.pythonFunctionRaw',
+				name: 'Python Raw',
+				version: getNodeVersionFromPackage(),
+				subtitle: 'Run custom Python script once and return raw output',
+				credentials_available: ['pythonEnvVars'],
+				parameters_count: 15, // Approximate count
+				outputs_count: 2,
+			};
+			// Update Python info
+			fullDebugPlusDiagnostics.system.python = {
+				executable: pythonPath,
+				version_command: `${pythonPath} --version`,
+				version_output: '',
+				path_resolved: pythonPath,
+				is_found: true, // Will be updated during execution
+			};
+			// Update n8n info
+			fullDebugPlusDiagnostics.system.n8n.workflow_id = String(this.getWorkflow().id || 'unknown');
+			fullDebugPlusDiagnostics.system.n8n.execution_id = 'unknown'; // getExecutionId() not available in IExecuteFunctions
+			
+			console.log('📋 Node Configuration:', {
+				injectInputVariables,
+				includeCredentialVars,
+				includeSystemEnv,
+				executionMode,
+				parseOutput,
+				debugMode,
+			});
+		}
 		
 		// Get file processing options
 		const fileProcessingConfig = this.getNodeParameter('fileProcessing', 0, {}) as {
@@ -1292,7 +1734,9 @@ if output_dir:
 		// Log configuration
 		console.log('Python Function Raw node configuration:', {
 			pythonPath,
-			injectVariables,
+			injectInputVariables,
+			includeCredentialVars,
+			includeSystemEnv,
 			errorHandling,
 			 debugMode,
 			parseOutput,
@@ -1306,65 +1750,89 @@ if output_dir:
 		// Get hide variable values configuration
 		const hideCredentialValues = this.getNodeParameter('hideVariableValues', 0, false) as boolean;
 		
-		// Get Data Sources Configuration (new architecture)
-		const dataSourcesConfig = this.getNodeParameter('dataSourcesConfig', 0, null) as {
-			injectInputVariables?: boolean;
-			includeInputItemsArray?: boolean;
-			includeCredentialVars?: boolean;
-			includeSystemEnv?: boolean;
-		} | null;
-		
-		// Backward compatibility: if old workflow without new config, map old injectVariables
-		let injectInputVariables: boolean;
-		let includeInputItemsArray: boolean;
-		let includeCredentialVars: boolean;
-		let includeSystemEnv: boolean;
-		
-		if (!dataSourcesConfig) {
-			// Old workflow - map old injectVariables behavior
-			const oldInjectVariables = this.getNodeParameter('injectVariables', 0, true) as boolean;
-			injectInputVariables = oldInjectVariables;
-			includeInputItemsArray = oldInjectVariables;
-			includeCredentialVars = true; // Always enabled before
-			includeSystemEnv = false; // Was controlled by advanced options
-			console.log('Using backward compatibility mode for old workflow');
-		} else {
-			// New workflow - use new configuration
-			injectInputVariables = dataSourcesConfig.injectInputVariables !== false; // default true
-			includeInputItemsArray = dataSourcesConfig.includeInputItemsArray !== false; // default true
-			includeCredentialVars = dataSourcesConfig.includeCredentialVars !== false; // default true
-			includeSystemEnv = dataSourcesConfig.includeSystemEnv === true; // default false
-			console.log('Using new Data Sources Configuration:', {
-				injectInputVariables,
-				includeInputItemsArray,
-				includeCredentialVars,
-				includeSystemEnv
-			});
-		}
-		
 		// Get the environment variables from credentials
 		let pythonEnvVars: Record<string, string> = {};
 		let credentialSources: Record<string, string> = {};
+		
+		// Full Debug+: Diagnose input data
+		if (fullDebugPlusDiagnostics) {
+			const firstItem = items.length > 0 ? items[0].json : {};
+			const allItemsSizes = items.map(item => JSON.stringify(item).length);
+			const totalDataSize = allItemsSizes.reduce((sum, size) => sum + size, 0);
+			
+			fullDebugPlusDiagnostics.data_sources.input_variables = {
+				enabled: injectInputVariables,
+				items_received: items.length,
+				items_have_data: Object.keys(firstItem).length > 0,
+				first_item_keys: Object.keys(firstItem),
+				first_item_structure: Object.keys(firstItem).reduce((acc, key) => {
+					acc[key] = typeof firstItem[key];
+					return acc;
+				}, {} as Record<string, string>),
+				all_items_sizes: allItemsSizes,
+				total_data_kb: Math.round(totalDataSize / 1024),
+			};
+			
+			console.log('📥 Input Data Diagnostics:', {
+				enabled: injectInputVariables,
+				items_count: items.length,
+				has_data: Object.keys(firstItem).length > 0,
+				first_item_keys: Object.keys(firstItem),
+				total_size_kb: Math.round(totalDataSize / 1024),
+			});
+		}
 		
 		try {
 			// Load credentials only if enabled in Data Sources Configuration
 			if (includeCredentialVars) {
 				// Load default credential
-				const credentialData = await this.getCredentials('pythonEnvVars');
-				if (credentialData && credentialData.envFileContent) {
-					pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
-					const credentialName = String(credentialData.name || 'default_credential');
-					credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
-						acc[key] = credentialName;
-						return acc;
-					}, {} as Record<string, string>);
+					const credentialData = await this.getCredentials('pythonEnvVars');
+				
+				// Full Debug+: Update credential diagnostics
+				if (fullDebugPlusDiagnostics) {
+					fullDebugPlusDiagnostics.data_sources.credentials.enabled = true;
+					fullDebugPlusDiagnostics.data_sources.credentials.credential_connected = !!credentialData;
+					fullDebugPlusDiagnostics.data_sources.credentials.credential_name = String(credentialData?.name || '');
+					fullDebugPlusDiagnostics.data_sources.credentials.raw_credential_data_keys = credentialData ? Object.keys(credentialData) : [];
+					fullDebugPlusDiagnostics.data_sources.credentials.envFileContent_exists = !!(credentialData?.envFileContent);
+					fullDebugPlusDiagnostics.data_sources.credentials.envFileContent_length = String(credentialData?.envFileContent || '').length;
+					fullDebugPlusDiagnostics.data_sources.credentials.envFileContent_preview_first_3_lines = 
+						String(credentialData?.envFileContent || '').split('\n').slice(0, 3);
+				}
+				
+					if (credentialData && credentialData.envFileContent) {
+						pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
+						const credentialName = String(credentialData.name || 'default_credential');
+						credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
+							acc[key] = credentialName;
+							return acc;
+						}, {} as Record<string, string>);
 					console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from credential (${credentialName})`);
+					
+					// Full Debug+: Update parsing success
+					if (fullDebugPlusDiagnostics) {
+						fullDebugPlusDiagnostics.data_sources.credentials.parsing_attempted = true;
+						fullDebugPlusDiagnostics.data_sources.credentials.parsing_successful = true;
+						fullDebugPlusDiagnostics.data_sources.credentials.variables_parsed = Object.keys(pythonEnvVars).length;
+						fullDebugPlusDiagnostics.data_sources.credentials.variable_names = Object.keys(pythonEnvVars);
+						fullDebugPlusDiagnostics.data_sources.credentials.variable_types = Object.keys(pythonEnvVars).reduce((acc, key) => {
+							acc[key] = typeof pythonEnvVars[key];
+							return acc;
+						}, {} as Record<string, string>);
+					}
 				}
 			} else {
 				console.log('Credential variables disabled in Data Sources Configuration');
 			}
 		} catch (error) {
 			console.warn('Error loading credentials:', error);
+			
+			// Full Debug+: Update parsing error
+			if (fullDebugPlusDiagnostics) {
+				fullDebugPlusDiagnostics.data_sources.credentials.parse_error = (error as Error).message;
+				fullDebugPlusDiagnostics.errors_and_warnings.errors.push(`Credential loading error: ${(error as Error).message}`);
+			}
+			
 			if (Object.keys(pythonEnvVars).length === 0) {
 				pythonEnvVars = {};
 				credentialSources = {};
@@ -1380,6 +1848,26 @@ if output_dir:
 				}
 			}
 			console.log(`Loaded ${Object.keys(systemEnvVarsToAdd).length} system environment variables`);
+			
+			// Full Debug+: Update system environment diagnostics
+			if (fullDebugPlusDiagnostics) {
+				const foundVars = Object.keys(systemEnvVarsToAdd);
+				const missingVars = systemEnvVars.filter(name => !foundVars.includes(name));
+				const foundValuesPreview = Object.keys(systemEnvVarsToAdd).reduce((acc, key) => {
+					acc[key] = systemEnvVarsToAdd[key].substring(0, 20) + (systemEnvVarsToAdd[key].length > 20 ? '...' : '');
+					return acc;
+				}, {} as Record<string, string>);
+				
+				fullDebugPlusDiagnostics.data_sources.system_environment = {
+					enabled: true,
+					total_env_vars_available: Object.keys(process.env).length,
+					requested_vars: systemEnvVars,
+					found_vars: foundVars,
+					missing_vars: missingVars,
+					found_values_preview: foundValuesPreview,
+					all_process_env_keys: Object.keys(process.env).slice(0, 50),
+				};
+			}
 		} else {
 			console.log('System environment variables disabled in Data Sources Configuration');
 		}
@@ -1446,7 +1934,7 @@ if output_dir:
 					passThroughMode, 
 					items, 
 					mergedEnvVars,
-					includeInputItemsArray, // Use new parameter
+					includeInputItems, // Use new parameter
 					Object.keys(mergedEnvVars).length > 0, // Always include env_vars dict if has variables
 					hideCredentialValues,
 					systemEnvVars,
@@ -1472,7 +1960,7 @@ if output_dir:
 					passThroughMode, 
 					items, 
 					mergedEnvVars,
-					includeInputItemsArray, // Use new parameter
+					includeInputItems, // Use new parameter
 					Object.keys(mergedEnvVars).length > 0, // Always include env_vars dict if has variables
 					hideCredentialValues,
 					systemEnvVars,
@@ -1482,6 +1970,7 @@ if output_dir:
 					outputFileProcessingOptions,
 					fileDebugOptions,
 					scriptExportFormat,
+					fullDebugPlusDiagnostics,
 				);
 			}
 		} catch (error) {
@@ -1689,7 +2178,7 @@ async function executeOnce(
 	functionCode: string,
 	pythonPath: string,
 	executionTimeout: number,
-	injectVariables: boolean,
+	injectInputVariables: boolean,
 	errorHandling: string,
 	debugMode: string,
 	parseOutput: string,
@@ -1708,6 +2197,7 @@ async function executeOnce(
 	outputFileProcessingOptions?: OutputFileProcessingOptions,
 	fileDebugOptions?: FileDebugOptions,
 	scriptExportFormat?: string,
+	fullDebugPlusDiagnostics?: FullDebugPlusDiagnostics | null,
 ): Promise<INodeExecutionData[][]> {
 
 	// Create debug timing and info variables in function scope
@@ -1723,10 +2213,10 @@ async function executeOnce(
 		executionDir = createExecutionDirectory();
 		
 		// Always call getTemporaryScriptPath to ensure reserved variables are defined
-		// Pass empty arrays/objects when injectVariables is false
+		// Pass empty arrays/objects when injectInputVariables is false
 		scriptPath = await getTemporaryScriptPath(
 			functionCode, 
-			injectVariables ? unwrapJsonField(items) : [], 
+			injectInputVariables ? unwrapJsonField(items) : [], 
 			pythonEnvVars, 
 			includeInputItems, 
 			includeEnvVarsDict, 
@@ -1737,14 +2227,70 @@ async function executeOnce(
 			outputFileProcessingOptions
 		);
 		
-		// Add output_dir to environment variables if Output File Processing is enabled
-		if (outputDir) {
-			pythonEnvVars.output_dir = outputDir;
-			if (outputFileProcessingOptions?.expectedFileName) {
-				pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
+		// Full Debug+: Diagnose script generation
+		if (fullDebugPlusDiagnostics) {
+			const scriptContent = getScriptCode(
+				functionCode, 
+				injectInputVariables ? unwrapJsonField(items) : [], 
+				pythonEnvVars, 
+				includeInputItems, 
+				includeEnvVarsDict, 
+				hideVariableValues, 
+				credentialSources, 
+				inputFiles, 
+				outputDir, 
+				outputFileProcessingOptions
+			);
+			
+			fullDebugPlusDiagnostics.script_generation.user_code = {
+				provided: !!functionCode && functionCode.trim().length > 0,
+				length_chars: functionCode.length,
+				lines_count: functionCode.split('\n').length,
+				has_imports: functionCode.includes('import ') || functionCode.includes('from '),
+				has_future_imports: functionCode.includes('from __future__'),
+			};
+			
+			fullDebugPlusDiagnostics.script_generation.template = {
+				sections_generated: [
+					'header',
+					'individual_variables',
+					'env_variables',
+					'reserved_variables',
+					'user_code'
+				],
+				individual_vars_count: injectInputVariables ? unwrapJsonField(items).length : 0,
+				env_vars_count: Object.keys(pythonEnvVars).length,
+				reserved_vars_defined: ['input_items', 'env_vars', 'input_files', 'output_dir'],
+				input_files_count: inputFiles ? inputFiles.length : 0,
+				output_dir_provided: !!outputDir,
+			};
+			
+			fullDebugPlusDiagnostics.script_generation.final_script = {
+				total_length_chars: scriptContent.length,
+				total_lines_count: scriptContent.split('\n').length,
+				header_length: scriptContent.indexOf('# User code starts here') > 0 ? scriptContent.indexOf('# User code starts here') : 0,
+				user_code_length: functionCode.length,
+				estimated_size_kb: Math.round(scriptContent.length / 1024),
+			};
+			
+			console.log('📝 Script Generation Diagnostics:', {
+				user_code_provided: fullDebugPlusDiagnostics.script_generation.user_code.provided,
+				user_code_length: fullDebugPlusDiagnostics.script_generation.user_code.length_chars,
+				total_script_length: fullDebugPlusDiagnostics.script_generation.final_script.total_length_chars,
+				individual_vars: fullDebugPlusDiagnostics.script_generation.template.individual_vars_count,
+				env_vars: fullDebugPlusDiagnostics.script_generation.template.env_vars_count,
+				estimated_size_kb: fullDebugPlusDiagnostics.script_generation.final_script.estimated_size_kb,
+			});
 			}
-			pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
-		}
+			
+			// Add output_dir to environment variables if Output File Processing is enabled
+			if (outputDir) {
+				pythonEnvVars.output_dir = outputDir;
+				if (outputFileProcessingOptions?.expectedFileName) {
+					pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
+				}
+				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
+			}
 		
 		// Move script to execution directory
 		const scriptFileName = path.basename(scriptPath);
@@ -1771,7 +2317,7 @@ async function executeOnce(
 				// For export mode, use special function without env_vars
 				scriptContent = getScriptCodeForExport(
 					functionCode, 
-					injectVariables ? unwrapJsonField(items) : [], 
+					injectInputVariables ? unwrapJsonField(items) : [], 
 					inputFiles, 
 					outputDir, 
 					outputFileProcessingOptions
@@ -1780,7 +2326,7 @@ async function executeOnce(
 				// For other debug modes, use full function with env_vars
 				scriptContent = getScriptCode(
 					functionCode, 
-					injectVariables ? unwrapJsonField(items) : [], 
+					injectInputVariables ? unwrapJsonField(items) : [], 
 					pythonEnvVars, 
 					includeInputItems, 
 					includeEnvVarsDict, 
@@ -1796,8 +2342,8 @@ async function executeOnce(
 				scriptPath,
 				scriptContent,
 				 pythonPath,
-				injectVariables ? unwrapJsonField(items) : undefined,
-				(injectVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
+				injectInputVariables ? unwrapJsonField(items) : undefined,
+				(injectInputVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
 				 debugTiming,
 				 credentialSources,
 			);
@@ -1813,7 +2359,7 @@ async function executeOnce(
 				error: null,
 				inputItemsCount: items.length,
 				executedAt: new Date().toISOString(),
-				injectVariables,
+				includeInputVariables: injectInputVariables,
 				parseOutput,
 				executionMode: 'once',
 				test_mode: true,
@@ -1830,10 +2376,63 @@ async function executeOnce(
 
 		// Execute the Python script
 		debugTiming.execution_started_at = new Date().toISOString();
+		
+		// Full Debug+: Update execution diagnostics
+		if (fullDebugPlusDiagnostics) {
+			fullDebugPlusDiagnostics.execution.preparation.temp_dir_created = executionDir;
+			fullDebugPlusDiagnostics.execution.preparation.script_file_path = scriptPath;
+			fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = fs.statSync(scriptPath).size;
+			fullDebugPlusDiagnostics.execution.preparation.script_written_successfully = true;
+			
+			fullDebugPlusDiagnostics.execution.command = {
+				executable: pythonPath,
+				full_command: `${pythonPath} ${scriptPath}`,
+				arguments: [scriptPath],
+				working_directory: executionDir,
+				timeout_minutes: executionTimeout,
+			};
+			
+			fullDebugPlusDiagnostics.execution.timing.preparation_started = debugTiming.script_created_at;
+			fullDebugPlusDiagnostics.execution.timing.script_created = debugTiming.script_created_at;
+			fullDebugPlusDiagnostics.execution.timing.execution_started = debugTiming.execution_started_at;
+			
+			console.log('🚀 Execution Diagnostics:', {
+				script_path: scriptPath,
+				execution_dir: executionDir,
+				script_size_bytes: fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes,
+				python_executable: pythonPath,
+				timeout_minutes: executionTimeout,
+			});
+		}
+		
 		const execResults = await execPythonSpawn(scriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
 		debugTiming.execution_finished_at = new Date().toISOString();
 		debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 			new Date(debugTiming.execution_started_at).getTime();
+
+		// Full Debug+: Update execution result diagnostics
+		if (fullDebugPlusDiagnostics) {
+			fullDebugPlusDiagnostics.execution.timing.execution_finished = debugTiming.execution_finished_at;
+			fullDebugPlusDiagnostics.execution.timing.execution_duration_ms = debugTiming.total_duration_ms;
+			fullDebugPlusDiagnostics.execution.timing.total_duration_ms = debugTiming.total_duration_ms;
+			
+			fullDebugPlusDiagnostics.execution.result = {
+				exit_code: execResults.exitCode,
+				stdout_length: execResults.stdout.length,
+				stderr_length: execResults.stderr.length,
+				timed_out: false, // Will be updated if timeout occurred
+				killed: false, // Will be updated if process was killed
+				signal: null, // Will be updated if signal was used
+			};
+			
+			console.log('📊 Execution Results:', {
+				exit_code: execResults.exitCode,
+				stdout_length: execResults.stdout.length,
+				stderr_length: execResults.stderr.length,
+				execution_duration_ms: debugTiming.total_duration_ms,
+				success: execResults.exitCode === 0,
+			});
+		}
 
 			const {
 				error: returnedError,
@@ -1858,7 +2457,7 @@ async function executeOnce(
 			error: exitCode === 0 ? null : 'Script execution failed',
 			inputItemsCount: items.length,
 			executedAt: new Date().toISOString(),
-			injectVariables,
+			includeInputVariables: injectInputVariables,
 			parseOutput,
 			executionMode: 'once',
 		};
@@ -1955,6 +2554,50 @@ async function executeOnce(
 
 		// If successful, return result
 		if (exitCode === 0) {
+			// Full Debug+: Add final summary and troubleshooting hints
+			if (fullDebugPlusDiagnostics) {
+				fullDebugPlusDiagnostics.timestamp_end = new Date().toISOString();
+				fullDebugPlusDiagnostics.total_duration_ms = 
+					new Date(fullDebugPlusDiagnostics.timestamp_end).getTime() - 
+					new Date(fullDebugPlusDiagnostics.timestamp_start).getTime();
+				
+			// Update final summary
+			fullDebugPlusDiagnostics.final_summary = {
+				data_sources_loaded: [
+					injectInputVariables ? 'input_variables' : '',
+					Object.keys(pythonEnvVars).length > 0 ? 'credentials' : '',
+					systemEnvVars.length > 0 ? 'system_environment' : '',
+				].filter(Boolean),
+				total_variables_injected: Object.keys(pythonEnvVars).length + (injectInputVariables ? unwrapJsonField(items).length : 0),
+				script_executed: true,
+				execution_successful: true,
+				output_branch: 'success',
+			};
+			
+			// Add troubleshooting hints
+			const hints: string[] = [];
+			hints.push('✓ Script executed successfully');
+			if (Object.keys(pythonEnvVars).length > 0) {
+				hints.push('✓ Credentials loaded successfully');
+			} else {
+				hints.push('⚠ No credentials loaded');
+			}
+			if (injectInputVariables && unwrapJsonField(items).length > 0) {
+				hints.push('✓ Input variables loaded successfully');
+			}
+				fullDebugPlusDiagnostics.troubleshooting_hints = hints;
+				
+				// Add to result
+				resultWithPassThrough[0].json.full_debug_plus_diagnostics = fullDebugPlusDiagnostics;
+				
+				console.log('🔬 Full Debug+ Diagnostics Complete:', {
+					total_duration_ms: fullDebugPlusDiagnostics.total_duration_ms,
+					execution_successful: true,
+					data_sources_loaded: fullDebugPlusDiagnostics.final_summary.data_sources_loaded,
+					troubleshooting_hints: hints,
+				});
+			}
+			
 			return [resultWithPassThrough, []];
 		}
 
@@ -2040,19 +2683,19 @@ async function executeOnce(
 		const pythonErrorInfo = parsePythonError(errorMessage);
 		
 		if (errorHandling !== 'throw' || executeFunctions.continueOnFail()) {
-			const errorItem: IDataObject = {
-				exitCode: -1,
-				stdout: '',
-				stderr: errorMessage,
-				success: false,
-				error: errorMessage,
-				inputItemsCount: items.length,
-				executedAt: new Date().toISOString(),
-				injectVariables,
-				executionMode: 'once',
-				pythonError: pythonErrorInfo,
-				detailedError: `System error: ${errorMessage}`,
-			};
+		const errorItem: IDataObject = {
+			exitCode: -1,
+			stdout: '',
+			stderr: errorMessage,
+			success: false,
+			error: errorMessage,
+			inputItemsCount: items.length,
+			executedAt: new Date().toISOString(),
+			includeInputVariables: injectInputVariables,
+			executionMode: 'once',
+			pythonError: pythonErrorInfo,
+			detailedError: `System error: ${errorMessage}`,
+		};
 
 			// Add debug information if enabled
 			if (debugInfo && debugMode !== 'off') {
@@ -2086,10 +2729,35 @@ async function executeOnce(
 				throw error;
 		}
 	} finally {
+		// Full Debug+: Update cleanup diagnostics
+		if (fullDebugPlusDiagnostics) {
+			fullDebugPlusDiagnostics.execution.cleanup.attempted = true;
+			fullDebugPlusDiagnostics.execution.cleanup.files_removed = [scriptPath];
+			if (executionDir) {
+				fullDebugPlusDiagnostics.execution.cleanup.files_removed.push(executionDir);
+			}
+		}
+		
+		try {
 		await cleanupScript(scriptPath);
-		// Cleanup execution directory completely
-		if (executionDir) {
-			await cleanupExecutionDirectory(executionDir);
+			// Cleanup execution directory completely
+			if (executionDir) {
+				await cleanupExecutionDirectory(executionDir);
+			}
+			
+			// Full Debug+: Update cleanup success
+			if (fullDebugPlusDiagnostics) {
+				fullDebugPlusDiagnostics.execution.cleanup.successful = true;
+				console.log('🧹 Cleanup successful');
+			}
+		} catch (cleanupError) {
+			// Full Debug+: Update cleanup error
+			if (fullDebugPlusDiagnostics) {
+				fullDebugPlusDiagnostics.execution.cleanup.successful = false;
+				fullDebugPlusDiagnostics.execution.cleanup.error = (cleanupError as Error).message;
+				fullDebugPlusDiagnostics.errors_and_warnings.warnings.push(`Cleanup failed: ${(cleanupError as Error).message}`);
+				console.log('⚠ Cleanup failed:', cleanupError);
+			}
 		}
 	}
 }
@@ -2100,7 +2768,7 @@ async function executePerItem(
 	functionCode: string,
 	pythonPath: string,
 	executionTimeout: number,
-	injectVariables: boolean,
+	injectInputVariables: boolean,
 	errorHandling: string,
 	debugMode: string,
 	parseOutput: string,
@@ -2140,10 +2808,10 @@ async function executePerItem(
 			executionDir = createExecutionDirectory();
 			
 			// Always call getTemporaryScriptPath to ensure reserved variables are defined
-			// Pass empty arrays/objects when injectVariables is false
+			// Pass empty arrays/objects when injectInputVariables is false
 			scriptPath = await getTemporaryScriptPath(
 				functionCode, 
-				injectVariables ? [unwrapJsonField([item])[0]] : [], 
+				injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
 				pythonEnvVars, 
 				includeInputItems, 
 				includeEnvVarsDict, 
@@ -2153,14 +2821,14 @@ async function executePerItem(
 				outputDir, 
 				outputFileProcessingOptions
 			);
-			
-			// Add output_dir to environment variables if Output File Processing is enabled
-			if (outputDir) {
-				pythonEnvVars.output_dir = outputDir;
-				if (outputFileProcessingOptions?.expectedFileName) {
-					pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
-				}
-				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
+				
+				// Add output_dir to environment variables if Output File Processing is enabled
+				if (outputDir) {
+					pythonEnvVars.output_dir = outputDir;
+					if (outputFileProcessingOptions?.expectedFileName) {
+						pythonEnvVars.expected_filename = outputFileProcessingOptions.expectedFileName;
+					}
+					pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
 			}
 			
 			// Move script to execution directory
@@ -2180,7 +2848,7 @@ async function executePerItem(
 					// For export mode, use special function without env_vars
 					scriptContent = getScriptCodeForExport(
 						functionCode, 
-						injectVariables ? [unwrapJsonField([item])[0]] : [], 
+						injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
 						inputFiles, 
 						outputDir, 
 						outputFileProcessingOptions
@@ -2189,7 +2857,7 @@ async function executePerItem(
 					// For other debug modes, use full function with env_vars
 					scriptContent = getScriptCode(
 						functionCode, 
-						injectVariables ? [unwrapJsonField([item])[0]] : [], 
+						injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
 						pythonEnvVars, 
 						includeInputItems, 
 						includeEnvVarsDict, 
@@ -2205,8 +2873,8 @@ async function executePerItem(
 					scriptPath,
 					scriptContent,
 					pythonPath,
-					injectVariables ? [unwrapJsonField([item])[0]] : undefined,
-					(injectVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
+					injectInputVariables ? [unwrapJsonField([item])[0]] : undefined,
+					(injectInputVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
 					debugTiming,
 					credentialSources,
 				);
@@ -2227,7 +2895,7 @@ async function executePerItem(
 					error: `Script generation failed: ${(error as Error).message}`,
 					inputItemsCount: 1,
 					executedAt: new Date().toISOString(),
-					injectVariables,
+					includeInputVariables: injectInputVariables,
 					parseOutput,
 					executionMode: 'perItem',
 					itemIndex: i,
@@ -2277,7 +2945,7 @@ async function executePerItem(
 				error: null,
 				inputItemsCount: 1,
 				executedAt: new Date().toISOString(),
-				injectVariables,
+				includeInputVariables: injectInputVariables,
 				parseOutput,
 				executionMode: 'perItem',
 				itemIndex: i,
@@ -2324,7 +2992,7 @@ async function executePerItem(
 				error: exitCode === 0 ? null : 'Script execution failed',
 				inputItemsCount: 1,
 				executedAt: new Date().toISOString(),
-				injectVariables,
+				includeInputVariables: injectInputVariables,
 				parseOutput,
 				executionMode: 'perItem',
 				itemIndex: i,
@@ -2456,7 +3124,7 @@ async function executePerItem(
 					error: errorMessage,
 					inputItemsCount: 1,
 					executedAt: new Date().toISOString(),
-					injectVariables,
+					includeInputVariables: injectInputVariables,
 					parseOutput,
 					executionMode: 'perItem',
 					itemIndex: i,
@@ -3051,8 +3719,8 @@ input_files = ${inputFilesValue}`;
 #   with open(file_path, 'w') as f: f.write("your content")
 `;
 		}
-	}
-	
+		}
+		
 	const outputDirSection = `
 output_dir = ${outputDirValue}
 ${expectedFileNameVariable}

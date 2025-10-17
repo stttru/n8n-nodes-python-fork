@@ -6,6 +6,107 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.0] - 2025-01-17
+
+### Breaking Changes
+- **MAJOR ARCHITECTURAL CLEANUP**: Removed old deprecated parameter `injectVariables` and simplified data source configuration
+- Removed `Data Sources Configuration` collection block - all parameters now at top level
+- Removed backward compatibility code for old workflows
+
+### Changed
+- **Simplified UI**: Three always-visible data source toggles at top level:
+  - `Include Input Variables` (default: true)
+  - `Include Credential Variables` (default: false)
+  - `Include System Environment` (default: false)
+- `systemEnvVars` now accepts comma-separated string instead of array for better UX
+- All data source parameters are now immediately accessible without expanding collections
+- Cleaner, more intuitive node configuration interface
+
+### Fixed
+- Fixed "Could not get parameter" error for `injectVariables` parameter
+- Removed all references to deprecated `injectVariables` parameter
+- Fixed variable redeclaration issues in execution functions
+- Unified parameter naming across entire codebase
+
+### Technical Details
+- Removed `getNodeParameter('injectVariables')` calls
+- Replaced with direct reads of `includeInputVariables`, `includeCredentialVars`, `includeSystemEnv`
+- Updated all console.log statements to reflect new parameter structure
+- Simplified credential and environment variable loading logic
+- Code is now cleaner, more maintainable, and easier to understand
+
+### Migration Notes
+- Old workflows using `injectVariables` parameter will need to reconfigure data sources
+- New workflows will have cleaner, more straightforward configuration
+- All functionality preserved - only UI structure changed
+
+## [1.18.2] - 2025-01-17
+
+### Added
+- **Full Debug+ (Developer Mode)**: New comprehensive diagnostic mode providing maximum troubleshooting information
+  - System information (OS, Node.js, n8n, Python environment)
+  - Node installation details (package version, node configuration)
+  - Data sources diagnostics (input variables, credentials, system environment)
+  - Script generation analysis (user code analysis, template sections, final script metrics)
+  - Execution diagnostics (preparation, command details, timing, results, cleanup)
+  - Troubleshooting hints and final summary
+  - All diagnostics included in node output for complete visibility
+
+### Enhanced
+- **Diagnostic Coverage**: Full Debug+ mode provides complete visibility into:
+  - Why credentials might not be loading (detailed credential parsing analysis)
+  - Input data structure and size analysis
+  - System environment variable availability
+  - Script generation process and template sections
+  - Execution timing and resource usage
+  - Cleanup success/failure tracking
+
+### Technical Details
+- Added comprehensive diagnostic interfaces (`SystemDiagnostics`, `NodeInstallationDiagnostics`, `DataSourcesDiagnostics`, `ScriptGenerationDiagnostics`, `ExecutionDiagnostics`, `FullDebugPlusDiagnostics`)
+- Implemented `createFullDebugPlusDiagnostics()` helper function
+- Added Full Debug+ option to debug mode UI
+- Integrated diagnostics throughout execution pipeline
+- Enhanced console logging with emoji-based visual identification
+- Added troubleshooting hints based on execution results
+
+## [1.18.1] - 2025-01-17
+
+### Fixed
+- **CRITICAL**: Fixed export script not including credentials when "Include Credential Variables" enabled
+- Export script now respects all Data Sources Configuration settings
+- "Hide Values in Exported Scripts" now only affects exported files, not execution scripts
+
+### Changed
+- Renamed "Hide Variable Values" to "Hide Values in Exported Scripts" for clarity
+- Updated description to clarify this option only affects export mode
+- Execution scripts always use real values (temporary files, auto-deleted)
+- Export scripts can optionally hide values for security when sharing
+
+### Architecture Improvements
+- Separated execution and export logic completely
+- Execution: Always real values (security through temporary files)
+- Export: User-controlled visibility (real values for testing, hidden for sharing)
+- Clean separation of concerns between execution and export modes
+
+## [1.18.0] - 2025-01-17
+
+### Changed
+- **BREAKING**: Simplified input data configuration
+- Merged "Inject Input Variables" and "Include input_items Array" into single "Include Input Variables" toggle
+- Cleaner UI with 3 clear data source options instead of 4 confusing ones
+- Unified parameter `includeInputVariables` controls all input data access (individual variables + input_items array)
+
+### Fixed
+- Resolved variable naming conflicts between executeOnce and executePerItem
+- Eliminated architectural confusion with duplicate input parameters
+- Simplified helper function `readDataSourcesConfig()` for consistent configuration reading
+
+### Architecture Improvements
+- Single source of truth for input data configuration
+- No confusion between "inject" and "include" parameters
+- Clearer mental model: 3 independent data sources
+- Cleaner codebase with less duplication
+
 ## [1.17.9] - 2025-01-17
 
 ### Changed
