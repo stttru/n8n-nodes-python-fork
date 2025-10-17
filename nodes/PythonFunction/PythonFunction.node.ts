@@ -210,6 +210,46 @@ async function cleanupScript(scriptPath: string): Promise<void> {
 	}
 }
 
+function createExecutionDirectory(): string {
+	const timestamp = Date.now();
+	const randomId = Math.random().toString(36).substring(2, 8);
+	const uniqueId = `n8n_python_exec_${timestamp}_${randomId}`;
+	const execDir = path.join(require('os').tmpdir(), uniqueId);
+	
+	fs.mkdirSync(execDir, { recursive: true });
+	console.log(`Created execution directory: ${execDir}`);
+	
+	return execDir;
+}
+
+async function cleanupExecutionDirectory(execDir: string): Promise<void> {
+	if (!fs.existsSync(execDir)) {
+		return;
+	}
+	
+	try {
+		// Recursively remove all files and subdirectories
+		const removeRecursive = (dirPath: string) => {
+			if (fs.existsSync(dirPath)) {
+				fs.readdirSync(dirPath).forEach((file) => {
+					const curPath = path.join(dirPath, file);
+					if (fs.lstatSync(curPath).isDirectory()) {
+						removeRecursive(curPath);
+					} else {
+						fs.unlinkSync(curPath);
+					}
+				});
+				fs.rmdirSync(dirPath);
+			}
+		};
+		
+		removeRecursive(execDir);
+		console.log(`Completely removed execution directory: ${execDir}`);
+	} catch (error) {
+		console.warn(`Failed to cleanup execution directory ${execDir}:`, error);
+	}
+}
+
 // File processing functions
 function detectBinaryFiles(items: INodeExecutionData[]): BinaryFileInfo[] {
 	const binaryFiles: BinaryFileInfo[] = [];
@@ -342,7 +382,7 @@ export class PythonFunction implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Python Function (Raw)',
 		name: 'pythonFunctionRaw',
-		icon: 'fa:code',
+		icon: 'file:python-logo.svg',
 		group: ['transform'],
 		version: getNodeVersionFromPackage(),
 		description: 'Run custom Python script once and return raw output (exitCode, stdout, stderr)',
@@ -351,7 +391,7 @@ export class PythonFunction implements INodeType {
 			color: '#4B8BBE',
 		},
 		inputs: ['main'],
-		outputs: ['main'],
+		outputs: ['main', 'error'],
 		credentials: [
 			{
 				name: 'pythonEnvVars',
@@ -555,6 +595,54 @@ export class PythonFunction implements INodeType {
 				],
 			},
 			{
+				displayName: 'Data Sources Configuration',
+				name: 'dataSourcesConfig',
+				type: 'collection',
+				default: {
+					injectInputVariables: true,
+					includeInputItemsArray: true,
+					includeCredentialVars: true,
+					includeSystemEnv: false,
+				},
+				placeholder: 'Configure Data Sources',
+				description: 'Control which data sources are available in your Python script',
+				options: [
+					{
+						displayName: 'Inject Input Variables',
+						name: 'injectInputVariables',
+						type: 'boolean',
+						default: true,
+						description: 'Create individual variables from first input item (title, duration, author, etc.)',
+					},
+					{
+						displayName: 'Include input_items Array',
+						name: 'includeInputItemsArray',
+						type: 'boolean',
+						default: true,
+						description: 'Include array with all input items from previous node',
+						displayOptions: {
+							show: {
+								injectInputVariables: [true],
+							},
+						},
+					},
+					{
+						displayName: 'Include Credential Variables',
+						name: 'includeCredentialVars',
+						type: 'boolean',
+						default: true,
+						description: 'Include variables from selected credential (creates env_vars dictionary and individual variables)',
+					},
+					{
+						displayName: 'Include System Environment Variables',
+						name: 'includeSystemEnv',
+						type: 'boolean',
+						default: false,
+						description: 'Include n8n process environment variables (PATH, HOME, NODE_ENV, etc.)',
+					},
+				],
+			},
+			{
 				displayName: 'Python Code',
 				name: 'functionCode',
 				typeOptions: {
@@ -562,60 +650,53 @@ export class PythonFunction implements INodeType {
 					rows: 15,
 				},
 				type: 'string',
-				default: `# Example: Use with "Inject Variables" enabled (default)
-# Environment and credentials variables are available as individual variables
-# Control what's included via Script Generation Options
+				default: `# Example: Configure data sources in "Data Sources Configuration" section above
+# This example shows what's available when all sources are enabled
 
 import json
 import sys
 
-# Input data from previous nodes (if "Include input_items Array" enabled)
+# === INPUT DATA (if "Inject Input Variables" enabled) ===
+# Individual variables from first input item:
+# title, duration, author, etc.
+
+# input_items array (if "Include input_items Array" enabled):
 print("Input items count:", len(input_items))
 
-# Environment variables are available individually:
-# MY_API_KEY, DB_HOST, PORT, etc. (from credentials or system env)
+# === ENVIRONMENT VARIABLES (if "Include Credential Variables" enabled) ===
+# Individual variables from credentials:
+# API_KEY, DB_HOST, TOKEN, etc.
 
-# Binary files from previous nodes (if "File Processing" enabled)
+# env_vars dictionary (always created when credentials present):
+print("Available environment variables:")
+print(json.dumps(env_vars, indent=2))
+
+# === SYSTEM ENVIRONMENT (if "Include System Environment Variables" enabled) ===
+# PATH, HOME, NODE_ENV, etc. (added to env_vars dictionary)
+
+# === BINARY FILES (if "File Processing" enabled) ===
 if 'input_files' in globals() and input_files:
-    print(f"Found {len(input_files)} files:")
+    print(f"Found {len(input_files)} input files")
     for file_info in input_files:
-        filename = file_info['filename']
-        size_mb = file_info['size'] / (1024 * 1024)
-        file_type = file_info['extension']
-        
-        print(f"  - {filename} ({size_mb:.2f}MB, type: {file_type})")
-        
-        # Access file content
-        if 'temp_path' in file_info:
-            # Read via temporary file path (recommended)
-            file_path = file_info['temp_path']
-            with open(file_path, 'rb') as f:
-                content = f.read()
-                print(f"    Read {len(content)} bytes from {file_path}")
-        
-        elif 'base64_data' in file_info:
-            # Read via base64 data  
-            import base64
-            content = base64.b64decode(file_info['base64_data'])
-            print(f"    Decoded {len(content)} bytes from base64")
+        print(f"File: {file_info['filename']} ({file_info['size']} bytes)")
 
-# Legacy env_vars dict (if "Include env_vars Dictionary" enabled)
-# print("Environment variables in dict:", len(env_vars))
+# === OUTPUT FILES (if "Output File Processing" enabled) ===
+if 'output_dir' in globals():
+    print(f"Output directory: {output_dir}")
+    # Create files in output_dir - they'll be automatically included in n8n output
 
-result = {"processed_count": len(input_items), "status": "success"}
-if 'input_files' in globals():
-    result["files_processed"] = len(input_files)
+# Example: Access specific environment variable
+# api_key = API_KEY  # Individual variable
+# api_key = env_vars.get('API_KEY')  # Dictionary access
 
-print(json.dumps(result))
+# Example: Process input data
+# for item in input_items:
+#     print(f"Processing: {item.get('title', 'No title')}")
 
-# ===== OR =====
-# Disable "Inject Variables" to run pure Python code:
-# 
-# import requests  # pip install requests
-# response = requests.get("https://api.github.com/users/octocat")
-# print(response.json())
-`,
-				description: 'Python script to execute. Use "Inject Variables" option to access input_items and env_vars.',
+# Example: Generate output file
+# with open(os.path.join(output_dir, 'result.txt'), 'w') as f:
+#     f.write("Processing completed!")`,
+				description: 'Python script to execute. Configure data sources in "Data Sources Configuration" section above.',
 				noDataExpression: true,
 			},
 			{
@@ -714,11 +795,11 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 				placeholder: 'Click "Extract Code Template" button above to generate current template...',
 			},
 			{
-				displayName: 'Inject Variables',
+				displayName: 'Inject Variables (Deprecated)',
 				name: 'injectVariables',
 				type: 'boolean',
 				default: false,
-				description: 'Whether to inject input_items and env_vars variables. Enable for n8n integration features. Disable for pure Python scripts (recommended).',
+				description: '⚠️ DEPRECATED: Use "Data Sources Configuration" section above instead. This option will be removed in future versions.',
 			},
 			{
 				displayName: 'Python Executable',
@@ -726,6 +807,18 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 				type: 'string',
 				default: 'python3',
 				description: 'Path to Python executable (python3, python, or full path)',
+			},
+			{
+				displayName: 'Execution Timeout (minutes)',
+				name: 'executionTimeout',
+				type: 'number',
+				default: 10,
+				required: true,
+				description: 'Maximum time in minutes to allow script execution before forcefully terminating it',
+				typeOptions: {
+					minValue: 1,
+					maxValue: 1440, // 24 hours max
+				},
 			},
 			{
 				displayName: 'Error Handling',
@@ -1360,6 +1453,7 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 		// Get the python code snippet
 		const functionCode = this.getNodeParameter('functionCode', 0) as string;
 		const pythonPath = this.getNodeParameter('pythonPath', 0) as string;
+		const executionTimeout = this.getNodeParameter('executionTimeout', 0) as number;
 		const injectVariables = this.getNodeParameter('injectVariables', 0) as boolean;
 		const errorHandling = this.getNodeParameter('errorHandling', 0) as string;
 		const debugMode = this.getNodeParameter('debugMode', 0) as string;
@@ -1486,62 +1580,103 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 		const multipleCredentialsMethod = credentialsConfig.multipleCredentialsMethod || 'none';
 		const mergeStrategy = credentialsConfig.mergeStrategy || 'last_wins';
 		
+		// Get Data Sources Configuration (new architecture)
+		const dataSourcesConfig = this.getNodeParameter('dataSourcesConfig', 0, null) as {
+			injectInputVariables?: boolean;
+			includeInputItemsArray?: boolean;
+			includeCredentialVars?: boolean;
+			includeSystemEnv?: boolean;
+		} | null;
+		
+		// Backward compatibility: if old workflow without new config, map old injectVariables
+		let injectInputVariables: boolean;
+		let includeInputItemsArray: boolean;
+		let includeCredentialVars: boolean;
+		let includeSystemEnv: boolean;
+		
+		if (!dataSourcesConfig) {
+			// Old workflow - map old injectVariables behavior
+			const oldInjectVariables = this.getNodeParameter('injectVariables', 0, true) as boolean;
+			injectInputVariables = oldInjectVariables;
+			includeInputItemsArray = oldInjectVariables;
+			includeCredentialVars = true; // Always enabled before
+			includeSystemEnv = false; // Was controlled by advanced options
+			console.log('Using backward compatibility mode for old workflow');
+		} else {
+			// New workflow - use new configuration
+			injectInputVariables = dataSourcesConfig.injectInputVariables !== false; // default true
+			includeInputItemsArray = dataSourcesConfig.includeInputItemsArray !== false; // default true
+			includeCredentialVars = dataSourcesConfig.includeCredentialVars !== false; // default true
+			includeSystemEnv = dataSourcesConfig.includeSystemEnv === true; // default false
+			console.log('Using new Data Sources Configuration:', {
+				injectInputVariables,
+				includeInputItemsArray,
+				includeCredentialVars,
+				includeSystemEnv
+			});
+		}
+		
 		// Get the environment variables from credentials
 		let pythonEnvVars: Record<string, string> = {};
 		let credentialSources: Record<string, string> = {};
 		
 		try {
-			// Load default credential first if enabled
-			if (useDefaultCredential) {
-				const credentialData = await this.getCredentials('pythonEnvVars');
-				if (credentialData && credentialData.envFileContent) {
-					pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
-					const credentialName = String(credentialData.name || 'default_credential');
-					credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
-						acc[key] = credentialName;
-						return acc;
-					}, {} as Record<string, string>);
-					console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (${credentialName})`);
+			// Load credentials only if enabled in Data Sources Configuration
+			if (includeCredentialVars) {
+				// Load default credential first if enabled
+				if (useDefaultCredential) {
+					const credentialData = await this.getCredentials('pythonEnvVars');
+					if (credentialData && credentialData.envFileContent) {
+						pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
+						const credentialName = String(credentialData.name || 'default_credential');
+						credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
+							acc[key] = credentialName;
+							return acc;
+						}, {} as Record<string, string>);
+						console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (${credentialName})`);
+					}
 				}
-			}
-			
-			// Load additional credentials based on method
-			if (multipleCredentialsMethod !== 'none') {
-				const additionalEnvVars = await loadMultipleCredentials(
-					this,
-					credentialsConfig,
-					multipleCredentialsMethod,
-					mergeStrategy,
-				);
 				
-				// Merge additional credentials with default credential
-				for (const [key, value] of Object.entries(additionalEnvVars.envVars)) {
-					let finalKey = key;
+				// Load additional credentials based on method
+				if (multipleCredentialsMethod !== 'none') {
+					const additionalEnvVars = await loadMultipleCredentials(
+						this,
+						credentialsConfig,
+						multipleCredentialsMethod,
+						mergeStrategy,
+					);
 					
-					// Apply merge strategy
-					switch (mergeStrategy) {
-						case 'first_wins':
-							if (pythonEnvVars[key] !== undefined) continue;
-							break;
-						case 'skip_conflicts':
-							if (pythonEnvVars[key] !== undefined) continue;
-							break;
-						case 'prefix_source':
-							const source = additionalEnvVars.credentialSources[key] || 'unknown';
-							const safeSource = source.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-							finalKey = `${safeSource}_${key}`;
-							break;
-						case 'last_wins':
-						default:
-							// Overwrite without checking
-							break;
+					// Merge additional credentials with default credential
+					for (const [key, value] of Object.entries(additionalEnvVars.envVars)) {
+						let finalKey = key;
+						
+						// Apply merge strategy
+						switch (mergeStrategy) {
+							case 'first_wins':
+								if (pythonEnvVars[key] !== undefined) continue;
+								break;
+							case 'skip_conflicts':
+								if (pythonEnvVars[key] !== undefined) continue;
+								break;
+							case 'prefix_source':
+								const source = additionalEnvVars.credentialSources[key] || 'unknown';
+								const safeSource = source.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+								finalKey = `${safeSource}_${key}`;
+								break;
+							case 'last_wins':
+							default:
+								// Overwrite without checking
+								break;
+						}
+						
+						pythonEnvVars[finalKey] = value;
+						credentialSources[finalKey] = String(additionalEnvVars.credentialSources[key] || 'unknown');
 					}
 					
-					pythonEnvVars[finalKey] = value;
-					credentialSources[finalKey] = String(additionalEnvVars.credentialSources[key] || 'unknown');
+					console.log(`Total loaded variables after merging: ${Object.keys(pythonEnvVars).length}`);
 				}
-				
-				console.log(`Total loaded variables after merging: ${Object.keys(pythonEnvVars).length}`);
+			} else {
+				console.log('Credential variables disabled in Data Sources Configuration');
 			}
 		} catch (error) {
 			console.warn('Error loading credentials:', error);
@@ -1551,12 +1686,17 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 			}
 		}
 		
-		// Add selected system environment variables
+		// Add selected system environment variables (only if enabled)
 		const systemEnvVarsToAdd: Record<string, string> = {};
-		for (const envVarName of systemEnvVars) {
-			if (process.env[envVarName] !== undefined) {
-				systemEnvVarsToAdd[envVarName] = process.env[envVarName]!;
+		if (includeSystemEnv) {
+			for (const envVarName of systemEnvVars) {
+				if (process.env[envVarName] !== undefined) {
+					systemEnvVarsToAdd[envVarName] = process.env[envVarName]!;
+				}
 			}
+			console.log(`Loaded ${Object.keys(systemEnvVarsToAdd).length} system environment variables`);
+		} else {
+			console.log('System environment variables disabled in Data Sources Configuration');
 		}
 		
 		// Merge system env vars with credential env vars (credentials take precedence)
@@ -1611,7 +1751,8 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 					this,
 					functionCode, 
 					pythonPath, 
-					injectVariables, 
+					executionTimeout,
+					injectInputVariables, // Use new parameter instead of old injectVariables
 					errorHandling, 
 					debugMode, 
 					parseOutput, 
@@ -1620,8 +1761,8 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 					passThroughMode, 
 					items, 
 					mergedEnvVars,
-					includeInputItems,
-					includeEnvVarsDict,
+					includeInputItemsArray, // Use new parameter
+					Object.keys(mergedEnvVars).length > 0, // Always include env_vars dict if has variables
 					hideCredentialValues,
 					systemEnvVars,
 					mergedCredentialSources,
@@ -1636,17 +1777,18 @@ output_file_path = r"/tmp/n8n_output_YYYYMMDD_HHMMSS_random/result.json"
 					this,
 					functionCode, 
 					pythonPath, 
-					injectVariables, 
+					executionTimeout,
+					injectInputVariables, // Use new parameter instead of old injectVariables
 					errorHandling, 
-					 debugMode, 
+					debugMode, 
 					parseOutput, 
 					parseOptions, 
 					passThrough, 
 					passThroughMode, 
 					items, 
 					mergedEnvVars,
-					includeInputItems,
-					includeEnvVarsDict,
+					includeInputItemsArray, // Use new parameter
+					Object.keys(mergedEnvVars).length > 0, // Always include env_vars dict if has variables
 					hideCredentialValues,
 					systemEnvVars,
 					mergedCredentialSources,
@@ -1861,6 +2003,7 @@ async function executeOnce(
 	executeFunctions: IExecuteFunctions,
 	functionCode: string,
 	pythonPath: string,
+	executionTimeout: number,
 	injectVariables: boolean,
 	errorHandling: string,
 	debugMode: string,
@@ -1889,7 +2032,11 @@ async function executeOnce(
 	let debugInfo: DebugInfo | null = null;
 		
 	let scriptPath = '';
+	let executionDir = '';
 	try {
+		// Create execution directory first
+		executionDir = createExecutionDirectory();
+		
 		if (injectVariables) {
 			scriptPath = await getTemporaryScriptPath(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
 		} else {
@@ -1912,23 +2059,46 @@ async function executeOnce(
 				pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
 			}
 		}
+		
+		// Move script to execution directory
+		const scriptFileName = path.basename(scriptPath);
+		const newScriptPath = path.join(executionDir, scriptFileName);
+		fs.copyFileSync(scriptPath, newScriptPath);
+		fs.unlinkSync(scriptPath); // Remove original script
+		scriptPath = newScriptPath;
+		
+		console.log(`Moved script to execution directory: ${scriptPath}`);
 	} catch (error) {
+		// Cleanup execution directory if script creation failed
+		if (executionDir) {
+			await cleanupExecutionDirectory(executionDir);
+		}
 		throw new NodeOperationError(executeFunctions.getNode(), `Could not generate temporary script file: ${(error as Error).message}`);
 	}
 
 	try {
 		// Initialize debug information
 		if (debugMode !== 'off') {
-			const scriptContent = injectVariables 
-				? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
-				: functionCode;
+			let scriptContent: string;
+			
+			if (debugMode === 'export') {
+				// For export mode, use special function without env_vars
+				scriptContent = injectVariables 
+					? getScriptCodeForExport(functionCode, unwrapJsonField(items), inputFiles, outputDir, outputFileProcessingOptions)
+					: functionCode;
+			} else {
+				// For other debug modes, use full function with env_vars
+				scriptContent = injectVariables 
+					? getScriptCode(functionCode, unwrapJsonField(items), pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
+					: functionCode;
+			}
 			
 			debugInfo = await createDebugInfo(
 				scriptPath,
 				scriptContent,
 				 pythonPath,
 				injectVariables ? unwrapJsonField(items) : undefined,
-				injectVariables ? pythonEnvVars : undefined,
+				(injectVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
 				 debugTiming,
 				 credentialSources,
 			);
@@ -1956,12 +2126,12 @@ async function executeOnce(
 			}
 
 			const testResultWithPassThrough = handlePassThroughData(testResult, items, passThrough, passThroughMode);
-			return executeFunctions.prepareOutputData(testResultWithPassThrough);
+			return [testResultWithPassThrough, []];
 		}
 
 		// Execute the Python script
 		debugTiming.execution_started_at = new Date().toISOString();
-		const execResults = await execPythonSpawn(scriptPath, pythonPath, executeFunctions.sendMessageToUI);
+		const execResults = await execPythonSpawn(scriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
 		debugTiming.execution_finished_at = new Date().toISOString();
 		debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 			new Date(debugTiming.execution_started_at).getTime();
@@ -2086,7 +2256,7 @@ async function executeOnce(
 
 		// If successful, return result
 		if (exitCode === 0) {
-			return executeFunctions.prepareOutputData(resultWithPassThrough);
+			return [resultWithPassThrough, []];
 		}
 
 		// Parse Python error
@@ -2157,13 +2327,13 @@ async function executeOnce(
 		// Return error details or throw
 		if (errorHandling === 'details') {
 			console.log('Returning error details:', baseResult);
-			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
+			return [[], errorResultWithPassThrough];
 		} else if (errorHandling === 'throw') {
 			throw new NodeOperationError(executeFunctions.getNode(), baseResult.detailedError as string);
 			} else {
 			// 'ignore' mode - return error details but continue execution
 			console.log('Ignoring exit code error:', baseResult);
-			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
+			return [[], errorResultWithPassThrough];
 		}
 
 	} catch (error) {
@@ -2212,12 +2382,16 @@ async function executeOnce(
 				}
 			}
 
-			return executeFunctions.prepareOutputData(errorResultWithPassThrough);
+			return [[], errorResultWithPassThrough];
 		} else {
 				throw error;
 		}
 	} finally {
 		await cleanupScript(scriptPath);
+		// Cleanup execution directory completely
+		if (executionDir) {
+			await cleanupExecutionDirectory(executionDir);
+		}
 	}
 }
 
@@ -2226,6 +2400,7 @@ async function executePerItem(
 	executeFunctions: IExecuteFunctions,
 	functionCode: string,
 	pythonPath: string,
+	executionTimeout: number,
 	injectVariables: boolean,
 	errorHandling: string,
 	debugMode: string,
@@ -2247,11 +2422,13 @@ async function executePerItem(
 	scriptExportFormat?: string,
 ): Promise<INodeExecutionData[][]> {
 	
-	const results: INodeExecutionData[] = [];
+	const successResults: INodeExecutionData[] = [];
+	const errorResults: INodeExecutionData[] = [];
 
 	for (let i = 0; i < items.length; i++) {
 		const item = items[i];
 		let scriptPath = '';
+		let executionDir = '';
 		
 		// Create debug timing for each item
 		const debugTiming: DebugTiming = {
@@ -2260,6 +2437,9 @@ async function executePerItem(
 		let debugInfo: DebugInfo | null = null;
 		
 		try {
+			// Create execution directory for this item
+			executionDir = createExecutionDirectory();
+			
 			if (injectVariables) {
 				// For per-item execution, pass only current item
 				scriptPath = await getTemporaryScriptPath(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions);
@@ -2283,25 +2463,49 @@ async function executePerItem(
 					pythonEnvVars.output_file_path = outputDir + (outputFileProcessingOptions?.expectedFileName ? `/${outputFileProcessingOptions.expectedFileName}` : '');
 				}
 			}
+			
+			// Move script to execution directory
+			const scriptFileName = path.basename(scriptPath);
+			const newScriptPath = path.join(executionDir, scriptFileName);
+			fs.copyFileSync(scriptPath, newScriptPath);
+			fs.unlinkSync(scriptPath); // Remove original script
+			scriptPath = newScriptPath;
+			
+			console.log(`Moved script to execution directory: ${scriptPath}`);
 
 			// Create debug information for this item
 			if (debugMode !== 'off') {
-				const scriptContent = injectVariables 
-					? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
-					: functionCode;
+				let scriptContent: string;
+				
+				if (debugMode === 'export') {
+					// For export mode, use special function without env_vars
+					scriptContent = injectVariables 
+						? getScriptCodeForExport(functionCode, [unwrapJsonField([item])[0]], inputFiles, outputDir, outputFileProcessingOptions)
+						: functionCode;
+				} else {
+					// For other debug modes, use full function with env_vars
+					scriptContent = injectVariables 
+						? getScriptCode(functionCode, [unwrapJsonField([item])[0]], pythonEnvVars, includeInputItems, includeEnvVarsDict, hideVariableValues, credentialSources, inputFiles, outputDir, outputFileProcessingOptions)
+						: functionCode;
+				}
 				
 				debugInfo = await createDebugInfo(
 					scriptPath,
 					scriptContent,
 					pythonPath,
 					injectVariables ? [unwrapJsonField([item])[0]] : undefined,
-					injectVariables ? pythonEnvVars : undefined,
+					(injectVariables && debugMode !== 'export') ? pythonEnvVars : undefined,
 					debugTiming,
 					credentialSources,
 				);
 			}
 			
 		} catch (error) {
+			// Cleanup execution directory if script creation failed
+			if (executionDir) {
+				await cleanupExecutionDirectory(executionDir);
+			}
+			
 			if (errorHandling === 'details' || executeFunctions.continueOnFail()) {
 				const errorResult: IDataObject = {
 					exitCode: -1,
@@ -2344,7 +2548,7 @@ async function executePerItem(
 					}
 				}
 
-				results.push(...errorWithPassThrough);
+				errorResults.push(...errorWithPassThrough);
 				continue;
 			} else {
 				throw new NodeOperationError(executeFunctions.getNode(), `Could not generate temporary script file: ${(error as Error).message}`);
@@ -2374,14 +2578,14 @@ async function executePerItem(
 			}
 
 			const testResultWithPassThrough = handlePassThroughData(testResult, [item], passThrough, passThroughMode);
-			results.push(...testResultWithPassThrough);
+			successResults.push(...testResultWithPassThrough);
 			continue;
 		}
 
 		try {
 			// Execute the Python script for this item
 			debugTiming.execution_started_at = new Date().toISOString();
-			const execResults = await execPythonSpawn(scriptPath, pythonPath, executeFunctions.sendMessageToUI);
+			const execResults = await execPythonSpawn(scriptPath, pythonPath, executionDir, executionTimeout, executeFunctions.sendMessageToUI);
 			debugTiming.execution_finished_at = new Date().toISOString();
 			debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
 				new Date(debugTiming.execution_started_at).getTime();
@@ -2515,9 +2719,19 @@ async function executePerItem(
 				}
 			}
 
-			results.push(...resultWithPassThrough);
+			// Add to appropriate results array based on exit code
+			if (exitCode === 0) {
+				successResults.push(...resultWithPassThrough);
+			} else {
+				errorResults.push(...resultWithPassThrough);
+			}
 
 		} catch (error) {
+			// Cleanup execution directory if execution failed
+			if (executionDir) {
+				await cleanupExecutionDirectory(executionDir);
+			}
+			
 			if (errorHandling !== 'throw' || executeFunctions.continueOnFail()) {
 				const errorMessage = (error as Error).message || String(error);
 				const pythonErrorInfo = parsePythonError(errorMessage);
@@ -2565,20 +2779,24 @@ async function executePerItem(
 					}
 				}
 
-				results.push(...errorWithPassThrough);
+				errorResults.push(...errorWithPassThrough);
 			} else {
 				throw error;
 			}
 		} finally {
 			await cleanupScript(scriptPath);
+			// Cleanup execution directory completely
+			if (executionDir) {
+				await cleanupExecutionDirectory(executionDir);
+			}
 		}
 	}
 
-	return executeFunctions.prepareOutputData(results);
+	return [successResults, errorResults];
 }
 
 
-function execPythonSpawn(scriptPath: string, pythonPath: string, stdoutListener?: CallableFunction): Promise<IExecReturnData> {
+function execPythonSpawn(scriptPath: string, pythonPath: string, executionDir: string, timeoutMinutes: number, stdoutListener?: CallableFunction): Promise<IExecReturnData> {
 	const returnData: IExecReturnData = {
 		error: undefined,
 		exitCode: 0,
@@ -2588,8 +2806,19 @@ function execPythonSpawn(scriptPath: string, pythonPath: string, stdoutListener?
 	
 	return new Promise((resolve, reject) => {
 		const child = spawn(pythonPath, [scriptPath], {
-			cwd: process.cwd(),
+			cwd: executionDir,
 		});
+
+		// Set up timeout
+		const timeoutMs = timeoutMinutes * 60 * 1000; // Convert minutes to milliseconds
+		const timeoutId = setTimeout(() => {
+			console.log(`Script execution timeout after ${timeoutMinutes} minutes, killing process`);
+			child.kill('SIGKILL'); // Force kill the process
+			returnData.exitCode = -2;
+			returnData.error = new Error(`Script execution timeout after ${timeoutMinutes} minutes`);
+			returnData.stderr += `\n[Timeout] Process killed after ${timeoutMinutes} minutes`;
+			resolve(returnData);
+		}, timeoutMs);
 
 		child.stdout.on('data', data => {
 			returnData.stdout += data.toString();
@@ -2603,11 +2832,13 @@ function execPythonSpawn(scriptPath: string, pythonPath: string, stdoutListener?
 		});
 
 		child.on('error', (error) => {
+			clearTimeout(timeoutId);
 			returnData.error = error;
 			resolve(returnData);
 		});
 
 		child.on('close', code => {
+			clearTimeout(timeoutId);
 			returnData.exitCode = code || 0;
 			if (code !== 0) {
 				returnData.error = new Error(`Process exited with code ${code}`);
@@ -2710,6 +2941,173 @@ function formatCodeSnippet(code: string): string {
 		.replace(/\r/g, '\n\t')
 		.replace(/\r\n\t/g, '\n\t')
 		.replace(/\r\n/g, '\n\t');
+}
+
+function getScriptCodeForExport(
+	codeSnippet: string, 
+	data: IDataObject[], 
+	inputFiles?: FileMapping[],
+	outputDir?: string,
+	outputFileOptions?: { expectedFileName?: string; fileDetectionMode?: string },
+): string {
+	const path = require('path');
+	const fs = require('fs');
+	
+	// Extract __future__ imports from the beginning of the code
+	const futureImportRegex = /^from __future__ import .+$/gm;
+	const futureImports: string[] = [];
+	let match = futureImportRegex.exec(codeSnippet);
+	let cleanedCodeSnippet = codeSnippet;
+	
+	while (match !== null) {
+		futureImports.push(match[0].trim());
+		match = futureImportRegex.exec(codeSnippet);
+	}
+	
+	// Remove __future__ imports from the original code
+	cleanedCodeSnippet = codeSnippet.replace(futureImportRegex, '').trim();
+	
+	// Extract individual variables from the first item if available
+	let individualVariables = '';
+	if (data.length > 0) {
+		const firstItem = data[0];
+		const variableAssignments: string[] = [];
+		
+		for (const [key, value] of Object.entries(firstItem)) {
+			const safeVarName = sanitizeVariableName(key, 'var');
+			
+			// Skip if sanitization failed
+			if (!safeVarName) {
+				continue;
+			}
+			
+			const displayValue = convertToPythonValue(value);
+			variableAssignments.push(`${safeVarName} = ${displayValue}`);
+		}
+		
+		if (variableAssignments.length > 0) {
+			individualVariables = `
+# Individual variables from first input item
+${variableAssignments.join('\n')}
+`;
+		}
+	}
+
+	// Add input files array if files are provided
+	let inputFilesSection = '';
+	if (inputFiles && inputFiles.length > 0) {
+		const filesArray = inputFiles.map(file => {
+			const fileInfo: Record<string, unknown> = {
+				filename: file.filename,
+				mimetype: file.mimetype,
+				size: file.size,
+				extension: file.extension,
+				binary_key: file.binaryKey,
+				item_index: file.itemIndex,
+			};
+			
+			if (file.tempPath) {
+				fileInfo.temp_path = file.tempPath;
+			}
+			
+			if (file.base64Data) {
+				fileInfo.base64_data = file.base64Data;
+			}
+			
+			return fileInfo;
+		});
+		
+		const filesValue = convertToPythonValue(filesArray);
+		inputFilesSection = `
+# Binary files from previous nodes
+input_files = ${filesValue}`;
+	}
+
+	// Add output directory section if provided
+	let outputDirSection = '';
+	if (outputDir) {
+		// Output file variables should never be hidden as they are essential for functionality
+		const outputDirValue = outputDir;
+		let outputFileInstructions = '';
+		let outputFilePathVariable = '';
+		let expectedFileNameVariable = '';
+		
+		// Add expected filename variable if configured
+		if (outputFileOptions?.expectedFileName) {
+			const expectedFileNameValue = outputFileOptions.expectedFileName;
+			expectedFileNameVariable = `expected_filename = "${expectedFileNameValue}"`;
+		}
+		
+		// Add expected file path variable if configured
+		if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'variable_path') {
+			const expectedFilePath = path.join(outputDir, outputFileOptions.expectedFileName);
+			const outputFilePathValue = expectedFilePath;
+			outputFilePathVariable = `output_file_path = r"${outputFilePathValue}"`;
+			
+			outputFileInstructions = `# 📁 Ready Variable Path Mode:
+# Two ways to create your output file:
+# 
+# Method 1 (Recommended): Use ready-made full path
+# with open(output_file_path, 'w') as f:
+#     f.write("your content")
+#
+# Method 2: Build path manually using expected filename
+# import os
+# file_path = os.path.join(output_dir, expected_filename)
+# with open(file_path, 'w') as f:
+#     f.write("your content")
+#
+# Expected filename: ${outputFileOptions.expectedFileName}
+# n8n will automatically detect and process this file after script execution
+`;
+		} else if (outputFileOptions?.expectedFileName && outputFileOptions?.fileDetectionMode === 'auto_search') {
+			outputFileInstructions = `# 🔍 Auto Search Mode:
+# Create a file with the exact filename specified in expected_filename variable
+# You can save it anywhere (current directory, subdirectories, etc.)
+# n8n will automatically search and find this file after script execution
+#
+# Recommended usage:
+# with open(expected_filename, 'w') as f:
+#     f.write("your content")
+#
+# Alternative with full path:
+# import os
+# file_path = os.path.join(output_dir, expected_filename)  
+# with open(file_path, 'w') as f:
+#     f.write("your content")
+#
+# Expected filename: ${outputFileOptions.expectedFileName}
+`;
+		} else {
+			outputFileInstructions = `# 📁 Manual Output File Processing:
+# Save your files in the output_dir directory
+# Example: 
+#   import os
+#   file_path = os.path.join(output_dir, "my_file.txt")
+#   with open(file_path, 'w') as f: f.write("your content")
+`;
+		}
+		
+		outputDirSection = `
+# Output directory for generated files (Output File Processing enabled)
+output_dir = r"${outputDirValue}"
+${expectedFileNameVariable}
+${outputFilePathVariable}
+
+${outputFileInstructions}`;
+	}
+
+	const script = `#!/usr/bin/env python3
+# Auto-generated script for n8n Python Function (Raw)
+${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
+import json
+import sys
+${individualVariables}${inputFilesSection}${outputDirSection}
+# User code starts here
+${cleanedCodeSnippet}
+`;
+
+	return script;
 }
 
 function getScriptCode(
@@ -3399,7 +3797,7 @@ async function createDebugInfo(
 		const versionScriptPath = scriptPath.replace('.py', '_version_check.py');
 		fs.writeFileSync(versionScriptPath, versionScript, { encoding: 'utf8' });
 		
-		const versionResult = await execPythonSpawn(versionScriptPath, pythonPath);
+		const versionResult = await execPythonSpawn(versionScriptPath, pythonPath, process.cwd(), 1); // 1 minute timeout for version check
 		
 		// Clean up version check script
 		try {
@@ -3464,7 +3862,7 @@ except Exception as e:
 		const validationPath = scriptPath.replace('.py', '_validation.py');
 		fs.writeFileSync(validationPath, validationScript, { encoding: 'utf8' });
 
-		const result = await execPythonSpawn(validationPath, pythonPath);
+		const result = await execPythonSpawn(validationPath, pythonPath, process.cwd(), 1); // 1 minute timeout for validation
 		
 		// Clean up validation script
 		try {

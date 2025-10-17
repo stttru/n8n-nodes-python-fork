@@ -1,10 +1,111 @@
-+# Change Log
+# Change Log
 
 - fix optional credentials issue in recent n8n versions.
 
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [1.17.0] - 2025-01-17
+
+### ⏱️ EXECUTION TIMEOUT & ENHANCED CLEANUP
+
+**NEW FEATURES**: Configurable execution timeout and complete isolation with enhanced cleanup.
+
+#### Execution Timeout
+- **NEW**: "Execution Timeout (minutes)" configuration field
+- **Default**: 10 minutes (configurable from 1 to 1440 minutes)
+- **Behavior**: Automatically terminates long-running scripts with SIGKILL
+- **Error Code**: Returns exitCode -2 for timeout cases
+- **User Control**: Prevents infinite loops and resource exhaustion
+
+#### Enhanced Cleanup Architecture
+- **Complete Isolation**: Each execution runs in dedicated temporary directory
+- **Zero Traces**: Complete removal of all temporary files and directories
+- **Recursive Cleanup**: Removes entire execution directory including all subdirectories
+- **Error Safety**: Cleanup happens even if script execution fails
+- **Resource Protection**: Prevents accumulation of temporary files on server
+
+#### Technical Implementation
+- **Execution Directory**: `n8n_python_exec_{timestamp}_{randomId}` in OS tempdir
+- **Script Isolation**: Python scripts run with `cwd` set to execution directory
+- **File Containment**: All script-created files contained within execution directory
+- **Automatic Cleanup**: Directory completely removed after execution (success or failure)
+- **Timeout Protection**: Process killed with SIGKILL after configured timeout
+
+#### Benefits
+- **Security**: Scripts cannot access files outside their execution directory
+- **Reliability**: No leftover files or directories on server
+- **Resource Management**: Automatic cleanup prevents disk space issues
+- **Timeout Protection**: Prevents runaway scripts from consuming resources
+- **User Control**: Configurable timeout for different use cases
+
+## [1.16.0] - 2025-01-17
+
+### 🎯 DUAL OUTPUTS IMPLEMENTATION
+
+**NEW FEATURE**: Node now has two default outputs for better workflow control.
+
+#### Dual Output Architecture
+- **Output 1 (Success)**: `exitCode = 0` - successful Python script execution
+- **Output 2 (Error)**: `exitCode ≠ 0` - execution with errors or exceptions
+
+#### Benefits
+- **Better Workflow Design**: Route success and error cases to different nodes
+- **Cleaner Logic**: No need for conditional logic based on exitCode in workflows
+- **Standard Practice**: Follows Python convention where 0 = success, non-zero = error
+- **Backward Compatible**: All existing functionality preserved
+
+#### Technical Implementation
+- Modified node definition: `outputs: ['main', 'error']`
+- Updated `executeOnce()` function to return `[successData, errorData]`
+- Updated `executePerItem()` function to accumulate results in separate arrays
+- Test mode and exception handling route to appropriate outputs
+- Empty outputs represented as `[]` when no data for that path
+
+## [1.15.0] - 2025-01-17
+
+### 🚀 MAJOR ARCHITECTURE REFACTOR
+
+**BREAKING CHANGE**: Complete redesign of variable injection architecture with clear separation of data sources.
+
+#### New Data Sources Configuration
+- **NEW**: "Data Sources Configuration" section with 4 independent toggles:
+  - `Inject Input Variables` (default: true) - Creates individual variables from first input item
+  - `Include input_items Array` (default: true) - Includes array with all input items
+  - `Include Credential Variables` (default: true) - Loads variables from selected credential
+  - `Include System Environment Variables` (default: false) - Loads n8n process environment variables
+
+#### Improved Architecture
+- **SEPARATED**: Input data, credential variables, and system environment are now independent
+- **FIXED**: `env_vars` dictionary now automatically available when credentials are present
+- **ENHANCED**: Clear control over which data sources are available in Python scripts
+- **SECURE**: System environment variables disabled by default for security
+
+#### Backward Compatibility
+- **MAINTAINED**: Old workflows continue to work without changes
+- **DEPRECATED**: Old "Inject Variables" toggle marked as deprecated
+- **MAPPED**: Old behavior automatically mapped to new configuration structure
+
+#### Visual Improvements
+- **NEW**: Custom Python logo icon (monochrome SVG) replaces generic code icon
+- **UPDATED**: Example code reflects new architecture
+- **IMPROVED**: Clear descriptions for each data source option
+
+### Technical Details
+- Modified `execute()` method to use new configuration structure
+- Updated `getScriptCode()` to generate scripts based on enabled data sources
+- Enhanced credential loading logic with conditional loading
+- Improved system environment variable handling
+- Added comprehensive backward compatibility layer
+
+### Migration Guide
+**For existing workflows**: No action required - automatic backward compatibility ensures existing workflows continue working.
+
+**For new workflows**: Use "Data Sources Configuration" section to control which data sources are available:
+- Enable "Include Credential Variables" to access `env_vars` dictionary
+- Enable "Include System Environment Variables" to access n8n process variables
+- Configure input data access with "Inject Input Variables" and "Include input_items Array"
 
 ## [1.14.8] - 2025-01-06
 

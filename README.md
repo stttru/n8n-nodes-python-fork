@@ -35,6 +35,9 @@ This fork includes significant enhancements for raw Python script execution, str
 - **Smart Parsing**: Automatic detection and parsing of JSON, CSV, and structured data
 - **Production Stability**: 100% test coverage for unit, functional, and TypeScript tests (v1.13.1+)
 - **Global Accessibility**: Complete English documentation and internationalization (v1.13.2+)
+- **Dual Output Architecture**: Automatic routing to success/error outputs based on exit code (v1.16.0+)
+- **Execution Timeout Protection**: Configurable timeout with automatic process termination (v1.17.0+)
+- **Complete Execution Isolation**: Dedicated temporary directories with full cleanup (v1.17.0+)
 
 **⚠️ Not for Commercial Use**: This software is licensed under Apache 2.0 with Commons Clause - commercial use is prohibited.
 
@@ -70,6 +73,22 @@ print("Report generated successfully!")
 ```
 
 **Result:** Direct access to your data AND automatic file processing!
+
+## 🎯 Dual Outputs Architecture (v1.16.0+)
+
+The node has **two outputs** for better workflow control:
+- **Output 1 (Success)**: Routes data when `exitCode = 0` (successful execution)
+- **Output 2 (Error)**: Routes data when `exitCode ≠ 0` (errors or failures)
+
+**Benefits**: No need for conditional logic based on exitCode in your workflow!
+
+### Example Workflow Design
+```
+Python Function → Output 1 (Success) → Continue Processing
+                → Output 2 (Error)   → Error Handling/Notification
+```
+
+This eliminates the need to check `exitCode` in subsequent nodes - the routing is automatic!
 
 ## 📁 Output File Processing (v1.11.0+)
 
@@ -256,6 +275,17 @@ Choose export format for generated scripts in "Export Script" debug mode to comp
 - **Python Executable**: Path to Python executable (default: "python3")
 - **Inject Variables**: Enable/disable automatic variable injection (default: true)
 
+### Execution & Safety (v1.17.0+)
+- **Execution Timeout (minutes)**: Maximum time before terminating script (default: 10, range: 1-1440)
+  - Prevents infinite loops and runaway scripts
+  - Returns exitCode -2 on timeout
+  - Configurable from 1 minute to 24 hours
+  
+- **Execution Isolation**: 
+  - Each execution runs in dedicated temporary directory
+  - Complete cleanup after execution (success or failure)
+  - Zero traces left on server
+
 ### Output File Processing (v1.11.0+)
 - **Enable Output File Processing**: Toggle file generation detection (default: disabled)
 - **Expected Output Filename**: Filename the script will create (e.g., "report.pdf")
@@ -366,7 +396,7 @@ The node returns a comprehensive result object:
 
 ```json
 {
-  "exitCode": 0,
+  "exitCode": 0,  // 0 = success (routes to Output 1), non-zero = error (routes to Output 2), -2 = timeout
   "stdout": "raw output string",
   "stderr": "error messages", 
   "success": true,
@@ -671,6 +701,12 @@ from shutil import which
 
 ## 📄 Version History
 
+- **v1.17.0**: Execution timeout and enhanced cleanup architecture with complete isolation
+- **v1.16.0**: Dual outputs implementation - success/error routing based on exit code
+- **v1.15.0**: Major architecture refactor with data sources configuration
+- **v1.14.5**: Export mode enhancements with output results file
+- **v1.14.1**: Credential handling improvements
+- **v1.14.0**: Enhanced script generation options
 - **v1.13.2**: Complete internationalization - all Russian text translated to English for global accessibility
 - **v1.13.1**: Test infrastructure reorganization and comprehensive test fixes (unit/functional/TypeScript tests at 100%)
 - **v1.12.8**: Variable validation fixes - enhanced sanitization of Python variable names from input data
@@ -694,6 +730,27 @@ from shutil import which
 - **v1.2.0**: Enhanced error handling and user experience
 - **v1.1.0**: Variable injection control and improved error parsing
 - **v1.0.0**: Initial fork with raw execution functionality
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+### User Guides
+- **[Dual Outputs Guide](docs/guides/dual-outputs.md)** - Understanding the dual output architecture (v1.16.0+)
+- **[Timeout and Cleanup Guide](docs/guides/timeout-and-cleanup.md)** - Execution timeout and isolation (v1.17.0+)
+- **[Output Files Guide](docs/guides/output-files.md)** - Generating and processing files in Python scripts
+- **[File Processing Guide](docs/guides/file-processing.md)** - Processing input files from previous nodes
+- **[Multiple Credentials Guide](docs/guides/multiple-credentials.md)** - Using multiple Python environment credentials
+- **[Debugging Guide](docs/guides/debugging.md)** - Comprehensive debugging and troubleshooting
+
+### Development Documentation
+- **[Development Setup](docs/development/setup.md)** - Setting up the development environment
+- **[Testing Guide](docs/development/testing.md)** - Running tests and test structure
+- **[Publishing Guide](docs/development/publishing.md)** - Publishing the package to npm
+
+### Quick Navigation
+- **[Documentation Index](docs/README.md)** - Complete documentation overview
+- **[Archived Documentation](docs/archived/)** - Historical reports and plans
 
 ## 🔗 Links
 
