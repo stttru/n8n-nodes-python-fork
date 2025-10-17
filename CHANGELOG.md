@@ -6,6 +6,82 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.22.0] - 2025-10-17
+
+### 🔒 Security Enhancement: File-Based Execution with Environment Variables
+
+**BREAKING CHANGE**: Complete rewrite of execution engine for improved security and reliability.
+
+#### What Changed
+
+- **Removed stdin + FD3 approach**: The complex stdin-based execution that was causing `ENOENT` errors has been completely removed
+- **New file-based execution**: Both Secure and Debug modes now use traditional file-based execution for maximum compatibility
+- **Environment variables for credentials**: Secure mode now passes credentials via environment variables instead of hardcoding them in script files
+
+#### Security Improvements
+
+- **Secure Mode**: Credentials are loaded from environment variables (`N8N_CRED_*`) at runtime, not hardcoded in script files
+- **Debug Mode**: Credentials are still hardcoded for debugging purposes (as intended)
+- **Consistent cleanup**: Both modes now have identical, reliable cleanup procedures
+- **No more file system errors**: Eliminated `ENOENT` errors that were occurring with stdin approach
+
+#### Technical Implementation
+
+**Secure Mode Script Generation**:
+```python
+# Load credentials from environment variables
+SFTPgo_HOST = os.environ.get('N8N_CRED_SFTPgo_HOST', '')
+SFTPgo_PORT = os.environ.get('N8N_CRED_SFTPgo_PORT', '')
+
+# env_vars dictionary for backward compatibility
+env_vars = {
+    'SFTPgo_HOST': SFTPgo_HOST,
+    'SFTPgo_PORT': SFTPgo_PORT,
+}
+```
+
+**Environment Variable Passing**:
+```typescript
+const environmentVars = {
+    'N8N_CRED_SFTPgo_HOST': '192.168.1.100',
+    'N8N_CRED_SFTPgo_PORT': '22',
+};
+
+spawn(pythonPath, [scriptPath], { env: { ...process.env, ...environmentVars } });
+```
+
+#### Benefits
+
+- ✅ **Reliability**: No more `ENOENT` errors or stdin-related issues
+- ✅ **Security**: Credentials not hardcoded in Secure mode
+- ✅ **Compatibility**: Works with all Python environments and n8n versions
+- ✅ **Consistency**: Both modes use identical file handling and cleanup
+- ✅ **Performance**: Simpler execution path, faster startup
+- ✅ **Maintainability**: Cleaner codebase without complex stdin/FD3 logic
+
+#### Migration Guide
+
+**No user action required** - this is a transparent improvement. Existing workflows will continue to work exactly as before, but with improved reliability and security.
+
+#### Files Changed
+
+- `nodes/PythonFunction/PythonFunction.node.ts`: Complete rewrite of execution engine
+- `package.json`: Version bump to 1.22.0
+- `CHANGELOG.md`: This entry
+
+#### Testing
+
+- [x] Secure mode: Variables loaded from environment
+- [x] Secure mode: Values NOT in script file
+- [x] Debug mode: Values hardcoded in script file
+- [x] Both modes: Scripts execute correctly
+- [x] Both modes: Cleanup works reliably
+- [x] Both modes: No leftover files
+- [x] Full Debug+: Export functionality works
+- [x] Credentials accessible in Python code
+
+---
+
 ## [1.21.1] - 2024-12-19
 
 ### 🐛 Critical Bug Fix: Secure Mode Crash

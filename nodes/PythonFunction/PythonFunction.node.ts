@@ -2321,9 +2321,7 @@ async function executeOnce(
 		
 	let scriptPath = '';
 	let executionDir = '';
-	let scriptSource: string;  // Content (secure) or path (debug)
-	let credentialsForFD3: Record<string, any> | undefined;
-	let useStdin = true;
+	let environmentVars: Record<string, string> | undefined;
 	let useSecureMode = debugMode === 'secure';
 	
 	try {
@@ -2336,43 +2334,52 @@ async function executeOnce(
 
 		if (useSecureMode) {
 			// ========================================
-			// SECURE MODE (off): stdin + FD 3
+			// SECURE MODE: Variables from environment
 			// ========================================
-			console.log('🔒 SECURE MODE: Credentials via FD 3, script via stdin');
+			console.log('🔒 SECURE MODE: Variables from environment, values NOT hardcoded');
 			
-			// Extract credential names only (no values!)
 			const credentialNames = Object.keys(pythonEnvVars);
 			
-			// Generate script WITHOUT credential values
-			scriptSource = getScriptCodeSecure(
+			// Generate script with os.environ.get() calls
+			const scriptContent = getScriptCodeWithEnvVars(
 				functionCode,
 				injectInputVariables ? unwrapJsonField(items) : [],
-				credentialNames,  // Names only - values via FD 3
+				credentialNames,
 				includeInputItems,
 				inputFiles,
 				outputDir,
 				outputFileProcessingOptions
 			);
 			
-			// Credentials will be sent via FD 3
-			credentialsForFD3 = pythonEnvVars;
-			useStdin = true;
+			// Write to temporary file
+			scriptPath = await writeScriptToFile(scriptContent);
+			
+			// Move script to execution directory
+			const scriptFileName = path.basename(scriptPath);
+			const newScriptPath = path.join(executionDir, scriptFileName);
+			fs.copyFileSync(scriptPath, newScriptPath);
+			fs.unlinkSync(scriptPath);
+			scriptPath = newScriptPath;
+			
+			// Prepare environment variables with N8N_CRED_ prefix
+			environmentVars = {};
+			for (const [key, value] of Object.entries(pythonEnvVars)) {
+				environmentVars[`N8N_CRED_${key}`] = value;
+			}
 			
 			console.log(`  • Credential names in script: ${credentialNames.length}`);
-			console.log(`  • Credential values: SENT VIA FD 3 (not in script text)`);
-			console.log(`  • Script delivery: STDIN (no files on disk)`);
+			console.log(`  • Values: PASSED VIA ENVIRONMENT (not in file)`);
 			
 		} else {
 			// ========================================
-			// DEBUG MODE (full_plus): Traditional file with embedded credentials
+			// DEBUG MODE: Values hardcoded in script
 			// ========================================
-			console.log('🔍 DEBUG MODE: Credentials embedded, script in file');
+			console.log('🔍 DEBUG MODE: Values hardcoded in script file');
 			
-			// Generate script WITH credential values (for debugging)
 			scriptPath = await getTemporaryScriptPath(
 				functionCode,
 				injectInputVariables ? unwrapJsonField(items) : [],
-				pythonEnvVars,  // Full credentials embedded
+				pythonEnvVars,  // Full values
 				includeInputItems,
 				includeEnvVarsDict,
 				hideVariableValues,
@@ -2389,13 +2396,10 @@ async function executeOnce(
 			fs.unlinkSync(scriptPath);
 			scriptPath = newScriptPath;
 			
-			scriptSource = scriptPath;  // File path, not content
-			credentialsForFD3 = undefined;  // No FD needed
-			useStdin = false;
+			environmentVars = undefined;  // No env vars needed
 			
 			console.log(`  • Script file: ${scriptPath}`);
-			console.log(`  • Credentials: EMBEDDED in file (for debugging)`);
-			console.log(`  • Script delivery: FILE (traditional)`);
+			console.log(`  • Values: HARDCODED in file (for debugging)`);
 		}
 		
 		// Full Debug+: Diagnose script generation
@@ -2518,14 +2522,14 @@ async function executeOnce(
 			if (useSecureMode) {
 				// Secure mode: no script file
 				fullDebugPlusDiagnostics.execution.preparation.temp_dir_created = executionDir;
-				fullDebugPlusDiagnostics.execution.preparation.script_file_path = '(stdin - no file)';
-				fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = scriptSource.length;
-				fullDebugPlusDiagnostics.execution.preparation.script_written_successfully = false;
+				fullDebugPlusDiagnostics.execution.preparation.script_file_path = scriptPath;
+				fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes = fs.statSync(scriptPath).size;
+				fullDebugPlusDiagnostics.execution.preparation.script_written_successfully = true;
 				
 				fullDebugPlusDiagnostics.execution.command = {
 					executable: pythonPath,
-					full_command: `${pythonPath} -c "import sys; exec(sys.stdin.read())"`,
-					arguments: ['-c', 'import sys; exec(sys.stdin.read())'],
+					full_command: `${pythonPath} ${scriptPath}`,
+					arguments: [scriptPath],
 					working_directory: executionDir,
 					timeout_minutes: executionTimeout,
 				};
@@ -2551,9 +2555,9 @@ async function executeOnce(
 			
 			console.log('🚀 Execution Diagnostics:', {
 				execution_mode: useSecureMode ? 'secure_stdin_fd3' : 'debug_file',
-				script_path: useSecureMode ? '(stdin)' : scriptPath,
+				script_path: scriptPath,
 				execution_dir: executionDir,
-				script_size_bytes: useSecureMode ? scriptSource.length : fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes,
+				script_size_bytes: fullDebugPlusDiagnostics.execution.preparation.script_file_size_bytes,
 				python_executable: pythonPath,
 				timeout_minutes: executionTimeout,
 			});
@@ -2565,13 +2569,12 @@ async function executeOnce(
 		debugTiming.execution_started_at = new Date().toISOString();
 
 		const execResults = await execPythonSpawn(
-			scriptSource,                    // Content (secure) or path (debug)
+			scriptPath,
 			pythonPath,
 			executionDir,
 			executionTimeout,
-			credentialsForFD3,              // Credentials for FD 3 (or undefined)
-			executeFunctions.sendMessageToUI,
-			useStdin                        // true = stdin, false = file
+			environmentVars,  // Pass env vars for secure mode
+			executeFunctions.sendMessageToUI
 		);
 
 		debugTiming.execution_finished_at = new Date().toISOString();
@@ -2861,27 +2864,21 @@ async function executeOnce(
 				throw error;
 		}
 	} finally {
-		if (!useSecureMode) {
-			// Only cleanup if debug mode (secure mode has no files)
-			try {
-				if (scriptPath) {
-					await cleanupScript(scriptPath);
-				}
-				if (executionDir) {
-					await cleanupExecutionDirectory(executionDir);
-				}
-			} catch (cleanupError) {
-				console.warn('Cleanup failed:', cleanupError);
+		try {
+			// Always cleanup script file
+			if (scriptPath && fs.existsSync(scriptPath)) {
+				await cleanupScript(scriptPath);
 			}
-		} else {
-			// Secure mode: only cleanup execution directory (no script files)
-			try {
-				if (executionDir) {
-					await cleanupExecutionDirectory(executionDir);
-				}
-			} catch (cleanupError) {
-				console.warn('Cleanup failed:', cleanupError);
+			
+			// Always cleanup execution directory
+			if (executionDir && fs.existsSync(executionDir)) {
+				await cleanupExecutionDirectory(executionDir);
 			}
+			
+			console.log('✅ Cleanup completed successfully');
+		} catch (cleanupError) {
+			console.error('⚠️ Cleanup failed:', cleanupError);
+			// Don't throw - cleanup errors shouldn't fail the execution
 		}
 	}
 }
@@ -2919,9 +2916,7 @@ async function executePerItem(
 		const item = items[i];
 		let scriptPath = '';
 		let executionDir = '';
-		let scriptSource: string;
-		let credentialsForFD3: Record<string, any> | undefined;
-		let useStdin = true;
+		let environmentVars: Record<string, string> | undefined;
 		let useSecureMode = debugMode === 'secure';
 		
 		// Create debug timing for each item
@@ -2937,9 +2932,11 @@ async function executePerItem(
 			// Choose execution mode
 
 			if (useSecureMode) {
-				// SECURE MODE
+				// SECURE MODE: Variables from environment
 				const credentialNames = Object.keys(pythonEnvVars);
-				scriptSource = getScriptCodeSecure(
+				
+				// Generate script with os.environ.get() calls
+				const scriptContent = getScriptCodeWithEnvVars(
 					functionCode,
 					injectInputVariables ? [unwrapJsonField([item])[0]] : [],
 					credentialNames,
@@ -2948,11 +2945,25 @@ async function executePerItem(
 					outputDir,
 					outputFileProcessingOptions
 				);
-				credentialsForFD3 = pythonEnvVars;
-				useStdin = true;
+				
+				// Write to temporary file
+				scriptPath = await writeScriptToFile(scriptContent);
+				
+				// Move script to execution directory
+				const scriptFileName = path.basename(scriptPath);
+				const newScriptPath = path.join(executionDir, scriptFileName);
+				fs.copyFileSync(scriptPath, newScriptPath);
+				fs.unlinkSync(scriptPath);
+				scriptPath = newScriptPath;
+				
+				// Prepare environment variables with N8N_CRED_ prefix
+				environmentVars = {};
+				for (const [key, value] of Object.entries(pythonEnvVars)) {
+					environmentVars[`N8N_CRED_${key}`] = value;
+				}
 				
 			} else {
-				// DEBUG MODE
+				// DEBUG MODE: Values hardcoded in script
 				scriptPath = await getTemporaryScriptPath(
 					functionCode, 
 					injectInputVariables ? [unwrapJsonField([item])[0]] : [], 
@@ -2984,9 +2995,7 @@ async function executePerItem(
 				
 				console.log(`Moved script to execution directory: ${scriptPath}`);
 				
-				scriptSource = scriptPath;
-				credentialsForFD3 = undefined;
-				useStdin = false;
+				environmentVars = undefined;  // No env vars needed
 			}
 
 			// Create debug information for full_plus mode
@@ -3056,13 +3065,12 @@ async function executePerItem(
 			// Execute the Python script for this item
 			debugTiming.execution_started_at = new Date().toISOString();
 			const execResults = await execPythonSpawn(
-				scriptSource,
+				scriptPath,
 				pythonPath,
 				executionDir,
 				executionTimeout,
-				credentialsForFD3,
-				executeFunctions.sendMessageToUI,
-				useStdin
+				environmentVars,
+				executeFunctions.sendMessageToUI
 			);
 			debugTiming.execution_finished_at = new Date().toISOString();
 			debugTiming.total_duration_ms = new Date(debugTiming.execution_finished_at).getTime() - 
@@ -3224,27 +3232,21 @@ async function executePerItem(
 				throw error;
 			}
 		} finally {
-			if (!useSecureMode) {
-				// Only cleanup if debug mode (secure mode has no files)
-				try {
-					if (scriptPath) {
-						await cleanupScript(scriptPath);
-					}
-					if (executionDir) {
-						await cleanupExecutionDirectory(executionDir);
-					}
-				} catch (cleanupError) {
-					console.warn('Cleanup failed:', cleanupError);
+			try {
+				// Always cleanup script file
+				if (scriptPath && fs.existsSync(scriptPath)) {
+					await cleanupScript(scriptPath);
 				}
-			} else {
-				// Secure mode: only cleanup execution directory (no script files)
-				try {
-					if (executionDir) {
-						await cleanupExecutionDirectory(executionDir);
-					}
-				} catch (cleanupError) {
-					console.warn('Cleanup failed:', cleanupError);
+				
+				// Always cleanup execution directory
+				if (executionDir && fs.existsSync(executionDir)) {
+					await cleanupExecutionDirectory(executionDir);
 				}
+				
+				console.log('✅ Cleanup completed successfully');
+			} catch (cleanupError) {
+				console.error('⚠️ Cleanup failed:', cleanupError);
+				// Don't throw - cleanup errors shouldn't fail the execution
 			}
 		}
 	}
@@ -3254,24 +3256,22 @@ async function executePerItem(
 
 
 /**
- * Execute Python script via stdin (secure) or file (debug)
- * @param scriptSource - Script content (string) OR file path (for debug mode)
+ * Execute Python script from file with optional environment variables
+ * @param scriptPath - Path to Python script file
  * @param pythonPath - Path to Python executable
  * @param executionDir - Working directory for script execution
  * @param timeoutMinutes - Execution timeout in minutes
- * @param credentialsData - Credentials to pass via FD 3 (secure mode only)
+ * @param environmentVars - Optional environment variables for secure mode
  * @param stdoutListener - Optional listener for real-time stdout
- * @param useStdin - If true, pass script via stdin; if false, use file path
  * @returns Execution results (exitCode, stdout, stderr)
  */
 function execPythonSpawn(
-  scriptSource: string,
+  scriptPath: string,
   pythonPath: string,
   executionDir: string,
   timeoutMinutes: number,
-  credentialsData?: Record<string, any>,
+  environmentVars?: Record<string, string>,
   stdoutListener?: CallableFunction,
-  useStdin = true  // Default: secure mode
 ): Promise<IExecReturnData> {
   
   return new Promise((resolve, reject) => {
@@ -3279,66 +3279,24 @@ function execPythonSpawn(
     let stderr = '';
     let timedOut = false;
     
-    // Determine Python arguments
-    let pythonArgs: string[];
-    if (useStdin) {
-      // Secure mode: Execute script from stdin
-      pythonArgs = ['-c', 'import sys; exec(sys.stdin.read())'];
-    } else {
-      // Debug mode: Execute script from file
-      pythonArgs = [scriptSource];
-    }
+    // Prepare environment variables
+    const env = environmentVars 
+      ? { ...process.env, ...environmentVars }  // Merge with process.env
+      : process.env;
     
-    // Configure stdio pipes
-    // FD 0: stdin (for script in secure mode)
-    // FD 1: stdout
-    // FD 2: stderr
-    // FD 3: credentials channel (secure mode only)
-    const stdio = credentialsData 
-      ? ['pipe', 'pipe', 'pipe', 'pipe']  // With FD 3
-      : ['pipe', 'pipe', 'pipe'];         // Standard
-    
-    console.log(`🐍 Python execution mode: ${useStdin ? 'stdin (secure)' : 'file (debug)'}`);
+    console.log(`🐍 Python execution: ${scriptPath}`);
     console.log(`📁 Working directory: ${executionDir}`);
+    if (environmentVars) {
+      console.log(`🔒 Environment variables: ${Object.keys(environmentVars).length} credentials`);
+    }
     
     // Spawn Python process
-    const child = spawn(pythonPath, pythonArgs, {
+    const child = spawn(pythonPath, [scriptPath], {
       cwd: executionDir,
-      stdio: stdio as any,
+      env: env,  // Pass environment variables
     });
     
-    // === Step 1: Send credentials via FD 3 (if provided) ===
-    if (credentialsData && child.stdio[3]) {
-      try {
-        const credentialsJson = JSON.stringify(credentialsData);
-        const fd3Stream = child.stdio[3] as any;
-        
-        fd3Stream.write(credentialsJson);
-        fd3Stream.end();  // Close FD 3 immediately
-        
-        console.log(`✅ Credentials sent via FD 3: ${Object.keys(credentialsData).length} variables`);
-      } catch (error) {
-        console.warn(`⚠️  Failed to send credentials via FD 3: ${(error as Error).message}`);
-        console.warn('    Fallback: Python will try to read from environment variables');
-        // Don't fail execution - Python code has fallback to ENV
-      }
-    }
-    
-    // === Step 2: Send script via stdin (if secure mode) ===
-    if (useStdin && child.stdin) {
-      try {
-        child.stdin.write(scriptSource);
-        child.stdin.end();  // Close stdin
-        
-        console.log(`✅ Script sent via stdin: ${scriptSource.length} bytes (ZERO FILES ON DISK)`);
-      } catch (error) {
-        const errorMsg = `Failed to write script to stdin: ${(error as Error).message}`;
-        reject(new Error(errorMsg));
-        return;
-      }
-    }
-    
-    // === Step 3: Capture stdout ===
+    // === Capture stdout ===
     if (child.stdout) {
       child.stdout.on('data', (data: Buffer) => {
         const chunk = data.toString();
@@ -3351,14 +3309,14 @@ function execPythonSpawn(
       });
     }
     
-    // === Step 4: Capture stderr ===
+    // === Capture stderr ===
     if (child.stderr) {
       child.stderr.on('data', (data: Buffer) => {
         stderr += data.toString();
       });
     }
     
-    // === Step 5: Setup timeout ===
+    // === Setup timeout ===
     const timeoutMs = timeoutMinutes * 60 * 1000;
     const timeoutId = setTimeout(() => {
       timedOut = true;
@@ -3366,7 +3324,7 @@ function execPythonSpawn(
       console.warn(`⏱️  Script execution timed out after ${timeoutMinutes} minutes`);
     }, timeoutMs);
     
-    // === Step 6: Handle process completion ===
+    // === Handle process completion ===
     child.on('close', (code: number | null) => {
       clearTimeout(timeoutId);
       
@@ -3385,7 +3343,7 @@ function execPythonSpawn(
       resolve(returnData);
     });
     
-    // === Step 7: Handle process errors ===
+    // === Handle process errors ===
     child.on('error', (error: Error) => {
       clearTimeout(timeoutId);
       console.error(`❌ Python process error: ${error.message}`);
@@ -3739,7 +3697,7 @@ ${cleanedCodeSnippet}
 }
 
 /**
- * Generate secure Python script - credentials loaded from FD 3, not hardcoded
+ * Generate Python script with environment variables (Secure Mode)
  * @param codeSnippet - User's Python code
  * @param data - Input items (CAN be hardcoded - not sensitive)
  * @param credentialNames - Credential variable NAMES only (no values!)
@@ -3747,9 +3705,9 @@ ${cleanedCodeSnippet}
  * @param inputFiles - File mappings (paths, not sensitive)
  * @param outputDir - Output directory path
  * @param outputFileOptions - Output file options
- * @returns Python script with FD3 bootstrap loader
+ * @returns Python script with os.environ.get() calls
  */
-function getScriptCodeSecure(
+function getScriptCodeWithEnvVars(
   codeSnippet: string,
   data: IDataObject[],
   credentialNames: string[],
@@ -3773,48 +3731,14 @@ function getScriptCodeSecure(
   
   cleanedCodeSnippet = codeSnippet.replace(futureImportRegex, '').trim();
   
-  // Bootstrap: Load credentials from FD 3 at runtime
-  const bootstrapCode = `
-# ============================================================
-# n8n Bootstrap: Dynamic Credential Loading (Secure Mode)
-# ============================================================
-import os, json, builtins
-
-# Variable names declared (values loaded from FD 3 at runtime)
-__N8N_CREDENTIAL_NAMES__ = ${JSON.stringify(credentialNames)}
-
-def __n8n_load_credentials():
-    """Load credentials from FD 3 (secure channel from n8n)"""
-    credentials = {}
-    
-    # Try to read from FD 3 first (primary secure channel)
-    try:
-        with os.fdopen(3, 'r', closefd=True) as fd3:
-            credentials.update(json.load(fd3))
-    except Exception as e:
-        # FD 3 not available, try environment variables as fallback
-        pass
-    
-    # Fallback: check environment variables for missing credentials
-    for var_name in __N8N_CREDENTIAL_NAMES__:
-        if var_name not in credentials:
-            env_value = os.environ.get(var_name)
-            if env_value is not None:
-                credentials[var_name] = env_value
-    
-    return credentials
-
-# Load credentials at module initialization
-__n8n_credentials__ = __n8n_load_credentials()
-
-# Inject credential variables into global namespace
-# (User code sees them as regular variables - same DX as before)
-for var_name in __N8N_CREDENTIAL_NAMES__:
-    builtins.__dict__[var_name] = __n8n_credentials__.get(var_name)
-
-# Create env_vars dictionary (for backwards compatibility)
-env_vars = __n8n_credentials__.copy()
-`;
+  // Bootstrap: Load credentials from environment variables
+  const envVarsSection = credentialNames.map(name => 
+    `${name} = os.environ.get('N8N_CRED_${name}', '')`
+  ).join('\n');
+  
+  const envVarsDict = `env_vars = {\n${
+    credentialNames.map(name => `    '${name}': ${name},`).join('\n')
+  }\n}`;
 
   // Input items section (can be hardcoded - not sensitive)
   let inputItemsSection = '';
@@ -3863,9 +3787,16 @@ env_vars = __n8n_credentials__.copy()
   // Assemble final script
   const script = `#!/usr/bin/env python3
 # Auto-generated script for n8n Python Function (Raw) - Secure Mode
-# Credentials loaded dynamically from FD 3 - NOT hardcoded in this file
+# Credentials loaded from environment variables - NOT hardcoded in this file
 ${futureImports.length > 0 ? futureImports.join('\n') + '\n' : ''}
-${bootstrapCode}
+import os
+import json
+
+# Load credentials from environment variables
+${envVarsSection}
+
+# env_vars dictionary for backward compatibility
+${envVarsDict}
 ${inputItemsSection}${inputFilesSection}${outputDirSection}
 # ============================================================
 # User Code Starts Here
@@ -3874,6 +3805,25 @@ ${cleanedCodeSnippet}
 `;
 
   return script;
+}
+
+
+async function writeScriptToFile(scriptContent: string): Promise<string> {
+	const tmpPath = tempy.file({extension: 'py'});
+	
+	try {
+		// Remove file if it exists
+		if (fs.existsSync(tmpPath)) {
+			fs.unlinkSync(tmpPath);
+		}
+		
+		// Write script content to file
+		fs.writeFileSync(tmpPath, scriptContent, { encoding: 'utf8' });
+		
+		return tmpPath;
+	} catch (error) {
+		throw new Error(`Failed to write script to temporary file: ${(error as Error).message}`);
+	}
 }
 
 
