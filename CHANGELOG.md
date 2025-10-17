@@ -6,6 +6,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.4] - 2025-01-17
+
+### Fixed
+- **SECURITY: Hidden Values Leak in Full Debug+**: Fixed credential values leaking in Full Debug+ diagnostics
+  - Fixed `envFileContent_preview_first_3_lines` showing raw credential values
+  - Fixed `found_values_preview` showing system environment variable values
+  - Now properly respects "Hide Values in Exported Scripts" option
+  - Variable names are still shown, but values are replaced with `***hidden***`
+
+### Security Impact
+- **Before**: Credential values visible in Full Debug+ output even with "Hide Values" enabled
+- **After**: All sensitive values properly hidden while maintaining diagnostic utility
+
 ## [1.19.3] - 2025-01-17
 
 ### Enhanced

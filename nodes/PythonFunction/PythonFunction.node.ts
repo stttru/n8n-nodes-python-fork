@@ -1823,8 +1823,21 @@ if output_dir:
 					fullDebugPlusDiagnostics.data_sources.credentials.raw_credential_data_keys = credentialData ? Object.keys(credentialData) : [];
 					fullDebugPlusDiagnostics.data_sources.credentials.envFileContent_exists = !!(credentialData?.envFileContent);
 					fullDebugPlusDiagnostics.data_sources.credentials.envFileContent_length = String(credentialData?.envFileContent || '').length;
-					fullDebugPlusDiagnostics.data_sources.credentials.envFileContent_preview_first_3_lines = 
-						String(credentialData?.envFileContent || '').split('\n').slice(0, 3);
+					
+					// Handle credential preview with hide values option
+					let previewLines = String(credentialData?.envFileContent || '').split('\n').slice(0, 3);
+					if (hideCredentialValues) {
+						// Hide values but keep variable names
+						previewLines = previewLines.map(line => {
+							const eqIndex = line.indexOf('=');
+							if (eqIndex > 0) {
+								const varName = line.substring(0, eqIndex);
+								return `${varName}=***hidden***`;
+							}
+							return line;
+						});
+					}
+					fullDebugPlusDiagnostics.data_sources.credentials.envFileContent_preview_first_3_lines = previewLines;
 				}
 				
 					if (credentialData && credentialData.envFileContent) {
@@ -1880,10 +1893,21 @@ if output_dir:
 			if (fullDebugPlusDiagnostics) {
 				const foundVars = Object.keys(systemEnvVarsToAdd);
 				const missingVars = systemEnvVars.filter(name => !foundVars.includes(name));
-				const foundValuesPreview = Object.keys(systemEnvVarsToAdd).reduce((acc, key) => {
-					acc[key] = systemEnvVarsToAdd[key].substring(0, 20) + (systemEnvVarsToAdd[key].length > 20 ? '...' : '');
-					return acc;
-				}, {} as Record<string, string>);
+				
+				// Handle system environment values preview with hide values option
+				let foundValuesPreview: Record<string, string> = {};
+				if (hideCredentialValues) {
+					// Hide values, keep only indication that they exist
+					foundValuesPreview = Object.keys(systemEnvVarsToAdd).reduce((acc, key) => {
+						acc[key] = '***hidden***';
+						return acc;
+					}, {} as Record<string, string>);
+				} else {
+					foundValuesPreview = Object.keys(systemEnvVarsToAdd).reduce((acc, key) => {
+						acc[key] = systemEnvVarsToAdd[key].substring(0, 20) + (systemEnvVarsToAdd[key].length > 20 ? '...' : '');
+						return acc;
+					}, {} as Record<string, string>);
+				}
 				
 				fullDebugPlusDiagnostics.data_sources.system_environment = {
 					enabled: true,
