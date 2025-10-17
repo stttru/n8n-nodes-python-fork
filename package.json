@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-python-raw",
-  	  "version": "1.17.6",
+  	  "version": "1.17.7",
   "description": "🚨 WARNING: 100% AI-GENERATED EXPERIMENTAL CODE - HIGH RISK! Use at own risk, not for production. Python execution for n8n with file processing, multiple credentials, debug tools. Personal use only - Commons Clause license.",
   "main": "dist/index.js",
   "license": "SEE LICENSE IN LICENSE.md",

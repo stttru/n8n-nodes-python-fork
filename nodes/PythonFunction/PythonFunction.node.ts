@@ -421,201 +421,6 @@ export class PythonFunction implements INodeType {
 		],
 		properties: [
 			{
-				displayName: 'Credentials Management',
-				name: 'credentialsManagement',
-				type: 'collection',
-				default: {},
-				placeholder: 'Add Credential Options',
-				description: 'Configure how credentials are included in the Python script',
-				options: [
-					{
-						displayName: 'Use Default Credential',
-						name: 'useDefaultCredential',
-						type: 'boolean',
-						default: true,
-						description: 'Include the credential selected in "Credential to connect with" dropdown above',
-					},
-					{
-						displayName: 'Multiple Credentials Method',
-						name: 'multipleCredentialsMethod',
-						type: 'options',
-						options: [
-							{
-								name: 'None (Use Default Only)',
-								value: 'none',
-								description: 'Use only the default credential from "Credential to connect with"',
-							},
-							{
-								name: 'Credential Names List',
-								value: 'names_list',
-								description: 'Enter credential names as comma-separated text',
-							},
-							{
-								name: 'Additional Credential Selectors',
-								value: 'selectors',
-								description: 'Use multiple credential selector dropdowns',
-							},
-							{
-								name: 'Dynamic Credential Collection',
-								value: 'collection',
-								description: 'Add/remove credential selectors dynamically',
-							},
-							{
-								name: 'JSON Configuration',
-								value: 'json_config',
-								description: 'Define credentials using JSON configuration',
-							},
-						],
-						default: 'none',
-						description: 'Choose how to add multiple credentials to the script',
-					},
-					{
-						displayName: 'Credential Names',
-						name: 'credentialNamesList',
-						type: 'string',
-						default: '',
-						placeholder: 'credential1, credential2, credential3',
-						description: 'Enter credential names separated by commas (must match exact credential names)',
-						displayOptions: {
-							show: {
-								multipleCredentialsMethod: ['names_list'],
-							},
-						},
-					},
-					{
-						displayName: 'Additional Credential 1',
-						name: 'additionalCredential1',
-						type: 'string',
-						default: '',
-						placeholder: 'Enter credential name',
-						description: 'Enter name of first additional Python Environment Variables credential',
-						displayOptions: {
-							show: {
-								multipleCredentialsMethod: ['selectors'],
-							},
-						},
-					},
-					{
-						displayName: 'Additional Credential 2',
-						name: 'additionalCredential2',
-						type: 'string',
-						default: '',
-						placeholder: 'Enter credential name',
-						description: 'Enter name of second additional Python Environment Variables credential',
-						displayOptions: {
-							show: {
-								multipleCredentialsMethod: ['selectors'],
-							},
-						},
-					},
-					{
-						displayName: 'Additional Credential 3',
-						name: 'additionalCredential3',
-						type: 'string',
-						default: '',
-						placeholder: 'Enter credential name',
-						description: 'Enter name of third additional Python Environment Variables credential',
-						displayOptions: {
-							show: {
-								multipleCredentialsMethod: ['selectors'],
-							},
-						},
-					},
-					{
-						displayName: 'Credential Collection',
-						name: 'credentialCollection',
-						type: 'fixedCollection',
-						default: { credentials: [] },
-						typeOptions: {
-							multipleValues: true,
-						},
-						description: 'Add multiple credentials dynamically',
-						displayOptions: {
-							show: {
-								multipleCredentialsMethod: ['collection'],
-							},
-						},
-						options: [
-							{
-								displayName: 'Credentials',
-								name: 'credentials',
-								values: [
-									{
-										displayName: 'Credential Name',
-										name: 'credentialName',
-										type: 'string',
-										default: '',
-										placeholder: 'Enter credential name',
-										description: 'Enter name of Python Environment Variables credential',
-									},
-									{
-										displayName: 'Variable Prefix',
-										name: 'variablePrefix',
-										type: 'string',
-										default: '',
-										placeholder: 'API1_, PROD_, etc.',
-										description: 'Optional prefix to add to all variables from this credential',
-									},
-								],
-							},
-						],
-					},
-					{
-						displayName: 'JSON Configuration',
-						name: 'jsonConfiguration',
-						type: 'json',
-						default: '{\n  "credentials": [\n    {\n      "name": "credential1",\n      "prefix": "API1_"\n    },\n    {\n      "name": "credential2",\n      "prefix": "PROD_"\n    }\n  ],\n  "mergeStrategy": "last_wins"\n}',
-						description: 'Define credentials configuration in JSON format',
-						displayOptions: {
-							show: {
-								multipleCredentialsMethod: ['json_config'],
-							},
-						},
-					},
-					{
-						displayName: 'Variable Merge Strategy',
-						name: 'mergeStrategy',
-						type: 'options',
-						options: [
-							{
-								name: 'Last Selected Wins',
-								value: 'last_wins',
-								description: 'If variables have same name, last credential wins',
-							},
-							{
-								name: 'First Selected Wins', 
-								value: 'first_wins',
-								description: 'If variables have same name, first credential wins',
-							},
-							{
-								name: 'Prefix with Source',
-								value: 'prefix_source',
-								description: 'Add credential name prefix to variables (e.g., CRED1_API_KEY)',
-							},
-							{
-								name: 'Skip Conflicts',
-								value: 'skip_conflicts',
-								description: 'Skip variables that would conflict (keep first occurrence)',
-							},
-						],
-						default: 'last_wins',
-						description: 'How to handle variable name conflicts between credentials',
-						displayOptions: {
-							show: {
-								multipleCredentialsMethod: ['names_list', 'selectors', 'collection'],
-							},
-						},
-					},
-					{
-						displayName: 'Hide Variable Values in Generated Script',
-						name: 'hideVariableValues',
-						type: 'boolean',
-						default: false,
-						description: 'Replace variable values with asterisks in generated scripts (for security)',
-					},
-				],
-			},
-			{
 				displayName: 'Data Sources Configuration',
 				name: 'dataSourcesConfig',
 				type: 'collection',
@@ -731,11 +536,11 @@ if output_dir:
 				noDataExpression: true,
 			},
 			{
-				displayName: 'Inject Variables (Deprecated)',
-				name: 'injectVariables',
+				displayName: 'Hide Variable Values',
+				name: 'hideVariableValues',
 				type: 'boolean',
 				default: false,
-				description: '⚠️ DEPRECATED: Use "Data Sources Configuration" section above instead. This option will be removed in future versions.',
+				description: 'Replace variable values with asterisks in generated scripts (for security)',
 			},
 			{
 				displayName: 'Python Executable',
@@ -1262,14 +1067,14 @@ if output_dir:
 					const scriptOptions = (currentNodeParameter('scriptOptions') as IDataObject) || {};
 					const fileProcessing = (currentNodeParameter('fileProcessing') as IDataObject) || {};
 					const outputFileProcessing = (currentNodeParameter('outputFileProcessing') as IDataObject) || {};
-					const credentialsManagement = (currentNodeParameter('credentialsManagement') as IDataObject) || {};
+					const hideVariableValues = currentNodeParameter('hideVariableValues') as boolean || false;
 					
 					// Generate template using the helper function
 					const templateCode = generateCodeTemplateStatic(
 						functionCode,
 						scriptOptions.includeInputItems !== false,
 						scriptOptions.includeEnvVarsDict === true,
-						credentialsManagement.hideVariableValues === true,
+						hideVariableValues,
 						fileProcessing.enabled === true,
 						outputFileProcessing.enabled === true,
 					);
@@ -1288,7 +1093,7 @@ if output_dir:
 						{
 							name: `🔄 Generated Template (${lines.length} lines, ${nonEmptyLines} non-empty)`,
 							value: 'template_generated',
-							description: `✅ Template generated at ${timestamp}\n\n📋 Features included:\n• Input items: ${scriptOptions.includeInputItems !== false ? 'Yes' : 'No'}\n• Environment variables: ${scriptOptions.includeEnvVarsDict === true ? 'Yes' : 'No'}\n• File processing: ${fileProcessing.enabled === true ? 'Yes' : 'No'}\n• Output file processing: ${outputFileProcessing.enabled === true ? 'Yes' : 'No'}\n• Hidden credentials: ${credentialsManagement.hideVariableValues === true ? 'Yes' : 'No'}\n• User code: ${hasUserCode ? 'Found' : 'None (template only)'}`,
+							description: `✅ Template generated at ${timestamp}\n\n📋 Features included:\n• Input items: ${scriptOptions.includeInputItems !== false ? 'Yes' : 'No'}\n• Environment variables: ${scriptOptions.includeEnvVarsDict === true ? 'Yes' : 'No'}\n• File processing: ${fileProcessing.enabled === true ? 'Yes' : 'No'}\n• Output file processing: ${outputFileProcessing.enabled === true ? 'Yes' : 'No'}\n• Hidden credentials: ${hideVariableValues ? 'Yes' : 'No'}\n• User code: ${hasUserCode ? 'Found' : 'None (template only)'}`,
 						},
 						{
 							name: '📋 Template Preview (first 20 lines)',
@@ -1498,23 +1303,8 @@ if output_dir:
 			inputItemsCount: items.length,
 		});
 		
-		// Get credentials management configuration
-		const credentialsConfig = this.getNodeParameter('credentialsManagement', 0, {}) as {
-			useDefaultCredential?: boolean;
-			hideVariableValues?: boolean;
-			multipleCredentialsMethod?: string;
-			credentialNamesList?: string;
-			additionalCredential1?: string;
-			additionalCredential2?: string;
-			additionalCredential3?: string;
-			credentialCollection?: { credentials: Array<{ credentialName: string; variablePrefix?: string }> };
-			jsonConfiguration?: string;
-			mergeStrategy?: string;
-		};
-		const useDefaultCredential = credentialsConfig.useDefaultCredential !== false; // default true
-		const hideCredentialValues = credentialsConfig.hideVariableValues === true; // default false
-		const multipleCredentialsMethod = credentialsConfig.multipleCredentialsMethod || 'none';
-		const mergeStrategy = credentialsConfig.mergeStrategy || 'last_wins';
+		// Get hide variable values configuration
+		const hideCredentialValues = this.getNodeParameter('hideVariableValues', 0, false) as boolean;
 		
 		// Get Data Sources Configuration (new architecture)
 		const dataSourcesConfig = this.getNodeParameter('dataSourcesConfig', 0, null) as {
@@ -1559,57 +1349,16 @@ if output_dir:
 		try {
 			// Load credentials only if enabled in Data Sources Configuration
 			if (includeCredentialVars) {
-				// Load default credential first if enabled
-				if (useDefaultCredential) {
-					const credentialData = await this.getCredentials('pythonEnvVars');
-					if (credentialData && credentialData.envFileContent) {
-						pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
-						const credentialName = String(credentialData.name || 'default_credential');
-						credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
-							acc[key] = credentialName;
-							return acc;
-						}, {} as Record<string, string>);
-						console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from default credential (${credentialName})`);
-					}
-				}
-				
-				// Load additional credentials based on method
-				if (multipleCredentialsMethod !== 'none') {
-					const additionalEnvVars = await loadMultipleCredentials(
-						this,
-						credentialsConfig,
-						multipleCredentialsMethod,
-						mergeStrategy,
-					);
-					
-					// Merge additional credentials with default credential
-					for (const [key, value] of Object.entries(additionalEnvVars.envVars)) {
-						let finalKey = key;
-						
-						// Apply merge strategy
-						switch (mergeStrategy) {
-							case 'first_wins':
-								if (pythonEnvVars[key] !== undefined) continue;
-								break;
-							case 'skip_conflicts':
-								if (pythonEnvVars[key] !== undefined) continue;
-								break;
-							case 'prefix_source':
-								const source = additionalEnvVars.credentialSources[key] || 'unknown';
-								const safeSource = source.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-								finalKey = `${safeSource}_${key}`;
-								break;
-							case 'last_wins':
-							default:
-								// Overwrite without checking
-								break;
-						}
-						
-						pythonEnvVars[finalKey] = value;
-						credentialSources[finalKey] = String(additionalEnvVars.credentialSources[key] || 'unknown');
-					}
-					
-					console.log(`Total loaded variables after merging: ${Object.keys(pythonEnvVars).length}`);
+				// Load default credential
+				const credentialData = await this.getCredentials('pythonEnvVars');
+				if (credentialData && credentialData.envFileContent) {
+					pythonEnvVars = parseEnvFile(String(credentialData.envFileContent));
+					const credentialName = String(credentialData.name || 'default_credential');
+					credentialSources = Object.keys(pythonEnvVars).reduce((acc, key) => {
+						acc[key] = credentialName;
+						return acc;
+					}, {} as Record<string, string>);
+					console.log(`Loaded ${Object.keys(pythonEnvVars).length} variables from credential (${credentialName})`);
 				}
 			} else {
 				console.log('Credential variables disabled in Data Sources Configuration');
@@ -1978,7 +1727,7 @@ async function executeOnce(
 		scriptPath = await getTemporaryScriptPath(
 			functionCode, 
 			injectVariables ? unwrapJsonField(items) : [], 
-			injectVariables ? pythonEnvVars : {}, 
+			pythonEnvVars, 
 			includeInputItems, 
 			includeEnvVarsDict, 
 			hideVariableValues, 
@@ -2032,7 +1781,7 @@ async function executeOnce(
 				scriptContent = getScriptCode(
 					functionCode, 
 					injectVariables ? unwrapJsonField(items) : [], 
-					injectVariables ? pythonEnvVars : {}, 
+					pythonEnvVars, 
 					includeInputItems, 
 					includeEnvVarsDict, 
 					hideVariableValues, 
@@ -2395,7 +2144,7 @@ async function executePerItem(
 			scriptPath = await getTemporaryScriptPath(
 				functionCode, 
 				injectVariables ? [unwrapJsonField([item])[0]] : [], 
-				injectVariables ? pythonEnvVars : {}, 
+				pythonEnvVars, 
 				includeInputItems, 
 				includeEnvVarsDict, 
 				hideVariableValues, 
@@ -2441,7 +2190,7 @@ async function executePerItem(
 					scriptContent = getScriptCode(
 						functionCode, 
 						injectVariables ? [unwrapJsonField([item])[0]] : [], 
-						injectVariables ? pythonEnvVars : {}, 
+						pythonEnvVars, 
 						includeInputItems, 
 						includeEnvVarsDict, 
 						hideVariableValues, 

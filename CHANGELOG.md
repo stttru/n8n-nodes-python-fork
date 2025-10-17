@@ -6,6 +6,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.7] - 2025-01-17
+
+### Fixed
+- **CRITICAL**: Fixed credentials not being injected when "Inject Input Variables" is disabled
+- Credentials are now ALWAYS injected regardless of injectVariables setting
+
+### Changed
+- Simplified UI: Removed "Credentials Management" collection
+- Removed deprecated "Inject Variables" field
+- "Hide Variable Values" is now a top-level toggle (always visible)
+
+### Removed
+- Credentials Management collection with all nested options
+- Deprecated "Inject Variables" field
+- Multiple credentials loading functions (simplified to single credential only)
+
 ## [1.17.6] - 2025-10-17
 
 ### Fixed
