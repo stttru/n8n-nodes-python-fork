@@ -2692,6 +2692,28 @@ async function executeOnce(
 			}
 		}
 
+		// Add binary files for Full Debug+ mode
+		if (debugMode === 'full_plus' && debugInfo && fullDebugPlusDiagnostics) {
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+			
+			// Create Python script file
+			const scriptFilename = `full_debug_plus_script_${timestamp}.py`;
+			const scriptBinary = createScriptBinary(debugInfo.script_content, scriptFilename, scriptExportFormat || 'py');
+			
+			// Create full diagnostics JSON file (includes all Full Debug+ data)
+			const diagnosticsFilename = `full_debug_plus_diagnostics_${timestamp}.json`;
+			const diagnosticsBinary = createFullDebugPlusDiagnosticsBinary(fullDebugPlusDiagnostics, baseResult, diagnosticsFilename);
+			
+			// Add binary data to each result item
+			for (const resultItem of resultWithPassThrough) {
+				if (!resultItem.binary) {
+					resultItem.binary = {};
+				}
+				Object.assign(resultItem.binary, scriptBinary);
+				Object.assign(resultItem.binary, diagnosticsBinary);
+			}
+		}
+
 		// If successful, return result
 		if (exitCode === 0) {
 			// Full Debug+: Add final summary and troubleshooting hints
@@ -3228,6 +3250,25 @@ async function executePerItem(
 				
 				// Create output.json with execution results for this item
 				const outputJsonFilename = `output_item_${i}_${timestamp}.json`;
+				const outputJsonBinary = createOutputJsonBinary(itemResult, outputJsonFilename);
+				
+				for (const resultItem of resultWithPassThrough) {
+					if (!resultItem.binary) {
+						resultItem.binary = {};
+					}
+					Object.assign(resultItem.binary, scriptBinary);
+					Object.assign(resultItem.binary, outputJsonBinary);
+				}
+			}
+
+			// Add binary script file for Full Debug+ mode (per-item mode)
+			if (debugMode === 'full_plus' && debugInfo) {
+				const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+				const scriptFilename = `full_debug_plus_script_item_${i}_${timestamp}.py`;
+				const scriptBinary = createScriptBinary(debugInfo.script_content, scriptFilename, scriptExportFormat || 'py');
+				
+				// Create output.json with execution results for this item
+				const outputJsonFilename = `full_debug_plus_output_item_${i}_${timestamp}.json`;
 				const outputJsonBinary = createOutputJsonBinary(itemResult, outputJsonFilename);
 				
 				for (const resultItem of resultWithPassThrough) {
@@ -4468,6 +4509,43 @@ function createOutputJsonBinary(outputData: IDataObject, filename = 'output.json
 	};
 	
 	const jsonString = JSON.stringify(outputJsonContent, null, 2);
+	const buffer = Buffer.from(jsonString, 'utf8');
+	
+	return {
+		[filename]: {
+			data: buffer.toString('base64'),
+			mimeType: 'application/json',
+			fileExtension: 'json',
+			fileName: filename,
+		},
+	};
+}
+
+function createFullDebugPlusDiagnosticsBinary(
+	diagnostics: FullDebugPlusDiagnostics, 
+	executionResults: IDataObject, 
+	filename = 'full_debug_plus_diagnostics.json'
+): { [key: string]: unknown } {
+	// Create comprehensive diagnostics file including execution results
+	const cleanedExecutionResults = { ...executionResults };
+	delete cleanedExecutionResults.script_content; // Script is exported separately
+	delete cleanedExecutionResults.full_debug_plus_diagnostics; // Avoid duplication
+	
+	const fullDiagnosticsContent = {
+		mode: 'full_debug_plus',
+		timestamp: new Date().toISOString(),
+		diagnostics: diagnostics,
+		execution_results: cleanedExecutionResults,
+		export_info: {
+			description: "Full Debug+ comprehensive diagnostics and execution results from n8n Python Raw node",
+			format_version: "1.0",
+			exported_at: new Date().toISOString(),
+			node_type: "n8n-nodes-python-raw.pythonFunctionRaw",
+			package_version: diagnostics.node_installation?.package?.version || 'unknown',
+		}
+	};
+	
+	const jsonString = JSON.stringify(fullDiagnosticsContent, null, 2);
 	const buffer = Buffer.from(jsonString, 'utf8');
 	
 	return {

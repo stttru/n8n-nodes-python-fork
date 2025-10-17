@@ -6,6 +6,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.19.3] - 2025-01-17
+
+### Enhanced
+- **Full Debug+ File Export**: Full Debug+ mode now exports files in addition to diagnostics
+  - Exports Python script file (same as Export Script mode)
+  - Exports comprehensive diagnostics JSON file (includes all Full Debug+ data + execution results)
+  - Files are returned as binary attachments to the node output
+  - File naming: `full_debug_plus_script_TIMESTAMP.py` and `full_debug_plus_diagnostics_TIMESTAMP.json`
+
+### Technical Details
+- Added `createFullDebugPlusDiagnosticsBinary()` helper function
+- Full Debug+ diagnostics JSON includes system info, Python environment, execution results, and troubleshooting hints
+- Files are base64-encoded and attached as binary data to node output
+- Works in both executeOnce and executePerItem modes
+- Per-item mode exports script and output files with item-specific naming
+
 ## [1.19.2] - 2025-01-17
 
 ### Enhanced
